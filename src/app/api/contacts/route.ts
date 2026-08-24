@@ -2,11 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireTeamSession } from "@/lib/api-auth";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { CONTACT_STATUSES, type ContactStatus } from "@/lib/supabase/database.types";
-
-function isContactStatus(value: string): value is ContactStatus {
-  return (CONTACT_STATUSES as readonly string[]).includes(value);
-}
+import { resolveStatus } from "@/lib/statuses";
 
 // GET/POST /api/contacts — per spec section 4 ("CRUD לדשבורד"). The dashboard's own
 // pages read contacts directly via the Supabase server client (see
@@ -31,10 +27,12 @@ export async function GET(request: NextRequest) {
     .order("created_at", { ascending: false });
 
   if (status) {
-    if (!isContactStatus(status)) {
+    // הסטטוסים הם שורות בטבלה מאז 0003_statuses.sql, לא enum בקוד
+    const resolved = await resolveStatus(status);
+    if (!resolved) {
       return NextResponse.json({ error: `invalid status: ${status}` }, { status: 400 });
     }
-    query = query.eq("status", status);
+    query = query.eq("status", resolved);
   }
   if (tag) query = query.contains("tags", [tag]);
   if (search) {
@@ -54,7 +52,7 @@ const createContactSchema = z.object({
   full_name: z.string().min(1).optional(),
   phone: z.string().min(1).optional(),
   email: z.string().email().optional(),
-  status: z.enum(CONTACT_STATUSES).optional(),
+  status: z.string().optional(),
   source: z.string().optional(),
   tags: z.array(z.string()).optional(),
   notes: z.string().optional(),
@@ -68,6 +66,10 @@ export async function POST(request: NextRequest) {
   const parsed = createContactSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  }
+
+  if (parsed.data.status && !(await resolveStatus(parsed.data.status))) {
+    return NextResponse.json({ error: `invalid status: ${parsed.data.status}` }, { status: 400 });
   }
 
   const { data, error } = await supabaseAdmin()

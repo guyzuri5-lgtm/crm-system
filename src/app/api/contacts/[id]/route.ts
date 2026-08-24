@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireTeamSession } from "@/lib/api-auth";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { updateContactStatus } from "@/lib/automation-engine";
-import { CONTACT_STATUSES } from "@/lib/supabase/database.types";
+import { resolveStatus } from "@/lib/statuses";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +27,7 @@ const patchContactSchema = z.object({
   full_name: z.string().min(1).optional(),
   phone: z.string().min(1).optional(),
   email: z.string().email().optional(),
-  status: z.enum(CONTACT_STATUSES).optional(),
+  status: z.string().optional(),
   tags: z.array(z.string()).optional(),
   notes: z.string().optional(),
 });
@@ -50,6 +50,12 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/contac
   }
 
   const { status, ...rest } = parsed.data;
+
+  // ולידציה מול טבלת contact_statuses (0003_statuses.sql) — ה-DB היה דוחה
+  // סטטוס לא קיים ממילא דרך המפתח הזר, אבל כ-500 ולא כשגיאת קלט ברורה.
+  if (status && !(await resolveStatus(status))) {
+    return NextResponse.json({ error: `invalid status: ${status}` }, { status: 400 });
+  }
 
   try {
     if (Object.keys(rest).length > 0) {

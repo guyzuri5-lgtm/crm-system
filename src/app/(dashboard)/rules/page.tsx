@@ -1,10 +1,13 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { verifyTeamMember } from "@/lib/dal";
-import { MESSAGE_CHANNELS, CONTACT_STATUSES } from "@/lib/supabase/database.types";
+import { MESSAGE_CHANNELS } from "@/lib/supabase/database.types";
+import { listStatuses } from "@/lib/statuses";
+import { statusLabel } from "@/lib/status-colors";
 import { createRuleAction, toggleRuleAction, deleteRuleAction } from "./actions";
 
 export default async function RulesPage() {
   await verifyTeamMember();
+  const statuses = await listStatuses();
   const db = supabaseAdmin();
 
   const [{ data: rules, error: rulesError }, { data: templates, error: templatesError }] =
@@ -55,9 +58,9 @@ export default async function RulesPage() {
               סטטוס יציאה (רלוונטי רק ל&quot;שינוי סטטוס&quot;; ריק = כל סטטוס)
               <select name="from_status" className="input" defaultValue="">
                 <option value="">כל סטטוס</option>
-                {CONTACT_STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {s.replaceAll("_", " ")}
+                {statuses.map((s) => (
+                  <option key={s.id} value={s.name}>
+                    {statusLabel(s.name)}
                   </option>
                 ))}
               </select>
@@ -71,9 +74,9 @@ export default async function RulesPage() {
                 סטטוס יעד (&quot;זמן ללא מענה&quot; בלבד)
                 <select name="status" className="input" defaultValue="">
                   <option value="">בחר סטטוס</option>
-                  {CONTACT_STATUSES.map((s) => (
-                    <option key={s} value={s}>
-                      {s.replaceAll("_", " ")}
+                  {statuses.map((s) => (
+                    <option key={s.id} value={s.name}>
+                      {statusLabel(s.name)}
                     </option>
                   ))}
                 </select>

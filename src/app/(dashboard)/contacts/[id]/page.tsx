@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { verifyTeamMember } from "@/lib/dal";
 import { isWithin24HourWindow } from "@/lib/manychat";
-import { CONTACT_STATUSES } from "@/lib/supabase/database.types";
+import { listStatuses, statusMap } from "@/lib/statuses";
+import { statusLabel } from "@/lib/status-colors";
 import { StatusBadge } from "@/components/status-badge";
 import { QuizResult, type QuizSubmissionView } from "@/components/quiz-result";
 import {
@@ -20,6 +21,8 @@ const INTERACTION_LABELS: Record<string, string> = {
   email_out: "מייל → יוצא",
   manual_note: "הערה ידנית",
   quiz_submitted: "שאלון צ'אקרות",
+  booking_created: "נקבעה פגישה",
+  booking_cancelled: "בוטלה פגישה",
 };
 
 const INTERACTION_DOT: Record<string, string> = {
@@ -28,11 +31,15 @@ const INTERACTION_DOT: Record<string, string> = {
   email_out: "bg-blue-500",
   manual_note: "bg-stone-400",
   quiz_submitted: "bg-violet-500",
+  booking_created: "bg-teal-500",
+  booking_cancelled: "bg-rose-400",
 };
 
 export default async function ContactDetailPage(props: PageProps<"/contacts/[id]">) {
   await verifyTeamMember();
   const { id } = await props.params;
+
+  const [statuses, statusesByName] = await Promise.all([listStatuses(), statusMap()]);
 
   const db = supabaseAdmin();
   const [
@@ -82,7 +89,7 @@ export default async function ContactDetailPage(props: PageProps<"/contacts/[id]
             {contact.full_name ?? "איש קשר ללא שם"}
           </h1>
         </div>
-        <StatusBadge status={contact.status} />
+        <StatusBadge status={contact.status} color={statusesByName.get(contact.status)?.color} />
       </div>
 
       {(quizzes ?? []).length > 0 && (
@@ -123,9 +130,9 @@ export default async function ContactDetailPage(props: PageProps<"/contacts/[id]
             <label className="field-label flex-1">
               עדכון סטטוס
               <select name="status" defaultValue={contact.status} className="input">
-                {CONTACT_STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {s.replaceAll("_", " ")}
+                {statuses.map((s) => (
+                  <option key={s.id} value={s.name}>
+                    {statusLabel(s.name)}
                   </option>
                 ))}
               </select>
@@ -152,6 +159,44 @@ export default async function ContactDetailPage(props: PageProps<"/contacts/[id]
             </button>
           </form>
         </div>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="font-medium">לוג אינטראקציות</h2>
+
+        <form action={addManualNoteAction} className="flex gap-2">
+          <input type="hidden" name="contact_id" value={contact.id} />
+          <input
+            name="content"
+            placeholder="הוסיפו הערה ללוג (לדוגמה: 'דיברנו בטלפון')"
+            className="input flex-1"
+          />
+          <button type="submit" className="btn-secondary shrink-0">
+            הוסף ללוג
+          </button>
+        </form>
+
+        <ul className="flex flex-col gap-2">
+          {interactions?.map((interaction) => (
+            <li key={interaction.id} className="card py-3">
+              <div className="flex items-center justify-between text-xs text-[var(--muted)]">
+                <span className="flex items-center gap-1.5">
+                  <span
+                    className={`size-1.5 rounded-full ${INTERACTION_DOT[interaction.type] ?? "bg-stone-400"}`}
+                  />
+                  {INTERACTION_LABELS[interaction.type] ?? interaction.type}
+                </span>
+                <span>{new Date(interaction.created_at).toLocaleString("he-IL")}</span>
+              </div>
+              {interaction.content && (
+                <p className="mt-1.5 text-sm whitespace-pre-wrap">{interaction.content}</p>
+              )}
+            </li>
+          ))}
+          {!interactions?.length && (
+            <p className="px-1 text-sm text-[var(--subtle)]">אין עדיין אינטראקציות</p>
+          )}
+        </ul>
       </section>
 
       <section className="card">
@@ -207,44 +252,6 @@ export default async function ContactDetailPage(props: PageProps<"/contacts/[id]
             )}
           </div>
         )}
-      </section>
-
-      <section className="flex flex-col gap-3">
-        <h2 className="font-medium">לוג אינטראקציות</h2>
-
-        <form action={addManualNoteAction} className="flex gap-2">
-          <input type="hidden" name="contact_id" value={contact.id} />
-          <input
-            name="content"
-            placeholder="הוסיפו הערה ללוג (לדוגמה: 'דיברנו בטלפון')"
-            className="input flex-1"
-          />
-          <button type="submit" className="btn-secondary shrink-0">
-            הוסף ללוג
-          </button>
-        </form>
-
-        <ul className="flex flex-col gap-2">
-          {interactions?.map((interaction) => (
-            <li key={interaction.id} className="card py-3">
-              <div className="flex items-center justify-between text-xs text-[var(--muted)]">
-                <span className="flex items-center gap-1.5">
-                  <span
-                    className={`size-1.5 rounded-full ${INTERACTION_DOT[interaction.type] ?? "bg-stone-400"}`}
-                  />
-                  {INTERACTION_LABELS[interaction.type] ?? interaction.type}
-                </span>
-                <span>{new Date(interaction.created_at).toLocaleString("he-IL")}</span>
-              </div>
-              {interaction.content && (
-                <p className="mt-1.5 text-sm whitespace-pre-wrap">{interaction.content}</p>
-              )}
-            </li>
-          ))}
-          {!interactions?.length && (
-            <p className="px-1 text-sm text-[var(--subtle)]">אין עדיין אינטראקציות</p>
-          )}
-        </ul>
       </section>
     </div>
   );

@@ -4,6 +4,7 @@ import { signOut } from "@/app/login/actions";
 
 const NAV_LINKS = [
   { href: "/contacts", label: "אנשי קשר" },
+  { href: "/statuses", label: "סטטוסים" },
   { href: "/rules", label: "כללי אוטומציה" },
   { href: "/templates", label: "תבניות הודעה" },
 ];

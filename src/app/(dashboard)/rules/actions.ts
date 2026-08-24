@@ -7,16 +7,16 @@ import { verifyTeamMember } from "@/lib/dal";
 import {
   AUTOMATION_TRIGGER_TYPES,
   MESSAGE_CHANNELS,
-  CONTACT_STATUSES,
 } from "@/lib/supabase/database.types";
+import { resolveStatus } from "@/lib/statuses";
 
+// הסטטוסים אינם enum מאז 0003_statuses.sql, אז הם לא חלק מהסכמה הזו —
+// שדות הסטטוס נבדקים מול ה-DB אחרי הפענוח (ראו resolveStatus למטה).
 const createRuleSchema = z.object({
   trigger_type: z.enum(AUTOMATION_TRIGGER_TYPES),
   action_channel: z.enum(MESSAGE_CHANNELS),
   action_template_id: z.string().uuid("בחרו תבנית"),
-  from_status: z.enum(CONTACT_STATUSES).optional(),
   days: z.coerce.number().int().positive().optional(),
-  status: z.enum(CONTACT_STATUSES).optional(),
 });
 
 export async function createRuleAction(formData: FormData) {
@@ -26,16 +26,22 @@ export async function createRuleAction(formData: FormData) {
     trigger_type: formData.get("trigger_type"),
     action_channel: formData.get("action_channel"),
     action_template_id: formData.get("action_template_id"),
-    from_status: formData.get("from_status") || undefined,
     days: formData.get("days") || undefined,
-    status: formData.get("status") || undefined,
   });
   if (!parsed.success) {
     throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
   }
   const data = parsed.data;
 
-  if (data.trigger_type === "time_since_no_reply" && (!data.days || !data.status)) {
+  const rawFromStatus = String(formData.get("from_status") ?? "");
+  const rawStatus = String(formData.get("status") ?? "");
+  const fromStatus = rawFromStatus ? await resolveStatus(rawFromStatus) : null;
+  const status = rawStatus ? await resolveStatus(rawStatus) : null;
+
+  if (rawFromStatus && !fromStatus) throw new Error("סטטוס יציאה לא תקין");
+  if (rawStatus && !status) throw new Error("סטטוס יעד לא תקין");
+
+  if (data.trigger_type === "time_since_no_reply" && (!data.days || !status)) {
     throw new Error("לכלל מסוג 'זמן ללא מענה' חובה למלא ימים וסטטוס יעד");
   }
 
@@ -54,10 +60,10 @@ export async function createRuleAction(formData: FormData) {
 
   const trigger_value =
     data.trigger_type === "status_change"
-      ? data.from_status
-        ? { from_status: data.from_status }
+      ? fromStatus
+        ? { from_status: fromStatus }
         : {}
-      : { days: data.days, status: data.status };
+      : { days: data.days!, status: status! };
 
   const { error } = await db.from("automation_rules").insert({
     trigger_type: data.trigger_type,

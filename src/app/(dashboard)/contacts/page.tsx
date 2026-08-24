@@ -1,21 +1,22 @@
 import Link from "next/link";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { verifyTeamMember } from "@/lib/dal";
-import { CONTACT_STATUSES, type ContactStatus } from "@/lib/supabase/database.types";
-import { StatusBadge } from "@/components/status-badge";
-import { createContactAction } from "./actions";
-
-function isContactStatus(value: string): value is ContactStatus {
-  return (CONTACT_STATUSES as readonly string[]).includes(value);
-}
+import { listStatuses } from "@/lib/statuses";
+import { statusLabel } from "@/lib/status-colors";
+import { StatusPicker } from "@/components/status-picker";
+import { createContactAction, setContactStatusAction } from "./actions";
+import { ImportForm } from "./import-form";
 
 export default async function ContactsPage(props: PageProps<"/contacts">) {
   await verifyTeamMember();
 
+  const statuses = await listStatuses();
+  const statusNames = new Set(statuses.map((s) => s.name));
+
   const searchParams = await props.searchParams;
   const statusParam = searchParams.status;
   const qParam = searchParams.q;
-  const status = typeof statusParam === "string" && isContactStatus(statusParam) ? statusParam : "";
+  const status = typeof statusParam === "string" && statusNames.has(statusParam) ? statusParam : "";
   const q = typeof qParam === "string" ? qParam : "";
 
   let query = supabaseAdmin()
@@ -33,9 +34,18 @@ export default async function ContactsPage(props: PageProps<"/contacts">) {
 
   const { data: contacts, error } = await query;
 
+  // האפשרויות ל-StatusPicker נשלחות פעם אחת מהשרת ומשותפות לכל השורות, במקום
+  // שכל שורה תשלוף אותן בעצמה.
+  const pickerOptions = statuses.map((s) => ({ name: s.name, color: s.color }));
+
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-semibold">אנשי קשר</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold">אנשי קשר</h1>
+        <Link href="/statuses" className="btn-ghost">
+          ניהול סטטוסים
+        </Link>
+      </div>
 
       <details className="card group">
         <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium">
@@ -54,10 +64,10 @@ export default async function ContactsPage(props: PageProps<"/contacts">) {
           </label>
           <label className="field-label">
             סטטוס
-            <select name="status" defaultValue={CONTACT_STATUSES[0]} className="input">
-              {CONTACT_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s.replaceAll("_", " ")}
+            <select name="status" defaultValue={statuses[0]?.name ?? ""} className="input">
+              {statuses.map((s) => (
+                <option key={s.id} value={s.name}>
+                  {statusLabel(s.name)}
                 </option>
               ))}
             </select>
@@ -80,14 +90,26 @@ export default async function ContactsPage(props: PageProps<"/contacts">) {
         </form>
       </details>
 
+      <details className="card group">
+        <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium">
+          <span className="grid size-5 place-items-center rounded-full bg-[var(--primary-soft)] text-[var(--primary)] transition-transform duration-150 group-open:rotate-45">
+            ↑
+          </span>
+          ייבוא מקובץ אקסל / CSV
+        </summary>
+        <div className="mt-4 border-t border-[var(--border)] pt-4">
+          <ImportForm />
+        </div>
+      </details>
+
       <form className="flex flex-wrap items-end gap-3 text-sm">
         <label className="field-label">
           סטטוס
           <select name="status" defaultValue={status} className="input">
             <option value="">הכל</option>
-            {CONTACT_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {s.replaceAll("_", " ")}
+            {statuses.map((s) => (
+              <option key={s.id} value={s.name}>
+                {statusLabel(s.name)}
               </option>
             ))}
           </select>
@@ -139,7 +161,12 @@ export default async function ContactsPage(props: PageProps<"/contacts">) {
                 <td className="td text-[var(--muted)]">{c.phone ?? "—"}</td>
                 <td className="td text-[var(--muted)]">{c.email ?? "—"}</td>
                 <td className="td">
-                  <StatusBadge status={c.status} />
+                  <StatusPicker
+                    contactId={c.id}
+                    status={c.status}
+                    options={pickerOptions}
+                    onSelect={setContactStatusAction}
+                  />
                 </td>
                 <td className="td text-[var(--muted)]">{c.tags.join(", ") || "—"}</td>
                 <td className="td text-[var(--muted)]">{c.source}</td>

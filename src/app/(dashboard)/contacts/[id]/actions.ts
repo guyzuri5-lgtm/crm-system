@@ -6,21 +6,18 @@ import { updateContactStatus } from "@/lib/automation-engine";
 import { verifyTeamMember } from "@/lib/dal";
 import { sendMessageToContact } from "@/lib/send";
 import { renderTemplate } from "@/lib/templates";
-import { CONTACT_STATUSES, type ContactStatus } from "@/lib/supabase/database.types";
+import { resolveStatus } from "@/lib/statuses";
 
 // Server Actions are directly callable endpoints, not just page plumbing — verified
 // per the Next.js auth guide's guidance, same as any /api route.
-
-function isContactStatus(value: string): value is ContactStatus {
-  return (CONTACT_STATUSES as readonly string[]).includes(value);
-}
 
 export async function changeStatusAction(formData: FormData) {
   await verifyTeamMember();
 
   const contactId = String(formData.get("contact_id") ?? "");
-  const status = String(formData.get("status") ?? "");
-  if (!contactId || !isContactStatus(status)) {
+  // רשימת הסטטוסים היא נתונים מאז 0003_statuses.sql — הבדיקה היא מול ה-DB
+  const status = await resolveStatus(formData.get("status"));
+  if (!contactId || !status) {
     throw new Error("סטטוס לא תקין");
   }
 
