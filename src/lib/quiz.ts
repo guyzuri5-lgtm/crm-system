@@ -81,7 +81,13 @@ export const quizPayloadSchema = z.object({
   source: z.string().max(500).optional().default(""),
   utm: z.record(z.string().max(40), z.string().max(300)).optional().default({}),
   bookingFrom: z.string().max(60).optional(),
-});
+})
+  // רשומה חייבת לשאת תוצאה אמיתית. בלי זה כל POST עם sessionId תקין
+  // היה יוצר שורה ריקה — רעש שקל לייצר נגד endpoint ציבורי.
+  .refine(
+    (d) => d.lowestChakra != null && d.scores != null && Object.keys(d.scores).length >= 7,
+    { message: "חסרים ציונים או זיהוי המרכז החסום" }
+  );
 
 export type QuizPayload = z.infer<typeof quizPayloadSchema>;
 
