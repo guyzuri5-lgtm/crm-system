@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { sendMessageToContact } from "@/lib/send";
+import { buildQuizReportEmail } from "@/lib/quiz-email";
 import type { QuizKind } from "@/lib/supabase/database.types";
 import {
   quizPayloadSchema,
@@ -22,6 +24,12 @@ import {
 //   lead          — אחרי מילוי הטופס, עם פרטי קשר → נוצר/מתעדכן איש קשר
 //   booking_click — בלחיצה על "קביעת פגישה"
 // הם ממוזגים לשורה אחת ב-quiz_submissions לפי sessionId.
+//
+// ב-lead, אחרי השמירה, נשלח לנרשם "הדוח המלא על שבע הצ'אקרות" במייל — בדיוק
+// מה שהטופס מבטיח. השליחה קורית ב-after(): היא לא על המסלול הקריטי, ותקלה
+// ב-Gmail לא אמורה להכשיל את קליטת הליד. מאותה סיבה גם השאילתות של המסלול
+// הקריטי לא נוגעות ב-results_email_sent_at: אם 0004 עוד לא רץ, המייל נכשל
+// ונרשם בלוג — אבל הליד עצמו נשמר כרגיל.
 
 export const dynamic = "force-dynamic";
 
@@ -134,10 +142,113 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  // ── מייל הדוח המלא ─────────────────────────────────────────────────────
+  // רק ל-lead עם איש קשר ומייל תקין. החד-פעמיות נאכפת בתוך sendResultsEmail
+  // בעדכון מותנה, ולא בבדיקה כאן — כך אין חלון בין הבדיקה לשליחה, וקליטת
+  // הליד לא נשענת בשום צורה על העמודה results_email_sent_at.
+  if (p.type === "lead" && contactId && email) {
+    after(() => sendResultsEmail(db, submission.id, contactId, p));
+  }
+
   return json({ ok: true, submission_id: submission.id, contact_id: contactId });
 }
 
 // ── עזרים ────────────────────────────────────────────────────────────────
+
+/**
+ * שולח את "הדוח המלא על שבע הצ'אקרות" לנרשם, פעם אחת בלבד.
+ *
+ * הסדר כאן מכוון: קודם "תופסים" את הזכות לשלוח בעדכון מותנה
+ * (results_email_sent_at is null), ורק אחר כך שולחים. שתי בקשות מקבילות עם
+ * אותו sessionId — השנייה לא תתפוס דבר ותצא. אם השליחה נכשלת, מנקים את
+ * החותמת בחזרה ל-null כדי שניסיון חוזר יוכל לשלוח, והכישלון נרשם ביומן
+ * איש הקשר כדי שיהיה גלוי ב-CRM ולא רק בלוגים.
+ */
+const REPORT_LOG_PREFIX = "[דוח שאלון צ'אקרות]";
+
+/** האם השגיאה היא "העמודה לא קיימת" — כלומר 0004 עוד לא רץ? */
+function isMissingColumn(err: { code?: string; message?: string }): boolean {
+  return err.code === "42703" || err.code === "PGRST204" || /results_email_sent_at/.test(err.message ?? "");
+}
+
+/**
+ * "תופס" את הזכות לשלוח, כדי שאותו אדם לא יקבל את הדוח פעמיים.
+ *
+ * מסלול ראשי — עדכון מותנה על results_email_sent_at. אטומי: שתי בקשות מקבילות,
+ * רק אחת תתפוס. זה המסלול הנכון, והוא פעיל ברגע ש-0004 רץ.
+ *
+ * מסלול גיבוי — כל עוד העמודה לא קיימת, נשענים על היומן: אם כבר נרשמה שליחת
+ * מייל דוח לאיש הקשר הזה בדקות האחרונות, לא שולחים שוב. זה מכסה את מה שקורה
+ * בפועל (רענון דף, ניסיון חוזר של הדפדפן, לחיצה על "קביעת פגישה" מיד אחרי
+ * הטופס) בלי לחסום לצמיתות מילוי חוזר אמיתי כעבור שבוע. הוא לא אטומי, ולכן
+ * בשליחה כפולה ממש-בו-זמנית ייתכן מייל כפול — פער שנסגר כשמריצים את 0004.
+ */
+async function claimReportSend(db: Db, submissionId: string, contactId: string) {
+  const { data, error } = await db
+    .from("quiz_submissions")
+    .update({ results_email_sent_at: new Date().toISOString() })
+    .eq("id", submissionId)
+    .is("results_email_sent_at", null)
+    .select("id")
+    .maybeSingle();
+
+  if (!error) return { ok: !!data, viaColumn: true };
+
+  if (!isMissingColumn(error)) {
+    console.error("[quiz] סימון שליחת הדוח נכשל — המייל לא נשלח:", error.message);
+    return { ok: false, viaColumn: true };
+  }
+
+  const since = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const { data: recent, error: logErr } = await db
+    .from("interactions")
+    .select("id")
+    .eq("contact_id", contactId)
+    .eq("type", "email_out")
+    .like("content", `${REPORT_LOG_PREFIX}%`)
+    .gte("created_at", since)
+    .limit(1);
+
+  if (logErr) {
+    console.error("[quiz] בדיקת היומן נכשלה — המייל לא נשלח:", logErr.message);
+    return { ok: false, viaColumn: false };
+  }
+  return { ok: !recent?.length, viaColumn: false };
+}
+
+async function sendResultsEmail(db: Db, submissionId: string, contactId: string, p: QuizPayload) {
+  const mail = buildQuizReportEmail(p);
+  if (!mail) return;
+
+  const claim = await claimReportSend(db, submissionId, contactId);
+  if (!claim.ok) return; // כבר נשלח, בקשה מקבילה הקדימה, או שהתפיסה נכשלה
+
+  const { data: contact } = await db
+    .from("contacts").select("*").eq("id", contactId).maybeSingle();
+
+  const result = contact
+    ? await sendMessageToContact({
+        contact,
+        channel: "email",
+        subject: mail.subject,
+        body: mail.html,
+        logPrefix: REPORT_LOG_PREFIX,
+      })
+    : { ok: false as const, error: "איש הקשר לא נמצא אחרי היצירה" };
+
+  if (!result.ok) {
+    // משחררים את התפיסה כדי שניסיון חוזר יוכל לשלוח. במסלול הגיבוי אין מה
+    // לשחרר — לא נרשם email_out, ולכן הבדיקה הבאה ממילא תאפשר שליחה.
+    if (claim.viaColumn) {
+      await db.from("quiz_submissions").update({ results_email_sent_at: null }).eq("id", submissionId);
+    }
+    await db.from("interactions").insert({
+      contact_id: contactId,
+      type: "manual_note",
+      content: `שליחת מייל הדוח נכשלה: ${result.error}`,
+    });
+  }
+}
 
 const KIND_RANK: Record<QuizKind, number> = { anonymous: 0, lead: 1, booking_click: 2 };
 
