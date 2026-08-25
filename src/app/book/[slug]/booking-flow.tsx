@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
+import { GoogleMeetLogo } from "@/components/google-meet-badge";
+
 /**
  * בחירת יום ושעה + טופס הפרטים, בשלושה שלבים על אותו מסך.
  *
@@ -27,6 +29,7 @@ interface Props {
   durationMinutes: number;
   maxDaysAhead: number;
   hostTimeZone: string;
+  isGoogleMeet: boolean;
 }
 
 const WEEKDAY_INITIALS = ["א", "ב", "ג", "ד", "ה", "ו", "ש"];
@@ -64,7 +67,13 @@ function monthLabel(year: number, month: number): string {
   );
 }
 
-export function BookingFlow({ slug, durationMinutes, maxDaysAhead, hostTimeZone }: Props) {
+export function BookingFlow({
+  slug,
+  durationMinutes,
+  maxDaysAhead,
+  hostTimeZone,
+  isGoogleMeet,
+}: Props) {
   // אזור הזמן של הצופה קיים רק בדפדפן. קריאה ל-Intl ישירות ברינדור הייתה
   // מייצרת HTML שונה בשרת ובלקוח (hydration mismatch), ו-setState בתוך effect
   // היה רינדור מדורג מיותר. useSyncExternalStore נועד בדיוק למקרה הזה: הוא
@@ -158,11 +167,15 @@ export function BookingFlow({ slug, durationMinutes, maxDaysAhead, hostTimeZone 
   const loadError = isCurrent ? loaded.error : null;
 
   // גבול הדפדוף קדימה: אין טעם להציג חודשים שכולם מעבר לחלון ההזמנות.
+  //
+  // נגזר מ-todayKey (שכבר מחושב באזור הזמן של המארח) ולא מ-new Date() חדש —
+  // אותה ספירת ימי לוח שהשרת עושה ב-computeSlots. maxDaysAhead=2 פירושו היום
+  // ומחר, ולכן ‎-1‎: היום עצמו הוא הראשון מבין הימים הנספרים.
   const lastAllowedKey = useMemo(() => {
-    const limit = new Date();
-    limit.setUTCDate(limit.getUTCDate() + maxDaysAhead);
+    const [year, month, day] = todayKey.split("-").map(Number);
+    const limit = new Date(Date.UTC(year, month - 1, day + maxDaysAhead - 1));
     return `${limit.getUTCFullYear()}-${pad(limit.getUTCMonth() + 1)}`;
-  }, [maxDaysAhead]);
+  }, [todayKey, maxDaysAhead]);
 
   const cursorKey = `${cursor.year}-${pad(cursor.month)}`;
   const canGoBack = cursorKey > `${todayYear}-${pad(todayMonth)}`;
@@ -258,27 +271,37 @@ export function BookingFlow({ slug, durationMinutes, maxDaysAhead, hostTimeZone 
   if (step === "done" && confirmed) {
     return (
       <div className="px-7 py-10 text-center">
-        <div className="mx-auto grid size-14 place-items-center rounded-full bg-[var(--primary-soft)]">
-          <svg viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2.2" className="size-7">
+        <div className="mx-auto grid size-16 place-items-center rounded-full bg-[var(--accent-muted)]">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-strong)" strokeWidth="2.4" className="size-8">
             <path d="m5 13 4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </div>
-        <h2 className="mt-4 text-xl font-bold">הפגישה נקבעה</h2>
-        <p className="mt-2 text-[var(--muted)]">
-          {formatSlotDate(confirmed.start)} בשעה {formatSlotTime(confirmed.start)}
+        <h2 className="mt-4 text-2xl font-bold">הפגישה נקבעה</h2>
+        <p className="mx-auto mt-3 inline-block rounded-xl bg-[var(--accent-soft)] px-4 py-2 font-medium text-[var(--accent-strong)]">
+          {formatSlotDate(confirmed.start)} · {formatSlotTime(confirmed.start)}
         </p>
-        <p className="mt-1 text-sm text-[var(--subtle)]">
+        <p className="mt-3 text-sm text-[var(--subtle)]">
           שלחנו אישור למייל {form.email}, וההזמנה נוספה ליומן שלך.
         </p>
         {confirmed.meetUrl && (
-          <a
-            href={confirmed.meetUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-primary mt-6"
-          >
-            קישור לפגישה
-          </a>
+          <div className="mx-auto mt-6 max-w-sm">
+            {/* הכפתור בצבעי Google ולא בצבע המבטא של הדף: כאן זה כבר לא קישוט
+                אלא זיהוי של היעד, והלקוח צריך לזהות מיד לאן הוא נכנס. */}
+            <a
+              href={confirmed.meetUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex w-full items-center justify-center gap-2.5 rounded-lg bg-[#1a73e8] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-[transform,background-color] duration-150 ease-out hover:bg-[#1765cc] active:scale-[0.97]"
+            >
+              <span className="grid size-5 place-items-center rounded bg-white">
+                <GoogleMeetLogo className="size-3.5" />
+              </span>
+              הצטרפות לשיחה ב-<span dir="ltr">Google Meet</span>
+            </a>
+            <p className="mt-2 text-xs text-[var(--subtle)]">
+              הקישור שמור גם במייל האישור ובהזמנה ביומן — אין צורך לשמור אותו עכשיו.
+            </p>
+          </div>
         )}
       </div>
     );
@@ -297,8 +320,21 @@ export function BookingFlow({ slug, durationMinutes, maxDaysAhead, hostTimeZone 
           <span aria-hidden>→</span> חזרה לבחירת מועד
         </button>
 
-        <div className="rounded-xl bg-[var(--primary-soft)] px-4 py-3 text-sm font-medium text-[var(--primary)]">
-          {formatSlotDate(selectedSlot)} · {formatSlotTime(selectedSlot)} · {durationMinutes} דקות
+        <div className="rounded-xl border border-[var(--accent-muted)] bg-[var(--accent-soft)] px-4 py-3">
+          <p className="text-sm font-semibold text-[var(--accent-strong)]">
+            {formatSlotDate(selectedSlot)} · {formatSlotTime(selectedSlot)}
+          </p>
+          <p className="mt-0.5 text-xs text-[var(--muted)]">
+            {durationMinutes} דקות · השעה לפי אזור הזמן שלך ({viewerTimeZone})
+          </p>
+          {/* שורה ולא כרטיס: ההסבר המלא על Meet כבר מופיע בכותרת הדף, ומה
+              שנחוץ כאן הוא רק לקשור בין הקישור לבין שדה המייל שמתחת. */}
+          {isGoogleMeet && (
+            <p className="mt-2.5 flex items-center gap-1.5 border-t border-[var(--accent-muted)] pt-2.5 text-xs text-[var(--muted)]">
+              <GoogleMeetLogo className="size-3.5" />
+              קישור לשיחה ב-<span dir="ltr">Google Meet</span> יישלח למייל שתמלאו כאן
+            </p>
+          )}
         </div>
 
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
@@ -354,7 +390,11 @@ export function BookingFlow({ slug, durationMinutes, maxDaysAhead, hostTimeZone 
           </p>
         )}
 
-        <button type="submit" className="btn-primary mt-5 w-full sm:w-auto" disabled={submitting}>
+        <button
+          type="submit"
+          className="mt-5 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-[transform,background-color] duration-150 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 sm:w-auto"
+          disabled={submitting}
+        >
           {submitting ? "קובע פגישה…" : "אישור הפגישה"}
         </button>
       </form>
@@ -376,7 +416,7 @@ export function BookingFlow({ slug, durationMinutes, maxDaysAhead, hostTimeZone 
         {/* לוח החודש */}
         <div>
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-base font-semibold">{monthLabel(cursor.year, cursor.month)}</h2>
+            <h2 className="text-base font-bold">{monthLabel(cursor.year, cursor.month)}</h2>
             <div className="flex gap-1">
               <button
                 type="button"
@@ -411,6 +451,7 @@ export function BookingFlow({ slug, durationMinutes, maxDaysAhead, hostTimeZone 
 
               const hasSlots = (days[dateKey]?.length ?? 0) > 0;
               const isSelected = dateKey === selectedDate;
+              const isToday = dateKey === todayKey;
               const dayNumber = Number(dateKey.slice(-2));
 
               return (
@@ -423,16 +464,23 @@ export function BookingFlow({ slug, durationMinutes, maxDaysAhead, hostTimeZone 
                     setSelectedSlot(null);
                   }}
                   className={[
-                    "aspect-square rounded-lg text-sm font-medium transition-colors duration-150",
+                    "relative aspect-square rounded-xl text-sm font-semibold transition-[transform,background-color,color,box-shadow] duration-150 ease-out",
                     isSelected
-                      ? "bg-[var(--primary)] text-white"
+                      ? "bg-[var(--accent)] text-white shadow-sm"
                       : hasSlots
-                        ? "bg-[var(--primary-soft)] text-[var(--primary)] hover:brightness-95"
-                        : "text-[var(--subtle)]",
-                    hasSlots ? "cursor-pointer" : "cursor-default",
+                        ? "cursor-pointer bg-[var(--accent-muted)] text-[var(--accent-strong)] hover:bg-[var(--accent)] hover:text-white active:scale-[0.94]"
+                        : "cursor-default font-normal text-[var(--subtle)]",
+                    // טבעת דקה על היום הנוכחי — נקודת עיגון בלוח, גם כשאין בו
+                    // שעות פנויות ולכן הוא מוצג מעומעם.
+                    isToday && !isSelected ? "ring-1 ring-[var(--accent)] ring-inset" : "",
                   ].join(" ")}
                 >
                   {dayNumber}
+                  {/* נקודה מתחת למספר: הצבע לבדו מבדיל בין יום פנוי לתפוס, וזה
+                      לא מספיק למי שלא מבחין בין הגוונים. */}
+                  {hasSlots && !isSelected && (
+                    <span className="absolute inset-x-0 bottom-1.5 mx-auto size-1 rounded-full bg-[var(--accent)]" />
+                  )}
                 </button>
               );
             })}
@@ -441,8 +489,12 @@ export function BookingFlow({ slug, durationMinutes, maxDaysAhead, hostTimeZone 
           {loading && <p className="mt-3 text-sm text-[var(--subtle)]">טוען שעות פנויות…</p>}
           {loadError && <p className="mt-3 text-sm text-[var(--danger)]">{loadError}</p>}
           {!loading && !loadError && Object.keys(days).length === 0 && (
-            <p className="mt-3 text-sm text-[var(--muted)]">
-              אין שעות פנויות בחודש הזה. נסו את החודש הבא.
+            <p className="mt-3 rounded-lg bg-[var(--accent-soft)] px-3 py-2 text-sm text-[var(--muted)]">
+              {/* כשהחודש הבא כבר מעבר לחלון ההזמנות, כפתור "החודש הבא" מושבת —
+                  והפניה אליו הייתה שולחת את הלקוח לכפתור שלא לוחצים עליו. */}
+              {canGoForward
+                ? "אין שעות פנויות בחודש הזה. נסו את החודש הבא."
+                : "אין כרגע שעות פנויות. נסו שוב מאוחר יותר, או פנו אלינו ישירות."}
             </p>
           )}
         </div>
@@ -451,9 +503,12 @@ export function BookingFlow({ slug, durationMinutes, maxDaysAhead, hostTimeZone 
         <div className="md:border-r md:border-[var(--border)] md:pr-6">
           {selectedDate ? (
             <>
-              <h3 className="mb-3 text-sm font-semibold">
+              <h3 className="mb-1 text-sm font-semibold">
                 {formatSlotDate(slotsForSelected[0] ?? `${selectedDate}T12:00:00Z`)}
               </h3>
+              <p className="mb-3 text-xs text-[var(--muted)]">
+                {slotsForSelected.length} שעות פנויות · {durationMinutes} דקות כל אחת
+              </p>
               <div className="flex max-h-80 flex-col gap-2 overflow-y-auto pl-1">
                 {slotsForSelected.map((iso) => (
                   <button
@@ -464,7 +519,7 @@ export function BookingFlow({ slug, durationMinutes, maxDaysAhead, hostTimeZone 
                       setStep("form");
                       setSubmitError(null);
                     }}
-                    className="btn-secondary w-full justify-center tabular-nums"
+                    className="w-full rounded-lg border border-[var(--accent-muted)] bg-white py-2.5 text-sm font-semibold tabular-nums text-[var(--accent-strong)] shadow-sm transition-[transform,background-color,border-color] duration-150 ease-out hover:border-[var(--accent)] hover:bg-[var(--accent)] hover:text-white active:scale-[0.97]"
                   >
                     {formatSlotTime(iso)}
                   </button>
@@ -477,7 +532,23 @@ export function BookingFlow({ slug, durationMinutes, maxDaysAhead, hostTimeZone 
               </p>
             </>
           ) : (
-            <p className="text-sm text-[var(--muted)]">בחרו יום מהלוח כדי לראות שעות פנויות.</p>
+            <div className="flex h-full flex-col items-center justify-center gap-2 rounded-xl bg-[var(--accent-soft)] px-4 py-8 text-center">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="var(--accent)"
+                strokeWidth="1.6"
+                className="size-7"
+                aria-hidden
+              >
+                <rect x="3" y="5" width="18" height="16" rx="3" />
+                <path d="M3 10h18M8 3v4M16 3v4" strokeLinecap="round" />
+              </svg>
+              <p className="text-sm font-medium text-[var(--accent-strong)]">בחרו יום מהלוח</p>
+              <p className="text-xs text-[var(--muted)]">
+                הימים המסומנים בצבע הם הימים שנותרו בהם שעות פנויות.
+              </p>
+            </div>
           )}
         </div>
       </div>

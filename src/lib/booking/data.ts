@@ -38,6 +38,10 @@ const FALLBACK_SETTINGS: BookingSettings = {
   calendar_id: "primary",
   busy_calendar_ids: [],
   brand_name: "קביעת פגישה",
+  block_all_day_events: false,
+  host_name: null,
+  host_title: null,
+  host_photo_url: null,
   updated_at: new Date().toISOString(),
 };
 

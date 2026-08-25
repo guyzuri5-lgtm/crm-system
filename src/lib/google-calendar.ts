@@ -1,6 +1,8 @@
 import "server-only";
 
-import { google } from "googleapis";
+import { google, type calendar_v3 } from "googleapis";
+
+import { parseDateKey, zonedTimeToUtc } from "@/lib/booking/timezone";
 
 /**
  * חיבור ליומן גוגל: שליפת זמנים תפוסים, יצירת אירוע עם Google Meet, וביטול.
@@ -62,43 +64,122 @@ export interface BusyInterval {
   end: Date;
 }
 
-/**
- * הזמנים התפוסים ביומנים שנבדקים, בטווח נתון.
- *
- * freeBusy ולא events.list בכוונה: הוא מחזיר רק טווחי "תפוס" מוכנים, כבר
- * מאוחדים, בלי לחשוף לאפליקציה את תוכן האירועים הפרטיים ביומן — וזה גם
- * ההבדל בין קריאה אחת לבין עימוד על כל האירועים בחודש.
- *
- * הערה על אירועים שנוצרו על ידי המערכת עצמה: הם יושבים ביומן ככל אירוע אחר,
- * ולכן freeBusy כבר סופר אותם כתפוס. אין צורך (ואסור) לחסום אותם פעמיים.
- */
-export async function fetchBusyIntervals({
-  timeMin,
-  timeMax,
-  calendarIds,
-}: {
+export interface BusyLookupOptions {
   timeMin: Date;
   timeMax: Date;
   calendarIds: string[];
-}): Promise<BusyInterval[]> {
-  const unique = [...new Set(calendarIds.filter(Boolean))];
-  if (unique.length === 0) return [];
+  /** אזור הזמן של המערכת. דרוש רק לתיחום אירוע יום־שלם, שנשמר כתאריך בלי שעה. */
+  timeZone: string;
+  /**
+   * האם אירוע יום־שלם ("יום הולדת של דנה", חג, תזכורת, סימון חופשה) נחשב תפוס.
+   *
+   * ברירת המחדל היא לא, וזו בדיוק הסיבה שהקובץ הזה כבר לא נשען על freeBusy:
+   * freeBusy מחזיר אירוע כזה כבלוק תפוס של 24 שעות, ובלוק כזה מוחק יום שלם
+   * של זמינות בלי שום סימן — לא ללקוח ולא למארח. רוב האירועים האלה אינם פגישות.
+   */
+  blockAllDayEvents: boolean;
+}
 
-  const response = await calendarClient().freebusy.query({
+/** הסטטוס המספרי של שגיאת googleapis, שמגיע פעם כ-code ופעם כ-status. */
+function errorStatus(error: unknown): number | undefined {
+  const candidate = error as { code?: number | string; status?: number } | null;
+  const code = candidate?.code ?? candidate?.status;
+  return typeof code === "string" ? Number(code) : code;
+}
+
+/** אירוע שהמארח דחה אינו תופס לו את היומן. */
+function declinedBySelf(event: calendar_v3.Schema$Event): boolean {
+  return (
+    event.attendees?.some((attendee) => attendee.self && attendee.responseStatus === "declined") ??
+    false
+  );
+}
+
+/**
+ * הזמנים התפוסים ביומן אחד, לפי האירועים שבו.
+ *
+ * singleEvents: true מפרק סדרה חוזרת למופעים בפועל. בלי זה מוחזרת שורת הסדרה
+ * עם תאריך ההתחלה המקורי בלבד, ואף מופע עתידי לא היה נספר כתפוס.
+ *
+ * fields מצמצם את התשובה לזמנים ולסטטוס בלבד — כותרות האירועים, התיאורים
+ * ורשימות המשתתפים לא נשלפים כלל, וממילא לא נשמרים בשום מקום.
+ */
+async function busyFromEvents(
+  calendar: calendar_v3.Calendar,
+  calendarId: string,
+  { timeMin, timeMax, timeZone, blockAllDayEvents }: Omit<BusyLookupOptions, "calendarIds">
+): Promise<BusyInterval[]> {
+  const intervals: BusyInterval[] = [];
+  let pageToken: string | undefined;
+
+  do {
+    const response = await calendar.events.list({
+      calendarId,
+      timeMin: timeMin.toISOString(),
+      timeMax: timeMax.toISOString(),
+      singleEvents: true,
+      maxResults: 2500,
+      pageToken,
+      fields:
+        "nextPageToken,items(start,end,status,transparency,attendees(self,responseStatus))",
+    });
+
+    for (const event of response.data.items ?? []) {
+      // אירוע שבוטל נשאר ברשימה עם status=cancelled כשמבקשים singleEvents.
+      if (event.status === "cancelled") continue;
+      // "הצג אותי כפנוי" — האירוע קיים ביומן אבל מוצהר כלא־חוסם.
+      if (event.transparency === "transparent") continue;
+      if (declinedBySelf(event)) continue;
+
+      // אירוע יום־שלם: start.date במקום start.dateTime. end.date הוא בלעדי
+      // (יום אחד = 24 עד 25), ולכן שני התאריכים מתורגמים לחצות שלהם.
+      if (event.start?.date) {
+        if (!blockAllDayEvents || !event.end?.date) continue;
+        const from = parseDateKey(event.start.date);
+        const to = parseDateKey(event.end.date);
+        if (!from || !to) continue;
+        intervals.push({
+          start: zonedTimeToUtc(from.year, from.month, from.day, 0, timeZone),
+          end: zonedTimeToUtc(to.year, to.month, to.day, 0, timeZone),
+        });
+        continue;
+      }
+
+      if (!event.start?.dateTime || !event.end?.dateTime) continue;
+      intervals.push({
+        start: new Date(event.start.dateTime),
+        end: new Date(event.end.dateTime),
+      });
+    }
+
+    pageToken = response.data.nextPageToken ?? undefined;
+  } while (pageToken);
+
+  return intervals;
+}
+
+/**
+ * הנתיב החלופי: freeBusy, שדורש רק הרשאת "עיון בפרטי פנוי/תפוס".
+ *
+ * הוא לא מבחין בין סוגי אירועים ולכן חוסם גם ימים שלמים — אבל הוא עדיף
+ * בהרבה על התעלמות מהיומן, שמשמעותה קביעת פגישה על גבי פגישה קיימת.
+ */
+async function busyFromFreeBusy(
+  calendar: calendar_v3.Calendar,
+  calendarId: string,
+  timeMin: Date,
+  timeMax: Date
+): Promise<BusyInterval[]> {
+  const response = await calendar.freebusy.query({
     requestBody: {
       timeMin: timeMin.toISOString(),
       timeMax: timeMax.toISOString(),
-      items: unique.map((id) => ({ id })),
+      items: [{ id: calendarId }],
     },
   });
 
-  const calendars = response.data.calendars ?? {};
   const intervals: BusyInterval[] = [];
-
-  for (const [calendarId, entry] of Object.entries(calendars)) {
-    // יומן שלא ניתן לקרוא (נמחק, הרשאה נשללה) מוחזר עם errors ובלי busy.
-    // מדלגים עליו במקום להפיל את כל החישוב — אבל כן מדווחים ללוג, כי
-    // "פתאום כל השעות פנויות" הוא בדיוק מה שקורה כשיומן שקט נופל.
+  for (const entry of Object.values(response.data.calendars ?? {})) {
     if (entry.errors?.length) {
       console.error(
         `[booking] freeBusy failed for calendar ${calendarId}:`,
@@ -111,8 +192,56 @@ export async function fetchBusyIntervals({
       intervals.push({ start: new Date(slot.start), end: new Date(slot.end) });
     }
   }
-
   return intervals;
+}
+
+/**
+ * הזמנים התפוסים בכל היומנים שנבדקים, בטווח נתון.
+ *
+ * events.list ולא freeBusy: freeBusy מחזיר טווחי "תפוס" מוכנים אבל בלי שום
+ * מידע *על* האירוע, ולכן אי אפשר בעזרתו להבחין בין פגישה אמיתית לבין אירוע
+ * יום־שלם, אירוע שסומן "פנוי", או הזמנה שנדחתה. שלושת אלה חסמו כאן ימים
+ * שלמים של זמינות. events.list מחזיר בדיוק את השדות שמאפשרים לסנן אותם.
+ *
+ * הערה על אירועים שנוצרו על ידי המערכת עצמה: הם יושבים ביומן ככל אירוע אחר
+ * ולכן כבר נספרים כתפוס. אין צורך (ואסור) לחסום אותם פעמיים.
+ */
+export async function fetchBusyIntervals({
+  timeMin,
+  timeMax,
+  calendarIds,
+  timeZone,
+  blockAllDayEvents,
+}: BusyLookupOptions): Promise<BusyInterval[]> {
+  const unique = [...new Set(calendarIds.filter(Boolean))];
+  if (unique.length === 0) return [];
+
+  const calendar = calendarClient();
+
+  const perCalendar = await Promise.all(
+    unique.map(async (calendarId) => {
+      try {
+        return await busyFromEvents(calendar, calendarId, {
+          timeMin,
+          timeMax,
+          timeZone,
+          blockAllDayEvents,
+        });
+      } catch (error) {
+        // יומן משותף שנחשף בהרשאת "פנוי/תפוס בלבד" מחזיר 403 על events.list.
+        // רק ההרשאה נופלת כאן, לא הטוקן — ולכן זו נפילה חזרה ליומן הבודד הזה
+        // ולא ויתור על כל החישוב. כל שגיאה אחרת (טוקן פג, רשת) ממשיכה למעלה.
+        const status = errorStatus(error);
+        if (status !== 403 && status !== 404) throw error;
+        console.warn(
+          `[booking] events.list denied for calendar ${calendarId} (${status}); falling back to freeBusy`
+        );
+        return busyFromFreeBusy(calendar, calendarId, timeMin, timeMax);
+      }
+    })
+  );
+
+  return perCalendar.flat();
 }
 
 export interface CreatedEvent {

@@ -119,7 +119,7 @@ export function EventTypeForm({
       </label>
 
       <label className="field-label">
-        עד כמה ימים קדימה
+        כמה ימים קדימה פתוחים ללקוח
         <input
           name="max_days_ahead"
           type="number"
@@ -128,6 +128,11 @@ export function EventTypeForm({
           defaultValue={eventType?.max_days_ahead ?? 30}
           className="input"
         />
+        <span className="text-xs font-normal text-[var(--subtle)]">
+          ימי לוח, כולל היום. 1 = היום בלבד, 2 = היום ומחר, 7 = השבוע הקרוב.
+          חל מעל שעות הזמינות ולא במקומן — בימים שאין בהם שעות פתוחות עדיין
+          לא תהיה זמינות.
+        </span>
       </label>
 
       <label className="field-label">

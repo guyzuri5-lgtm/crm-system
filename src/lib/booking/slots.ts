@@ -70,10 +70,17 @@ export function computeSlots({
   const bufferBeforeMs = eventType.buffer_before_minutes * MINUTE;
   const bufferAfterMs = eventType.buffer_after_minutes * MINUTE;
 
-  // שני הקצוות של החלון שבו בכלל מותר לקבוע: לא מוקדם מדי (התראה מוקדמת
-  // מינימלית) ולא רחוק מדי קדימה.
+  // הקצה המוקדם של החלון: התראה מוקדמת מינימלית, שנמדדת בשעות מ*עכשיו*.
   const earliest = now.getTime() + eventType.min_notice_hours * HOUR;
-  const latest = now.getTime() + eventType.max_days_ahead * DAY;
+
+  // הקצה המאוחר נמדד ב*ימי לוח* ולא בשעות: max_days_ahead=2 פירושו היום ומחר
+  // במלואם, ולא 48 שעות מהרגע הזה. ההבדל אינו קוסמטי — חישוב מתגלגל היה חותך
+  // את היום האחרון בדיוק בשעה הנוכחית, כך שהלקוח רואה חצי יום פתוח וחצי סגור
+  // בלי שום סיבה נראית לעין, והחלון היה זז עם כל רענון של הדף.
+  const horizonKey = addDaysToDateKey(
+    zonedDateKey(now, timeZone),
+    eventType.max_days_ahead - 1
+  );
 
   const busyRanges = busy.map((interval) => [
     interval.start.getTime(),
@@ -102,6 +109,8 @@ export function computeSlots({
     dateKey <= toDateKey;
     dateKey = addDaysToDateKey(dateKey, 1)
   ) {
+    if (dateKey > horizonKey) break;
+
     const parsed = parseDateKey(dateKey);
     if (!parsed) break;
 
@@ -140,7 +149,7 @@ export function computeSlots({
         ).getTime();
         const slotEnd = slotStart + durationMs;
 
-        if (slotStart < earliest || slotStart > latest) continue;
+        if (slotStart < earliest) continue;
 
         // הבאפרים מרחיבים את מה שצריך להיות פנוי סביב הפגישה, בלי להזיז את
         // השעה שמוצגת ללקוח.
@@ -242,6 +251,8 @@ export async function getAvailableSlots({
         timeMin: windowStart,
         timeMax: windowEnd,
         calendarIds: [settings.calendar_id, ...settings.busy_calendar_ids],
+        timeZone,
+        blockAllDayEvents: settings.block_all_day_events,
       });
       busy.push(...googleBusy);
     } catch (error) {

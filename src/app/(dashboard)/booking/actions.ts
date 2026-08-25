@@ -66,6 +66,22 @@ function fail(error: z.ZodError): never {
   throw new Error(error.issues.map((issue) => issue.message).join(", "));
 }
 
+/**
+ * "העמודה לא קיימת" — כלומר הקוד עלה אבל המיגרציה שמוסיפה אותה עוד לא הורצה.
+ *
+ * PGRST204 הוא הקוד ש-PostgREST מחזיר על *כתיבה* לעמודה שאינה בסכימה, במקביל
+ * ל-PGRST205 של טבלה חסרה שמטופל ב-lib/booking/data.ts. ההודעה הגולמית
+ * ("Could not find the 'host_name' column ... in the schema cache") לא אומרת
+ * למי שנתקל בה מה לעשות.
+ */
+function assertBookingColumns(error: { code?: string; message: string } | null): void {
+  if (error?.code === "PGRST204") {
+    throw new Error(
+      "חסרות עמודות במסד הנתונים. יש להריץ את supabase/migrations/0008_booking_host_and_calendar.sql ב-SQL editor של Supabase."
+    );
+  }
+}
+
 export async function createEventTypeAction(formData: FormData) {
   await verifyTeamMember();
 
@@ -322,6 +338,9 @@ const settingsSchema = z.object({
   calendar_id: z.string().trim().min(1).max(200),
   brand_name: z.string().trim().min(1).max(120),
   busy_calendar_ids: z.array(z.string().trim().min(1)),
+  block_all_day_events: z.coerce.boolean(),
+  host_name: z.string().trim().max(120).nullable(),
+  host_title: z.string().trim().max(160).nullable(),
 });
 
 export async function saveSettingsAction(formData: FormData) {
@@ -337,6 +356,11 @@ export async function saveSettingsAction(formData: FormData) {
       .split(/[\n,]/)
       .map((value) => value.trim())
       .filter(Boolean),
+    block_all_day_events: formData.get("block_all_day_events") === "on",
+    // שדה ריק הוא "אין", ולא מחרוזת ריקה — דף ההזמנה בודק null כדי להחליט
+    // אם להציג את כרטיס המארח בכלל.
+    host_name: String(formData.get("host_name") ?? "").trim() || null,
+    host_title: String(formData.get("host_title") ?? "").trim() || null,
   });
   if (!parsed.success) fail(parsed.error);
 
@@ -352,8 +376,106 @@ export async function saveSettingsAction(formData: FormData) {
     .from("booking_settings")
     .update({ ...parsed.data, updated_at: new Date().toISOString() })
     .eq("id", true);
+  assertBookingColumns(error);
   if (error) throw error;
 
   revalidatePath("/booking/settings");
   revalidatePath("/booking");
+  revalidatePath("/book", "layout");
+}
+
+// ── תמונת המארח ─────────────────────────────────────────────────────────
+
+const HOST_PHOTO_BUCKET = "booking-assets";
+const MAX_PHOTO_BYTES = 2 * 1024 * 1024;
+
+// רשימה סגורה ולא בדיקת "image/*": הדפדפן קובע את ה-type מהסיומת, ולכן הוא
+// קלט של המשתמש לכל דבר. הסיומת נגזרת מכאן ולא משם ה-קובץ המקורי, כדי
+// שקובץ בשם ‎photo.svg‎ לא יגיע לבאקט ציבורי כ-SVG (שהוא HTML שרץ).
+const PHOTO_TYPES: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+
+/**
+ * מסלול הקובץ בבאקט, ולא רק שם קבוע: הבאקט ציבורי ונקרא דרך CDN, ותמונה
+ * שנדרסת באותה כתובת תמשיך להיות מוגשת מהמטמון גם אחרי ההחלפה. שם חדש
+ * בכל העלאה הוא מה שמבטיח שהלקוח יראה את התמונה החדשה מיד.
+ */
+export async function uploadHostPhotoAction(formData: FormData) {
+  await verifyTeamMember();
+
+  const file = formData.get("photo");
+  if (!(file instanceof File) || file.size === 0) throw new Error("לא נבחר קובץ");
+
+  const extension = PHOTO_TYPES[file.type];
+  if (!extension) throw new Error("אפשר להעלות JPG, PNG או WEBP בלבד");
+  if (file.size > MAX_PHOTO_BYTES) {
+    throw new Error(`התמונה גדולה מדי (${Math.round(file.size / 1024)}KB). המקסימום הוא 2MB.`);
+  }
+
+  const db = supabaseAdmin();
+  const path = `host/${crypto.randomUUID()}.${extension}`;
+
+  const { error: uploadError } = await db.storage
+    .from(HOST_PHOTO_BUCKET)
+    .upload(path, await file.arrayBuffer(), { contentType: file.type });
+  if (uploadError) {
+    // הבאקט נוצר ב-0008_booking_host_and_calendar.sql. ההודעה הגולמית
+    // ("Bucket not found") לא אומרת למי שנתקל בה מה חסר.
+    throw new Error(
+      /bucket/i.test(uploadError.message)
+        ? "אחסון התמונות לא הוגדר. יש להריץ את supabase/migrations/0008_booking_host_and_calendar.sql."
+        : uploadError.message
+    );
+  }
+
+  const {
+    data: { publicUrl },
+  } = db.storage.from(HOST_PHOTO_BUCKET).getPublicUrl(path);
+
+  const previous = await currentHostPhotoPath();
+
+  const { error } = await db
+    .from("booking_settings")
+    .update({ host_photo_url: publicUrl, updated_at: new Date().toISOString() })
+    .eq("id", true);
+  assertBookingColumns(error);
+  if (error) throw error;
+
+  // המחיקה אחרי העדכון ולא לפניו: אם השמירה נכשלה, עדיף להשאיר קובץ יתום
+  // בבאקט מאשר להישאר עם כתובת בהגדרות שמצביעה על קובץ שכבר נמחק.
+  if (previous) await db.storage.from(HOST_PHOTO_BUCKET).remove([previous]);
+
+  revalidatePath("/booking/settings");
+  revalidatePath("/book", "layout");
+}
+
+export async function removeHostPhotoAction() {
+  await verifyTeamMember();
+
+  const db = supabaseAdmin();
+  const previous = await currentHostPhotoPath();
+
+  const { error } = await db
+    .from("booking_settings")
+    .update({ host_photo_url: null, updated_at: new Date().toISOString() })
+    .eq("id", true);
+  if (error) throw error;
+
+  if (previous) await db.storage.from(HOST_PHOTO_BUCKET).remove([previous]);
+
+  revalidatePath("/booking/settings");
+  revalidatePath("/book", "layout");
+}
+
+/** הנתיב בתוך הבאקט של התמונה השמורה כרגע, אם היא בכלל שלנו. */
+async function currentHostPhotoPath(): Promise<string | null> {
+  const { getBookingSettings } = await import("@/lib/booking/data");
+  const url = (await getBookingSettings()).host_photo_url;
+  if (!url) return null;
+  const marker = `/${HOST_PHOTO_BUCKET}/`;
+  const index = url.indexOf(marker);
+  return index === -1 ? null : url.slice(index + marker.length);
 }

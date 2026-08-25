@@ -259,6 +259,12 @@ export type Database = {
           calendar_id: string;
           busy_calendar_ids: string[];
           brand_name: string;
+          /** אירוע יום־שלם ביומן חוסם זמינות. ברירת המחדל: לא — ראו 0008. */
+          block_all_day_events: boolean;
+          host_name: string | null;
+          host_title: string | null;
+          /** כתובת ציבורית מלאה בבאקט booking-assets */
+          host_photo_url: string | null;
           updated_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["booking_settings"]["Row"]>;
