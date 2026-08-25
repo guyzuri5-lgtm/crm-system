@@ -12,6 +12,21 @@ import type { StatusColor } from "@/lib/status-colors";
 // לזמן ריצה, מול בסיס הנתונים (ראו src/lib/statuses.ts).
 export type ContactStatus = string;
 
+/** סוגי קלט לשדה איש קשר — נאכפים גם ב-check constraint ב-0006_fields.sql */
+export const FIELD_INPUT_TYPES = [
+  "text",
+  "longtext",
+  "number",
+  "date",
+  "email",
+  "phone",
+  "url",
+] as const;
+export type FieldInputType = (typeof FIELD_INPUT_TYPES)[number];
+
+/** builtin = עמודה אמיתית ב-contacts | custom = מפתח בתוך contacts.custom */
+export type FieldKind = "builtin" | "custom";
+
 export type InteractionType =
   | "manychat_in"
   | "manychat_out"
@@ -84,11 +99,33 @@ export type Database = {
           manychat_subscriber_id: string | null;
           last_incoming_message_at: string | null;
           notes: string | null;
+          /** ערכי השדות המותאמים, ממופתחים לפי contact_fields.key */
+          custom: Record<string, string>;
           created_at: string;
           updated_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["contacts"]["Row"]>;
         Update: Partial<Database["public"]["Tables"]["contacts"]["Row"]>;
+        Relationships: Relationships;
+      };
+      contact_fields: {
+        Row: {
+          id: string;
+          key: string;
+          label: string;
+          kind: FieldKind;
+          input_type: FieldInputType;
+          sort_order: number;
+          show_in_table: boolean;
+          editable: boolean;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["contact_fields"]["Row"]> & {
+          key: string;
+          label: string;
+          kind: FieldKind;
+        };
+        Update: Partial<Database["public"]["Tables"]["contact_fields"]["Row"]>;
         Relationships: Relationships;
       };
       contact_statuses: {
@@ -290,6 +327,23 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["booking_blackouts"]["Row"]>;
         Relationships: Relationships;
       };
+      booking_date_overrides: {
+        Row: {
+          id: string;
+          event_type_id: string | null;
+          /** "YYYY-MM-DD" — תאריך, לא רגע בזמן */
+          override_date: string;
+          /** שניהם null = לא זמין באותו יום כלל */
+          start_minute: number | null;
+          end_minute: number | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["booking_date_overrides"]["Row"]> & {
+          override_date: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["booking_date_overrides"]["Row"]>;
+        Relationships: Relationships;
+      };
       bookings: {
         Row: {
           id: string;
@@ -328,6 +382,7 @@ export type Database = {
 
 export type Contact = Database["public"]["Tables"]["contacts"]["Row"];
 export type ContactStatusRow = Database["public"]["Tables"]["contact_statuses"]["Row"];
+export type ContactField = Database["public"]["Tables"]["contact_fields"]["Row"];
 export type Interaction = Database["public"]["Tables"]["interactions"]["Row"];
 export type MessageTemplate = Database["public"]["Tables"]["message_templates"]["Row"];
 export type AutomationRule = Database["public"]["Tables"]["automation_rules"]["Row"];
@@ -337,3 +392,4 @@ export type BookingEventType = Database["public"]["Tables"]["booking_event_types
 export type BookingAvailability = Database["public"]["Tables"]["booking_availability"]["Row"];
 export type BookingBlackout = Database["public"]["Tables"]["booking_blackouts"]["Row"];
 export type Booking = Database["public"]["Tables"]["bookings"]["Row"];
+export type BookingDateOverride = Database["public"]["Tables"]["booking_date_overrides"]["Row"];

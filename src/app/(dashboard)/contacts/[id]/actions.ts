@@ -7,6 +7,9 @@ import { verifyTeamMember } from "@/lib/dal";
 import { sendMessageToContact } from "@/lib/send";
 import { renderTemplate } from "@/lib/templates";
 import { resolveStatus } from "@/lib/statuses";
+import { editableFields } from "@/lib/fields";
+import { normalizePhone } from "@/lib/quiz";
+import type { Database } from "@/lib/supabase/database.types";
 
 // Server Actions are directly callable endpoints, not just page plumbing — verified
 // per the Next.js auth guide's guidance, same as any /api route.
@@ -22,6 +25,100 @@ export async function changeStatusAction(formData: FormData) {
   }
 
   await updateContactStatus(contactId, status);
+  revalidatePath(`/contacts/${contactId}`);
+  revalidatePath("/contacts");
+}
+
+/**
+ * שמירת שדות הפרטים בכרטיס. השדות והסדר שלהם מוגדרים ב-contact_fields, אז
+ * הפעולה לא יכולה להיות רשימה קשיחה — היא עוברת על מה שמוגדר כרגע וקוראת
+ * ‎field_<key>‎ לכל אחד. שדות מותאמים נאספים לאובייקט אחד ונכתבים ל-custom.
+ */
+export async function updateContactFieldsAction(formData: FormData) {
+  await verifyTeamMember();
+
+  const contactId = String(formData.get("contact_id") ?? "");
+  if (!contactId) throw new Error("חסר מזהה איש קשר");
+
+  const db = supabaseAdmin();
+  const { data: contact, error: fetchError } = await db
+    .from("contacts")
+    .select("*")
+    .eq("id", contactId)
+    .single();
+  if (fetchError) throw fetchError;
+
+  const fields = await editableFields();
+  const patch: Database["public"]["Tables"]["contacts"]["Update"] = {};
+  const custom: Record<string, string> = { ...(contact.custom ?? {}) };
+
+  for (const field of fields) {
+    if (field.key === "status" || field.key === "notes") continue;
+
+    const raw = formData.get(`field_${field.key}`);
+    // שדה שלא נשלח בטופס בכלל לא אמור להימחק — רק שדה שנשלח ריק.
+    if (raw == null) continue;
+    const value = String(raw).trim();
+
+    if (field.kind === "custom") {
+      if (value) custom[field.key] = value;
+      else delete custom[field.key];
+      continue;
+    }
+
+    switch (field.key) {
+      case "full_name":
+        patch.full_name = value || null;
+        break;
+      case "phone": {
+        if (!value) {
+          patch.phone = null;
+          break;
+        }
+        // מספר קיים בפורמט ‎+972‎ נשאר כמו שהוא אם לא נגעו בו, כדי לא לנתק
+        // את איש הקשר מ-ManyChat רק בגלל שמישהו פתח את הטופס ושמר.
+        if (value === contact.phone) break;
+        const normalized = normalizePhone(value);
+        if (!normalized) throw new Error(`מספר טלפון לא תקין: ${value}`);
+        patch.phone = normalized;
+        break;
+      }
+      case "email": {
+        if (!value) {
+          patch.email = null;
+          break;
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+          throw new Error(`כתובת מייל לא תקינה: ${value}`);
+        }
+        patch.email = value.toLowerCase();
+        break;
+      }
+      case "source":
+        patch.source = value || "ידני";
+        break;
+      case "tags":
+        patch.tags = value
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean);
+        break;
+      default:
+        // שדה מובנה שהוגדר ב-DB בלי טיפול כאן — מתעלמים במקום לכתוב עמודה
+        // לא ידועה ולקבל שגיאת PostgREST סתומה.
+        break;
+    }
+  }
+
+  patch.custom = custom;
+
+  const { error } = await db.from("contacts").update(patch).eq("id", contactId);
+  if (error) {
+    throw new Error(
+      error.code === "23505" ? "כבר קיים איש קשר אחר עם הטלפון הזה" : error.message
+    );
+  }
+
   revalidatePath(`/contacts/${contactId}`);
   revalidatePath("/contacts");
 }

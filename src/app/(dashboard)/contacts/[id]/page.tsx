@@ -4,11 +4,13 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { verifyTeamMember } from "@/lib/dal";
 import { isWithin24HourWindow } from "@/lib/manychat";
 import { listStatuses, statusMap } from "@/lib/statuses";
+import { editableFields, readFieldValue } from "@/lib/fields";
 import { statusLabel } from "@/lib/status-colors";
 import { StatusBadge } from "@/components/status-badge";
 import { QuizResult, type QuizSubmissionView } from "@/components/quiz-result";
 import {
   changeStatusAction,
+  updateContactFieldsAction,
   updateNotesAction,
   addManualNoteAction,
   sendWhatsAppReplyAction,
@@ -39,7 +41,15 @@ export default async function ContactDetailPage(props: PageProps<"/contacts/[id]
   await verifyTeamMember();
   const { id } = await props.params;
 
-  const [statuses, statusesByName] = await Promise.all([listStatuses(), statusMap()]);
+  const [statuses, statusesByName, allEditable] = await Promise.all([
+    listStatuses(),
+    statusMap(),
+    editableFields(),
+  ]);
+  // סטטוס והערות מוצגים בפקדים ייעודיים משלהם במקום אחר בעמוד
+  const editableDetailFields = allEditable.filter(
+    (f) => f.key !== "status" && f.key !== "notes"
+  );
 
   const db = supabaseAdmin();
   const [
@@ -103,15 +113,48 @@ export default async function ContactDetailPage(props: PageProps<"/contacts/[id]
       <section className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <div className="card flex flex-col gap-4">
           <h2 className="font-medium">פרטים</h2>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2.5 text-sm">
-            <dt className="text-[var(--muted)]">טלפון</dt>
-            <dd>{contact.phone ?? "—"}</dd>
-            <dt className="text-[var(--muted)]">מייל</dt>
-            <dd>{contact.email ?? "—"}</dd>
-            <dt className="text-[var(--muted)]">מקור</dt>
-            <dd>{contact.source}</dd>
-            <dt className="text-[var(--muted)]">תגיות</dt>
-            <dd>{contact.tags.join(", ") || "—"}</dd>
+
+          {/* השדות והסדר שלהם מגיעים מ-contact_fields (עמוד /fields), כולל
+              שדות מותאמים. סטטוס והערות לא כאן — יש להם פקדים משלהם. */}
+          <form action={updateContactFieldsAction} className="flex flex-col gap-3 text-sm">
+            <input type="hidden" name="contact_id" value={contact.id} />
+            {editableDetailFields.map((field) => (
+              <label key={field.key} className="field-label">
+                {field.label}
+                {field.input_type === "longtext" ? (
+                  <textarea
+                    name={`field_${field.key}`}
+                    defaultValue={readFieldValue(contact, field) ?? ""}
+                    rows={3}
+                    className="input"
+                  />
+                ) : (
+                  <input
+                    name={`field_${field.key}`}
+                    type={
+                      field.input_type === "email"
+                        ? "email"
+                        : field.input_type === "number"
+                          ? "number"
+                          : field.input_type === "date"
+                            ? "date"
+                            : field.input_type === "url"
+                              ? "url"
+                              : "text"
+                    }
+                    defaultValue={readFieldValue(contact, field) ?? ""}
+                    placeholder={field.key === "tags" ? "מופרדות בפסיק" : undefined}
+                    className="input"
+                  />
+                )}
+              </label>
+            ))}
+            <button type="submit" className="btn-secondary self-start">
+              שמור פרטים
+            </button>
+          </form>
+
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2.5 border-t border-[var(--border)] pt-4 text-sm">
             <dt className="text-[var(--muted)]">הודעה נכנסת אחרונה</dt>
             <dd>
               {contact.last_incoming_message_at
@@ -120,6 +163,8 @@ export default async function ContactDetailPage(props: PageProps<"/contacts/[id]
             </dd>
             <dt className="text-[var(--muted)]">מזהה ManyChat</dt>
             <dd className="truncate">{contact.manychat_subscriber_id ?? "—"}</dd>
+            <dt className="text-[var(--muted)]">נוצר</dt>
+            <dd>{new Date(contact.created_at).toLocaleString("he-IL")}</dd>
           </dl>
 
           <form

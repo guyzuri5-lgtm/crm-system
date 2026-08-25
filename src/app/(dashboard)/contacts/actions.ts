@@ -5,7 +5,15 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { verifyTeamMember } from "@/lib/dal";
 import { defaultStatus, listStatuses, resolveStatus } from "@/lib/statuses";
-import { parseContactsFile, phoneVariants, type ParsedContactRow } from "@/lib/contact-import";
+import {
+  previewSpreadsheet,
+  readSpreadsheet,
+  mapContactRows,
+  phoneVariants,
+  type ImportTarget,
+  type ParsedContactRow,
+} from "@/lib/contact-import";
+import { listFields } from "@/lib/fields";
 import type { Contact, Database } from "@/lib/supabase/database.types";
 import { updateContactStatus } from "@/lib/automation-engine";
 
@@ -94,6 +102,80 @@ export async function setContactStatusAction(
 
 // ── ייבוא מקובץ ────────────────────────────────────────────────────────
 
+const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
+
+/** יעד אפשרי אחד ברשימת הבחירה של מסך המיפוי */
+export interface ImportTargetOption {
+  value: string;
+  label: string;
+}
+
+export type PreviewState =
+  | null
+  | { ok: false; error: string }
+  | {
+      ok: true;
+      headers: string[];
+      sample: string[][];
+      suggestion: (string | null)[];
+      dataRowCount: number;
+      targets: ImportTargetOption[];
+    };
+
+function readUploadedFile(formData: FormData): File | { error: string } {
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return { error: "לא נבחר קובץ" };
+  if (file.size > MAX_IMPORT_BYTES) return { error: "הקובץ גדול מ-5MB" };
+  return file;
+}
+
+/**
+ * שלב 1: קורא את הקובץ, מחזיר את הכותרות עם דוגמאות ומציע מיפוי — בלי לכתוב
+ * שום דבר ל-DB. הניחוש האוטומטי הוא רק ברירת מחדל שהמשתמש רואה ויכול לתקן.
+ */
+export async function previewImportAction(
+  _prevState: PreviewState,
+  formData: FormData
+): Promise<PreviewState> {
+  await verifyTeamMember();
+
+  const file = readUploadedFile(formData);
+  if ("error" in file) return { ok: false, error: file.error };
+
+  const fields = await listFields();
+  const customFields = fields.filter((f) => f.kind === "custom");
+
+  try {
+    const preview = previewSpreadsheet(
+      file.name,
+      Buffer.from(await file.arrayBuffer()),
+      customFields
+    );
+
+    return {
+      ok: true,
+      headers: preview.headers,
+      sample: preview.sample,
+      suggestion: preview.suggestion,
+      dataRowCount: preview.dataRowCount,
+      targets: [
+        { value: "full_name", label: "שם מלא" },
+        { value: "first_name", label: "שם פרטי" },
+        { value: "last_name", label: "שם משפחה" },
+        { value: "phone", label: "טלפון" },
+        { value: "email", label: "מייל" },
+        { value: "status", label: "סטטוס" },
+        { value: "tags", label: "תגיות" },
+        { value: "notes", label: "הערות" },
+        { value: "source", label: "מקור" },
+        ...customFields.map((f) => ({ value: `custom:${f.key}`, label: f.label })),
+      ],
+    };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "קריאת הקובץ נכשלה" };
+  }
+}
+
 export type ImportState =
   | null
   | { ok: false; error: string }
@@ -107,15 +189,16 @@ export type ImportState =
       defaultStatusName: string | null;
     };
 
-const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
-
 /**
- * ייבוא אנשי קשר מ-CSV/XLSX.
+ * שלב 2: מייבא בפועל, לפי המיפוי שהמשתמש אישר.
  *
  * החלטה מכוונת: ייבוא *לא* מפעיל כללי אוטומציה, גם כשהקובץ קובע סטטוס.
  * העלאה של רשימה בת 200 לידים דרך updateContactStatus הייתה מפעילה כלל
  * status_change על כל אחד מהם ושולחת מאות הודעות וואטסאפ/מייל בלחיצה אחת.
  * סטטוסים מהקובץ נכתבים ישירות ל-contacts.status.
+ *
+ * הקובץ נשלח שוב יחד עם המיפוי במקום להחזיק את השורות שנקראו בין השלבים:
+ * אין מצב שרת לנקות, אין תפוגה, ואין סיכון שהמשתמש ימפה קובץ אחד וייבא אחר.
  */
 export async function importContactsAction(
   _prevState: ImportState,
@@ -123,21 +206,33 @@ export async function importContactsAction(
 ): Promise<ImportState> {
   await verifyTeamMember();
 
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, error: "לא נבחר קובץ" };
+  const file = readUploadedFile(formData);
+  if ("error" in file) return { ok: false, error: file.error };
+
+  let mapping: (ImportTarget | null)[];
+  try {
+    const raw: unknown = JSON.parse(String(formData.get("mapping") ?? "[]"));
+    if (!Array.isArray(raw)) throw new Error();
+    mapping = raw.map((m) => (typeof m === "string" && m ? (m as ImportTarget) : null));
+  } catch {
+    return { ok: false, error: "מיפוי העמודות לא תקין" };
   }
-  if (file.size > MAX_IMPORT_BYTES) {
-    return { ok: false, error: "הקובץ גדול מ-5MB" };
+
+  const identifying: ImportTarget[] = ["full_name", "first_name", "last_name", "phone", "email"];
+  if (!mapping.some((m) => m && identifying.includes(m))) {
+    return {
+      ok: false,
+      error: "צריך למפות לפחות עמודה אחת לשם, לטלפון או למייל — בלי פרט מזהה אי אפשר ליצור איש קשר",
+    };
   }
 
   const statuses = await listStatuses();
 
   let parsed;
   try {
-    parsed = parseContactsFile(
-      file.name,
-      Buffer.from(await file.arrayBuffer()),
+    parsed = mapContactRows(
+      readSpreadsheet(file.name, Buffer.from(await file.arrayBuffer())),
+      mapping,
       statuses.map((s) => s.name)
     );
   } catch (err) {
@@ -218,6 +313,15 @@ export async function importContactsAction(
         const merged = [...new Set([...existing.tags, ...row.tags])];
         if (merged.length !== existing.tags.length) patch.tags = merged;
       }
+      // שדות מותאמים: מיזוג לתוך מה שכבר יש, כדי שייבוא של קובץ עם עמודת
+      // "עיר" בלבד לא ימחק "איך שמע עלינו" שמולא בייבוא קודם.
+      if (Object.keys(row.custom).length) {
+        const mergedCustom = { ...(existing.custom ?? {}), ...row.custom };
+        const changed = Object.entries(row.custom).some(
+          ([k, v]) => (existing.custom ?? {})[k] !== v
+        );
+        if (changed) patch.custom = mergedCustom;
+      }
 
       if (Object.keys(patch).length === 0) {
         issues.push({ rowNumber: row.rowNumber, reason: "כבר קיים במערכת, אין מה לעדכן" });
@@ -243,6 +347,7 @@ export async function importContactsAction(
         source: row.source || "ייבוא",
         tags: row.tags,
         notes: row.notes,
+        custom: row.custom,
       },
     });
   }
@@ -287,4 +392,82 @@ function chunked<T>(items: T[], size: number): T[][] {
   const chunks: T[][] = [];
   for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
   return chunks;
+}
+
+// ── פעולות קבוצתיות ────────────────────────────────────────────────────
+//
+// כל הפעולות כאן כותבות ישירות ולא עוברות דרך updateContactStatus, מאותה
+// סיבה שהייבוא לא עובר שם: שינוי סטטוס ל-80 אנשי קשר בלחיצה אחת היה מפעיל
+// כלל status_change על כל אחד מהם ושולח 80 הודעות. פעולה קבוצתית היא ניהול
+// רשומות, לא אירוע בחיי הליד.
+
+export type BulkResult = { ok: true; affected: number } | { ok: false; error: string };
+
+function readIds(ids: unknown): string[] {
+  if (!Array.isArray(ids)) return [];
+  return ids.filter((id): id is string => typeof id === "string" && id.length > 0);
+}
+
+export async function bulkDeleteContactsAction(ids: string[]): Promise<BulkResult> {
+  await verifyTeamMember();
+
+  const contactIds = readIds(ids);
+  if (!contactIds.length) return { ok: false, error: "לא נבחרו אנשי קשר" };
+
+  // interactions ו-automation_rule_runs יורדים ב-cascade, ו-quiz_submissions
+  // מוגדרת ‎on delete set null‎ — מילוי השאלון נשמר גם אחרי מחיקת איש הקשר.
+  const { error } = await supabaseAdmin().from("contacts").delete().in("id", contactIds);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/contacts");
+  return { ok: true, affected: contactIds.length };
+}
+
+export async function bulkSetStatusAction(ids: string[], statusName: string): Promise<BulkResult> {
+  await verifyTeamMember();
+
+  const contactIds = readIds(ids);
+  const status = await resolveStatus(statusName);
+  if (!contactIds.length) return { ok: false, error: "לא נבחרו אנשי קשר" };
+  if (!status) return { ok: false, error: "סטטוס לא תקין" };
+
+  const { error } = await supabaseAdmin()
+    .from("contacts")
+    .update({ status })
+    .in("id", contactIds);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/contacts");
+  return { ok: true, affected: contactIds.length };
+}
+
+export async function bulkAddTagAction(ids: string[], tag: string): Promise<BulkResult> {
+  await verifyTeamMember();
+
+  const contactIds = readIds(ids);
+  const clean = tag.trim();
+  if (!contactIds.length) return { ok: false, error: "לא נבחרו אנשי קשר" };
+  if (!clean) return { ok: false, error: "חסרה תגית" };
+
+  const db = supabaseAdmin();
+  const { data: contacts, error: fetchError } = await db
+    .from("contacts")
+    .select("id, tags")
+    .in("id", contactIds);
+  if (fetchError) return { ok: false, error: fetchError.message };
+
+  // איחוד ולא דריסה — התגית נוספת למה שכבר יש, ומי שכבר מתויג לא משתנה.
+  let affected = 0;
+  for (const contact of contacts ?? []) {
+    if (contact.tags.includes(clean)) continue;
+    const { error } = await db
+      .from("contacts")
+      .update({ tags: [...contact.tags, clean] })
+      .eq("id", contact.id);
+    if (error) return { ok: false, error: error.message };
+    affected += 1;
+  }
+
+  revalidatePath("/contacts");
+  return { ok: true, affected };
 }
