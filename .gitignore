@@ -43,3 +43,6 @@ next-env.d.ts
 
 # supabase cli cache
 supabase/.temp
+
+# טוקן OAuth שנקלט מקומית בזמן ההקמה — סוד, לעולם לא בגיט
+.oauth-token.json

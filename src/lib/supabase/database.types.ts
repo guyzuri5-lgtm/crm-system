@@ -290,6 +290,23 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["booking_blackouts"]["Row"]>;
         Relationships: Relationships;
       };
+      booking_date_overrides: {
+        Row: {
+          id: string;
+          event_type_id: string | null;
+          /** "YYYY-MM-DD" — תאריך, לא רגע בזמן */
+          override_date: string;
+          /** שניהם null = לא זמין באותו יום כלל */
+          start_minute: number | null;
+          end_minute: number | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["booking_date_overrides"]["Row"]> & {
+          override_date: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["booking_date_overrides"]["Row"]>;
+        Relationships: Relationships;
+      };
       bookings: {
         Row: {
           id: string;
@@ -337,3 +354,4 @@ export type BookingEventType = Database["public"]["Tables"]["booking_event_types
 export type BookingAvailability = Database["public"]["Tables"]["booking_availability"]["Row"];
 export type BookingBlackout = Database["public"]["Tables"]["booking_blackouts"]["Row"];
 export type Booking = Database["public"]["Tables"]["bookings"]["Row"];
+export type BookingDateOverride = Database["public"]["Tables"]["booking_date_overrides"]["Row"];

@@ -7,6 +7,7 @@ const NAV_LINKS = [
   { href: "/statuses", label: "סטטוסים" },
   { href: "/rules", label: "כללי אוטומציה" },
   { href: "/templates", label: "תבניות הודעה" },
+  { href: "/booking", label: "פגישות" },
 ];
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {

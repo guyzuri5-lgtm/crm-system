@@ -4,7 +4,11 @@ import { createServerClient } from "@supabase/ssr";
 // Next.js 16 renamed "middleware" to "proxy" — same mechanism, new file/export name.
 // See node_modules/next/dist/docs/01-app/01-getting-started/16-proxy.md.
 
-const PUBLIC_PATHS = ["/login"];
+// /book/* הוא דף ההזמנה הציבורי: לקוח מקבל קישור ונכנס בלי חשבון ובלי סשן.
+// בלי הרישום כאן הוא היה נתפס בבדיקה שלמטה ומופנה ל-/login, וזו הייתה נראית
+// כמו מערכת שבורה מצד הלקוח. הדף עצמו קורא ל-DB דרך השרת בלבד (service role)
+// ואינו חושף דבר מלבד שעות פנויות.
+const PUBLIC_PATHS = ["/login", "/book", "/oauth2callback"];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
