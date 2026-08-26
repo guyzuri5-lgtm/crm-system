@@ -19,40 +19,37 @@ import { stdin, stdout } from "node:process";
 import { randomBytes } from "node:crypto";
 
 const ENV_PATH = ".env.local";
-const DEFAULT_API_VERSION = "v21.0";
-
-const CLEAR_LINE = "\u001b[2K";
-const LINE_START = "\u001b[200D";
+const DEFAULT_API_VERSION = "v25.0";
 
 /**
- * קריאת שורה מהמקלדת בלי להציג אותה.
+ * קריאת שורה מהמקלדת בלי להציג אותה כלל.
  *
- * readline רגיל מהדהד כל תו, ולכן הטוקן היה נשאר על המסך — ובצילום מסך, ובעיניו
- * של כל מי שעומד מאחור. ה-listener מוחק את השורה בכל הקשה ומצייר אותה מחדש
- * בכוכביות, כך שנשאר משוב על ההקלדה בלי לחשוף את התוכן.
+ * הגרסה הקודמת ציירה כוכביות בכל הקשה, על ידי מחיקת השורה וכתיבתה מחדש.
+ * זה נשבר בדיוק במקרה שהכי חשוב: טוקן ארוך מרוחב הטרמינל נשבר לכמה שורות,
+ * ורצף המחיקה מנקה שורה *אחת* — כך שהטקסט הגולמי נשאר על המסך. במילים
+ * אחרות, המנגנון שנועד להסתיר סוד חשף אותו דווקא כשהסוד היה ארוך.
+ *
+ * הפתרון הוא לא לצייר כלום: _writeToOutput מושתק אחרי שהשורה של ההנחיה
+ * נכתבה, ולכן שום תו שמוקלד לא מגיע למסך. אין מה שיישבר, בשום אורך.
+ * המחיר הוא שאין משוב ויזואלי בזמן ההקלדה — ולכן ההנחיה אומרת את זה מראש.
  */
 function askHidden(prompt) {
   return new Promise((resolve) => {
     const rl = createInterface({ input: stdin, output: stdout, terminal: true });
 
-    const onData = (chunk) => {
-      const char = chunk.toString();
-      if (char === "\n" || char === "\r" || char === "\u0004" || char === "\u0003") {
-        stdin.removeListener("data", onData);
-        return;
-      }
-      stdout.write(CLEAR_LINE + LINE_START + prompt + "*".repeat(rl.line.length));
+    let muted = false;
+    rl._writeToOutput = (chunk) => {
+      if (!muted) rl.output.write(chunk);
     };
 
-    stdout.write(prompt);
-    stdin.on("data", onData);
-
-    rl.question("", (answer) => {
-      stdin.removeListener("data", onData);
+    rl.question(prompt, (answer) => {
       rl.close();
       stdout.write("\n");
       resolve(answer.trim());
     });
+
+    // אחרי שההנחיה כבר נכתבה — מכאן והלאה שקט מוחלט.
+    muted = true;
   });
 }
 
@@ -110,14 +107,30 @@ async function verify(env) {
 async function main() {
   console.log("\n== WhatsApp Cloud API setup ==\n");
   console.log("  הערכים נמצאים ב-developers.facebook.com, באפליקציה שלכם.");
-  console.log("  ההקלדה מוסתרת בכוונה. הדביקו ולחצו Enter גם אם לא רואים כלום.\n");
+  console.log("  ההקלדה לא מוצגת כלל — לא כוכביות ולא כלום. זה תקין.");
+  console.log("  הדביקו, לחצו Enter, והמשיכו.\n");
 
   console.log("  [1/3] WhatsApp -> API Setup -> Phone number ID");
-  console.log("        (מזהה, לא מספר הטלפון. ספרות בלבד)");
-  const phoneNumberId = await askHidden("        Phone number ID: ");
-  if (!/^\d{6,}$/.test(phoneNumberId)) {
-    console.error("\n  שגיאה: Phone number ID אמור להיות ספרות בלבד.");
+  console.log('        מתחת לכותרת "From", בשורה שכתוב בה Phone number ID.');
+  console.log("        ~15 ספרות. זה *לא* מספר הטלפון שמופיע מעליו.");
+  // הרווחים והמקפים מוסרים לפני הבדיקה: הדבקה מהקונסולה של Meta גוררת
+  // לפעמים רווח נלווה, וליפול על זה זה בדיוק סוג התסכול שאין בו שום ערך.
+  const phoneNumberId = (await askHidden("        Phone number ID: ")).replace(/[\s-]/g, "");
+  if (!/^\d+$/.test(phoneNumberId) || phoneNumberId.length < 10) {
+    console.error(`\n  שגיאה: התקבלו ${phoneNumberId.length} תווים, ולא מזהה בפורמט הצפוי.`);
+    console.error("  Phone number ID הוא ~15 ספרות רצופות.");
     console.error("  לא נכתב כלום. הריצו שוב: npm run setup:whatsapp\n");
+    process.exit(1);
+  }
+  // מספר טלפון אמריקאי הוא 11 ספרות ומתחיל ב-1; מזהה הוא ~15. זו הטעות
+  // הנפוצה כאן, כי שני הערכים יושבים זה מעל זה באותו מסך.
+  if (phoneNumberId.length <= 13) {
+    console.error(`\n  רגע — ${phoneNumberId.length} ספרות זה קצר למזהה, וזה אורך של מספר טלפון.`);
+    console.error("  נראה שהודבק מספר הטלפון ולא ה-Phone number ID.");
+    console.error("  במסך API Setup הם אחד מעל השני:");
+    console.error("     Test number:      +1 555 ...      <- לא זה");
+    console.error("     Phone number ID:  1234567890...   <- זה");
+    console.error("\n  לא נכתב כלום. הריצו שוב: npm run setup:whatsapp\n");
     process.exit(1);
   }
 

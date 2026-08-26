@@ -21,7 +21,10 @@ import { createHmac, timingSafeEqual } from "node:crypto";
  * תיעוד: https://developers.facebook.com/docs/whatsapp/cloud-api
  */
 
-const DEFAULT_API_VERSION = "v21.0";
+// גרסת Graph API נתמכת כשנתיים ואז פגה. מיושרת למה שהקונסולה של Meta עצמה
+// מייצרת בדוגמאות ה-curl שלה — זה המקור הכי מהימן לגרסה שבאמת פעילה היום.
+// אפשר לדרוס דרך WHATSAPP_API_VERSION בלי לגעת בקוד.
+const DEFAULT_API_VERSION = "v25.0";
 
 export class WhatsAppApiError extends Error {
   constructor(
