@@ -4,11 +4,12 @@ import { requireTeamSession } from "@/lib/api-auth";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { renderTemplate } from "@/lib/templates";
 import { sendMessageToContact } from "@/lib/send";
-import { isWithin24HourWindow } from "@/lib/manychat";
 
-// POST /api/send/whatsapp — per spec section 4. Checks the 24h window itself (via
-// sendMessageToContact / isWithin24HourWindow) and picks a free-form message or an
-// approved-template Flow accordingly, exactly like the automation engine does.
+// POST /api/send/whatsapp — שליחת הודעת וואטסאפ לאיש קשר, לפי תבנית או כטקסט חופשי.
+//
+// הבחירה בין השתיים אינה של הקורא אלא של חלון 24 השעות, ו-sendMessageToContact
+// עושה אותה בעצמו: בתוך החלון נשלח הטקסט, ומחוצה לו התבנית המאושרת. לכן די
+// כאן להעביר את שניהם ולתת לו להחליט.
 export const dynamic = "force-dynamic";
 
 const sendWhatsappSchema = z
@@ -42,34 +43,24 @@ export async function POST(request: NextRequest) {
   if (!contact) return NextResponse.json({ error: "contact not found" }, { status: 404 });
 
   let text = parsed.data.body;
-  let manychatFlowNs: string | null | undefined;
   let logPrefix: string | undefined;
+  let template = null;
 
   if (parsed.data.template_id) {
-    const { data: template, error: templateError } = await db
+    const { data: found, error: templateError } = await db
       .from("message_templates")
       .select("*")
       .eq("id", parsed.data.template_id)
       .maybeSingle();
     if (templateError) return NextResponse.json({ error: templateError.message }, { status: 500 });
-    if (!template) return NextResponse.json({ error: "template not found" }, { status: 404 });
-    if (template.channel !== "whatsapp") {
+    if (!found) return NextResponse.json({ error: "template not found" }, { status: 404 });
+    if (found.channel !== "whatsapp") {
       return NextResponse.json({ error: "template is not a whatsapp template" }, { status: 400 });
     }
 
-    text = renderTemplate(template.body, contact);
-    manychatFlowNs = template.manychat_template_id;
-    logPrefix = `[${template.name}]`;
-  } else if (!isWithin24HourWindow(contact.last_incoming_message_at)) {
-    // A raw, non-template body can only legally go out inside the 24h window — outside
-    // it, WhatsApp requires a Meta-approved template, which means a template_id here.
-    return NextResponse.json(
-      {
-        error:
-          "איש הקשר מחוץ לחלון 24 השעות — צריך לשלוח דרך template_id של תבנית מאושרת, לא טקסט חופשי",
-      },
-      { status: 422 }
-    );
+    template = found;
+    text = renderTemplate(found.body, contact);
+    logPrefix = `[${found.name}]`;
   }
 
   if (!text) {
@@ -80,7 +71,7 @@ export async function POST(request: NextRequest) {
     contact,
     channel: "whatsapp",
     body: text,
-    manychatFlowNs,
+    template,
     logPrefix,
   });
 

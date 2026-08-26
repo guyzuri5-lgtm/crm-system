@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "sync:quiz-copy": "node scripts/sync-quiz-copy.mjs",
-    "auth:google": "node scripts/google-auth.mjs"
+    "auth:google": "node scripts/google-auth.mjs",
+    "setup:whatsapp": "node scripts/whatsapp-setup.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",

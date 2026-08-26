@@ -3,6 +3,7 @@ import "server-only";
 import { supabaseAdmin } from "./supabase/admin";
 import { renderTemplate } from "./templates";
 import { sendMessageToContact } from "./send";
+import { SendBudget } from "./whatsapp-throttle";
 import type {
   AutomationRule,
   Contact,
@@ -19,8 +20,9 @@ import type {
 // Both funnel into dispatchRuleToContact, which renders the rule's template and hands
 // off to sendMessageToContact (src/lib/send.ts) for the actual channel/send/log work.
 // A failure for one contact/rule never throws past its own DispatchResult — one bad
-// send (missing email, contact outside the WhatsApp window with no template
-// configured, ...) must not abort a batch of 50 other contacts in the daily cron run.
+// send (missing email, contact with no usable phone number, no approved template for
+// an out-of-window WhatsApp send, ...) must not abort a batch of 50 other contacts in
+// the daily cron run.
 
 export interface DispatchResult {
   ruleId: string;
@@ -47,7 +49,10 @@ async function dispatchRuleToContact(
     channel: rule.action_channel,
     subject,
     body,
-    manychatFlowNs: template.manychat_template_id,
+    // כלל מעקב פונה מעצם טבעו למי שלא ענה, כלומר כמעט תמיד מחוץ לחלון 24
+    // השעות. בלי תבנית מאושרת על התבנית של הכלל, השליחה תיכשל — וזה הדבר
+    // הנכון: עדיף כישלון מפורש מאשר הודעה שלא יוצאת בשקט.
+    template,
     logPrefix: `[${template.name}]`,
   });
 
@@ -58,11 +63,11 @@ async function dispatchRuleToContact(
  * Fires every active status_change rule whose `from_status` matches the status the
  * contact just left (or every such rule if `from_status` is omitted — "any status").
  * Call this from wherever a contact's status is actually written — today that's only
- * updateContactStatus below. The ManyChat webhook does NOT call this: in this v1 it
- * never writes `status` itself (a new contact is just created at the default
- * 'ליד_חדש'), so there is no transition to react to there yet. If you later want e.g.
- * "auto-promote brand-new leads on their first reply," make that status write in the
- * webhook route and call this function with the old/new status afterwards.
+ * updateContactStatus below. The WhatsApp webhook does NOT call this: it never writes
+ * `status` itself (a new contact is just created at the default 'ליד_חדש'), so there
+ * is no transition to react to there yet. If you later want e.g. "auto-promote
+ * brand-new leads on their first reply," make that status write in the webhook route
+ * and call this function with the old/new status afterwards.
  */
 export async function runStatusChangeRules(
   contact: Contact,
@@ -122,6 +127,16 @@ export async function updateContactStatus(contactId: string, newStatus: ContactS
   return { contact: updated, dispatchResults };
 }
 
+export interface RuleRunSummary {
+  results: DispatchResult[];
+  /** למה הריצה נעצרה, אם היא לא סיימה את כל מי שהיה מועמד */
+  stopped: "paused" | "daily_limit" | "time_budget" | null;
+  /** כמה אנשי קשר נשארו מחוץ לריצה הזו ויטופלו בריצה הבאה */
+  skipped: number;
+  /** כמה עוד מותר לשלוח היום לפי התקרה */
+  remainingToday: number;
+}
+
 /**
  * Meant to run once a day (see /api/cron/check-rules). For every active
  * time_since_no_reply rule, finds contacts sitting in the rule's target status that
@@ -131,9 +146,25 @@ export async function updateContactStatus(contactId: string, newStatus: ContactS
  * Contacts that have NEVER sent an incoming message (last_incoming_message_at is
  * null) are measured from created_at instead — the original spec doesn't pin this
  * down explicitly; adjust here if that's not the intended behaviour.
+ *
+ * ── בלמים ────────────────────────────────────────────────────────────────
+ * שליחות וואטסאפ עוברות דרך SendBudget (src/lib/whatsapp-throttle.ts): תקרה
+ * יומית ותקציב זמן ריצה. כשאחד מהם נגמר הריצה נעצרת *מרצון* ומדווחת כמה נשארו.
+ * התקרה כאן היא בלם עלות — כל תבנית שנמסרת מחויבת על ידי Meta.
+ *
+ * מה שהופך את העצירה הזו לבטוחה הוא automation_rule_runs: שורה נרשמת שם רק
+ * אחרי שליחה מוצלחת, ולכן מי שלא הספיק פשוט יימצא שוב בריצה הבאה. אין כאן
+ * "מצב" לשמור ואין סיכון לשליחה כפולה.
+ *
+ * שליחות מייל אינן מווסתות — Gmail אינו חוסם על קצב כמו שוואטסאפ חוסם, והמכסה
+ * היומית שלו גבוהה בסדרי גודל.
  */
-export async function runTimeSinceNoReplyRules(now: Date = new Date()): Promise<DispatchResult[]> {
+export async function runTimeSinceNoReplyRules(
+  now: Date = new Date(),
+  budgetMs = 45_000
+): Promise<RuleRunSummary> {
   const db = supabaseAdmin();
+  const budget = await SendBudget.open(budgetMs, now);
 
   const { data: rules, error } = await db
     .from("automation_rules")
@@ -143,9 +174,13 @@ export async function runTimeSinceNoReplyRules(now: Date = new Date()): Promise<
     .returns<RuleWithTemplate[]>();
 
   if (error) throw error;
-  if (!rules?.length) return [];
+  if (!rules?.length) {
+    return { results: [], stopped: null, skipped: 0, remainingToday: budget.remainingToday };
+  }
 
   const results: DispatchResult[] = [];
+  let stopped: RuleRunSummary["stopped"] = null;
+  let skipped = 0;
 
   for (const rule of rules) {
     const triggerValue = (rule.trigger_value ?? {}) as Partial<TimeSinceNoReplyTriggerValue>;
@@ -175,13 +210,28 @@ export async function runTimeSinceNoReplyRules(now: Date = new Date()): Promise<
 
     const alreadyRunIds = new Set((alreadyRun ?? []).map((r) => r.contact_id));
 
+    const throttled = rule.action_channel === "whatsapp";
+
     for (const contact of staleContacts) {
       if (alreadyRunIds.has(contact.id)) continue;
+
+      if (throttled) {
+        const allowed = budget.canSend();
+        if (!allowed.ok) {
+          // לא break: כלל אחר באותה ריצה עשוי להיות כלל מייל, שאינו מווסת
+          // ואין סיבה לעצור אותו בגלל תקרת הוואטסאפ.
+          stopped ??= allowed.reason;
+          skipped += 1;
+          continue;
+        }
+      }
 
       const result = await dispatchRuleToContact(rule, rule.message_templates, contact);
       results.push(result);
 
       if (result.ok) {
+        if (throttled) budget.countSent();
+
         const { error: runError } = await db
           .from("automation_rule_runs")
           .insert({ rule_id: rule.id, contact_id: contact.id });
@@ -190,5 +240,5 @@ export async function runTimeSinceNoReplyRules(now: Date = new Date()): Promise<
     }
   }
 
-  return results;
+  return { results, stopped, skipped, remainingToday: budget.remainingToday };
 }

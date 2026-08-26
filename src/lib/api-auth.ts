@@ -8,8 +8,9 @@ import { createSupabaseServerClient } from "./supabase/server";
  * ./dal's verifyTeamMember, API routes should answer 401 JSON, not redirect an
  * XHR/fetch call to /login.
  *
- * NOT used by /api/webhooks/manychat (shared-secret auth) or /api/cron/check-rules
- * (Vercel's CRON_SECRET bearer token) — neither call carries a team member's session.
+ * NOT used by /api/webhooks/green-api (webhookUrlToken bearer auth) or
+ * /api/cron/check-rules (Vercel's CRON_SECRET bearer token) — neither call carries a
+ * team member's session.
  */
 export async function requireTeamSession() {
   const supabase = await createSupabaseServerClient();

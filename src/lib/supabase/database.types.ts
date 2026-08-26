@@ -28,8 +28,8 @@ export type FieldInputType = (typeof FIELD_INPUT_TYPES)[number];
 export type FieldKind = "builtin" | "custom";
 
 export type InteractionType =
-  | "manychat_in"
-  | "manychat_out"
+  | "whatsapp_in"
+  | "whatsapp_out"
   | "email_out"
   | "manual_note"
   // נוסף ב-0002_quiz.sql — נרשם ביומן איש הקשר כשמישהו ממלא את שאלון הצ'אקרות
@@ -96,7 +96,8 @@ export type Database = {
           status: ContactStatus;
           source: string;
           tags: string[];
-          manychat_subscriber_id: string | null;
+          /** wa_id של Meta — המספר בפורמט בינלאומי בלי +, "972501234567" */
+          whatsapp_id: string | null;
           last_incoming_message_at: string | null;
           notes: string | null;
           /** ערכי השדות המותאמים, ממופתחים לפי contact_fields.key */
@@ -180,6 +181,8 @@ export type Database = {
           contact_id: string;
           type: InteractionType;
           content: string | null;
+          /** idMessage של וואטסאפ, לדה-דופליקציה של webhooks. ריק לשורות פנימיות. */
+          external_id: string | null;
           created_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["interactions"]["Row"]> & {
@@ -196,7 +199,12 @@ export type Database = {
           name: string;
           subject: string | null;
           body: string;
-          manychat_template_id: string | null;
+          /** שם התבנית כפי שאושרה ב-Meta. ריק = ניתנת לשליחה רק בתוך חלון 24 השעות. */
+          meta_template_name: string | null;
+          /** קוד השפה שאיתו אושרה ("he", "en_US"). חייב להתאים בדיוק. */
+          meta_language_code: string;
+          /** מה ממלא את {{1}}, {{2}} ... לפי הסדר, כמציינים של המערכת. */
+          meta_variables: string[];
           created_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["message_templates"]["Row"]> & {
@@ -250,6 +258,18 @@ export type Database = {
           contact_id: string;
         };
         Update: Partial<Database["public"]["Tables"]["automation_rule_runs"]["Row"]>;
+        Relationships: Relationships;
+      };
+      whatsapp_settings: {
+        Row: {
+          id: boolean;
+          /** תקרת תבניות יומית. בלם *עלות*: כל תבנית שנמסרת מחויבת על ידי Meta. */
+          daily_limit: number;
+          paused: boolean;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["whatsapp_settings"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["whatsapp_settings"]["Row"]>;
         Relationships: Relationships;
       };
       booking_settings: {
@@ -393,6 +413,7 @@ export type Interaction = Database["public"]["Tables"]["interactions"]["Row"];
 export type MessageTemplate = Database["public"]["Tables"]["message_templates"]["Row"];
 export type AutomationRule = Database["public"]["Tables"]["automation_rules"]["Row"];
 export type TeamMember = Database["public"]["Tables"]["team_members"]["Row"];
+export type WhatsAppSettings = Database["public"]["Tables"]["whatsapp_settings"]["Row"];
 export type BookingSettings = Database["public"]["Tables"]["booking_settings"]["Row"];
 export type BookingEventType = Database["public"]["Tables"]["booking_event_types"]["Row"];
 export type BookingAvailability = Database["public"]["Tables"]["booking_availability"]["Row"];

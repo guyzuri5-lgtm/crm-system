@@ -1,26 +1,36 @@
 import "server-only";
 
 import { supabaseAdmin } from "./supabase/admin";
-import { sendDynamicReply, sendFlow, isWithin24HourWindow } from "./manychat";
+import {
+  isWithin24HourWindow,
+  sendTemplate,
+  sendText,
+  waIdFromPhone,
+} from "./whatsapp-cloud";
+import { renderTemplate } from "./templates";
 import { sendEmail } from "./gmail";
-import type { Contact, MessageChannel } from "./supabase/database.types";
+import type { Contact, MessageChannel, MessageTemplate } from "./supabase/database.types";
 
-// The one place that actually sends a message to a contact and logs it — shared by
-// the automation engine (src/lib/automation-engine.ts, rule-driven) and the manual
-// "send" API routes (dashboard-driven, ad-hoc). Picking the channel logic apart from
-// rule-matching logic keeps both callers honest: neither can drift into re-sending
-// without logging, or logging without actually sending.
+// המקום היחיד ששולח בפועל הודעה לאיש קשר ורושם אותה ביומן — משותף למנוע
+// הכללים (src/lib/automation-engine.ts) ולראוטים הידניים של השליחה מהדשבורד.
+// ההפרדה בין בחירת הערוץ לבין התאמת הכללים היא מה ששומר על שני הקוראים כנים:
+// אף אחד מהם לא יכול לשלוח בלי לרשום, או לרשום בלי לשלוח.
 
 export interface SendMessageInput {
   contact: Contact;
   channel: MessageChannel;
-  /** Required for email; ignored for whatsapp. */
+  /** חובה למייל, מתעלמים ממנו בוואטסאפ. */
   subject?: string;
-  /** Rendered message body — HTML for email, plain text for WhatsApp. */
+  /** גוף ההודעה המרונדר — HTML למייל, טקסט רגיל לוואטסאפ. */
   body: string;
-  /** WhatsApp only: ManyChat Flow namespace to use if the contact is outside the 24h window. */
-  manychatFlowNs?: string | null;
-  /** Prefixed onto the logged interactions.content, e.g. "[תבנית מעקב יום 3] ". */
+  /**
+   * וואטסאפ בלבד: התבנית המאושרת שתישלח אם חלון 24 השעות סגור.
+   *
+   * לא מספיק להעביר טקסט: מחוץ לחלון Meta מקבלת *רק* תבנית שאושרה מראש, לפי
+   * שם ושפה. בלי תבנית כזו אין דרך חוקית לפנות ללקוח שלא כתב לנו לאחרונה.
+   */
+  template?: MessageTemplate | null;
+  /** קידומת לתוכן שנרשם ב-interactions, למשל "[תבנית מעקב יום 3] ". */
   logPrefix?: string;
 }
 
@@ -32,12 +42,8 @@ export async function sendMessageToContact(input: SendMessageInput): Promise<Sen
 
   try {
     if (input.channel === "email") {
-      if (!input.contact.email) {
-        throw new Error("לאיש הקשר אין כתובת מייל");
-      }
-      if (!input.subject) {
-        throw new Error("חסרה כותרת (subject) למייל");
-      }
+      if (!input.contact.email) throw new Error("לאיש הקשר אין כתובת מייל");
+      if (!input.subject) throw new Error("חסרה כותרת (subject) למייל");
 
       await sendEmail({ to: input.contact.email, subject: input.subject, html: input.body });
 
@@ -47,30 +53,68 @@ export async function sendMessageToContact(input: SendMessageInput): Promise<Sen
         content: `${label}${input.subject}`,
       });
       if (error) throw error;
+
+      return { ok: true };
+    }
+
+    // ה-wa_id השמור קודם, ורק אז גזירה מהטלפון: מה שהתקבל בפועל מ-Meta אמין
+    // יותר מהמרה של מספר שמישהו הקליד.
+    const waId = input.contact.whatsapp_id ?? waIdFromPhone(input.contact.phone);
+    if (!waId) {
+      throw new Error(
+        "לאיש הקשר אין מספר טלפון תקין לוואטסאפ (ולא התקבלה ממנו הודעה שממנה אפשר לגזור אותו)"
+      );
+    }
+
+    const openWindow = isWithin24HourWindow(input.contact.last_incoming_message_at);
+
+    let messageId: string | null;
+    let logged: string;
+
+    if (openWindow) {
+      // בתוך החלון הכול מותר, וזה גם חינם.
+      messageId = await sendText(waId, input.body);
+      logged = input.body;
     } else {
-      if (!input.contact.manychat_subscriber_id) {
+      const template = input.template;
+      if (!template?.meta_template_name) {
         throw new Error(
-          "לאיש הקשר אין manychat_subscriber_id (עדיין לא התקבלה הודעה דרכו ב-webhook)"
+          "איש הקשר מחוץ לחלון 24 השעות — אפשר לשלוח לו רק תבנית שאושרה ב-Meta, ולא טקסט חופשי"
         );
       }
 
-      if (isWithin24HourWindow(input.contact.last_incoming_message_at)) {
-        await sendDynamicReply(input.contact.manychat_subscriber_id, input.body);
-      } else {
-        if (!input.manychatFlowNs) {
-          throw new Error(
-            "מחוץ לחלון 24 השעות, וללא flow_ns של פלואו עם תבנית מאושרת אי אפשר לשלוח"
-          );
-        }
-        await sendFlow(input.contact.manychat_subscriber_id, input.manychatFlowNs);
-      }
+      // הפרמטרים נגזרים מאותם מציינים של גוף ההודעה ({{first_name}}), כדי
+      // שיהיה מודל מנטלי אחד למי שכותב תבנית ולא שתי שפות מציינים.
+      const parameters = template.meta_variables.map((expression) =>
+        renderTemplate(expression, input.contact)
+      );
 
-      const { error } = await db.from("interactions").insert({
-        contact_id: input.contact.id,
-        type: "manychat_out",
-        content: `${label}${input.body}`,
+      messageId = await sendTemplate({
+        waId,
+        name: template.meta_template_name,
+        languageCode: template.meta_language_code,
+        parameters,
       });
-      if (error) throw error;
+
+      // נרשם הטקסט המרונדר ולא שם התבנית: מי שקורא את היומן רוצה לדעת מה
+      // הלקוח קיבל, לא איזו ישות ב-Meta שלחה את זה.
+      logged = input.body;
+    }
+
+    const { error } = await db.from("interactions").insert({
+      contact_id: input.contact.id,
+      type: "whatsapp_out",
+      content: `${label}${logged}`,
+      // ה-wamid הוא מה שמחבר את ההודעה לעדכון המסירה שיגיע אחריה ב-webhook,
+      // ומה שמונע רישום כפול אם אותו webhook יישלח שוב.
+      external_id: messageId,
+    });
+    if (error) throw error;
+
+    // איש קשר שנוצר ידנית או מייבוא אקסל מגיע בלי wa_id. אחרי שליחה מוצלחת
+    // אנחנו יודעים אותו בוודאות, וזה חוסך את חיפוש הטלפון בפעם הבאה.
+    if (!input.contact.whatsapp_id) {
+      await db.from("contacts").update({ whatsapp_id: waId }).eq("id", input.contact.id);
     }
 
     return { ok: true };

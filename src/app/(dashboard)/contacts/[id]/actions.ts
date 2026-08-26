@@ -75,8 +75,8 @@ export async function updateContactFieldsAction(formData: FormData) {
           patch.phone = null;
           break;
         }
-        // מספר קיים בפורמט ‎+972‎ נשאר כמו שהוא אם לא נגעו בו, כדי לא לנתק
-        // את איש הקשר מ-ManyChat רק בגלל שמישהו פתח את הטופס ושמר.
+        // מספר קיים בפורמט ‎+972‎ נשאר כמו שהוא אם לא נגעו בו, כדי שפתיחת
+        // הטופס ושמירה לא ישנו מספר שהוואטסאפ כבר מזוהה לפיו.
         if (value === contact.phone) break;
         const normalized = normalizePhone(value);
         if (!normalized) throw new Error(`מספר טלפון לא תקין: ${value}`);
@@ -153,10 +153,10 @@ export async function addManualNoteAction(formData: FormData) {
   revalidatePath(`/contacts/${contactId}`);
 }
 
-// Free-form reply, typed by a team member — only valid inside the 24h window (see
-// isWithin24HourWindow in src/lib/manychat.ts). sendMessageToContact enforces that
-// itself; if called outside the window it fails with a clear error rather than
-// silently doing nothing, which the dashboard's error.tsx surfaces to whoever sent it.
+// Free-form reply, typed by a team member. Green API has no 24-hour window and no
+// approved-template requirement, so this is simply "send this text" — the only way it
+// fails is a contact with no usable phone number, or a disconnected WhatsApp instance,
+// and both surface through the dashboard's error.tsx.
 export async function sendWhatsAppReplyAction(formData: FormData) {
   await verifyTeamMember();
 
@@ -178,8 +178,8 @@ export async function sendWhatsAppReplyAction(formData: FormData) {
   revalidatePath(`/contacts/${contactId}`);
 }
 
-// Outside the 24h window, WhatsApp requires a Meta-approved template — sent via the
-// ManyChat Flow recorded on the template (manychat_template_id = flow_ns), not free text.
+// Sends a saved template, rendered against this contact. Identical to the free-form
+// reply above apart from where the text comes from and the log prefix.
 export async function sendWhatsAppTemplateAction(formData: FormData) {
   await verifyTeamMember();
 
@@ -201,7 +201,6 @@ export async function sendWhatsAppTemplateAction(formData: FormData) {
     contact,
     channel: "whatsapp",
     body: renderTemplate(template.body, contact),
-    manychatFlowNs: template.manychat_template_id,
     logPrefix: `[${template.name}]`,
   });
   if (!result.ok) throw new Error(result.error);

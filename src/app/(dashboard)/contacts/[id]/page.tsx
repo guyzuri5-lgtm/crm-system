@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { verifyTeamMember } from "@/lib/dal";
-import { isWithin24HourWindow } from "@/lib/manychat";
+import { isWithin24HourWindow, windowRemainingMs } from "@/lib/whatsapp-cloud";
 import { listStatuses, statusMap } from "@/lib/statuses";
 import { editableFields, readFieldValue } from "@/lib/fields";
 import { statusLabel } from "@/lib/status-colors";
@@ -18,8 +18,8 @@ import {
 } from "./actions";
 
 const INTERACTION_LABELS: Record<string, string> = {
-  manychat_in: "וואטסאפ ← נכנס",
-  manychat_out: "וואטסאפ → יוצא",
+  whatsapp_in: "וואטסאפ ← נכנס",
+  whatsapp_out: "וואטסאפ → יוצא",
   email_out: "מייל → יוצא",
   manual_note: "הערה ידנית",
   quiz_submitted: "שאלון צ'אקרות",
@@ -28,8 +28,8 @@ const INTERACTION_LABELS: Record<string, string> = {
 };
 
 const INTERACTION_DOT: Record<string, string> = {
-  manychat_in: "bg-emerald-500",
-  manychat_out: "bg-[var(--primary)]",
+  whatsapp_in: "bg-emerald-500",
+  whatsapp_out: "bg-[var(--primary)]",
   email_out: "bg-blue-500",
   manual_note: "bg-stone-400",
   quiz_submitted: "bg-violet-500",
@@ -82,8 +82,14 @@ export default async function ContactDetailPage(props: PageProps<"/contacts/[id]
   if (templatesError) throw templatesError;
   if (!contact) notFound();
 
-  const withinWindow = isWithin24HourWindow(contact.last_incoming_message_at);
-  const sendableTemplates = (whatsappTemplates ?? []).filter((t) => t.manychat_template_id);
+  // ה-wa_id נגזר מהטלפון, ולכן אפשר לפנות גם למי שמעולם לא כתב.
+  const canSendWhatsApp = Boolean(contact.whatsapp_id || contact.phone);
+
+  // הכלל היחיד שקובע מה מותר לשלוח. מחוץ לחלון Meta מקבלת *רק* תבנית שאושרה
+  // מראש, ולכן רק תבניות עם meta_template_name שמישות שם.
+  const openWindow = isWithin24HourWindow(contact.last_incoming_message_at);
+  const hoursLeft = Math.floor(windowRemainingMs(contact.last_incoming_message_at) / 3_600_000);
+  const approvedTemplates = (whatsappTemplates ?? []).filter((t) => t.meta_template_name);
 
   return (
     <div className="flex flex-col gap-8">
@@ -161,8 +167,10 @@ export default async function ContactDetailPage(props: PageProps<"/contacts/[id]
                 ? new Date(contact.last_incoming_message_at).toLocaleString("he-IL")
                 : "—"}
             </dd>
-            <dt className="text-[var(--muted)]">מזהה ManyChat</dt>
-            <dd className="truncate">{contact.manychat_subscriber_id ?? "—"}</dd>
+            <dt className="text-[var(--muted)]">מזהה וואטסאפ</dt>
+            <dd className="truncate" dir="ltr">
+              {contact.whatsapp_id ?? "—"}
+            </dd>
             <dt className="text-[var(--muted)]">נוצר</dt>
             <dd>{new Date(contact.created_at).toLocaleString("he-IL")}</dd>
           </dl>
@@ -246,36 +254,45 @@ export default async function ContactDetailPage(props: PageProps<"/contacts/[id]
 
       <section className="card">
         <h2 className="mb-3 font-medium">שליחת הודעת וואטסאפ</h2>
-        {!contact.manychat_subscriber_id ? (
+
+        {!canSendWhatsApp ? (
           <p className="text-sm text-[var(--muted)]">
-            אין עדיין מזהה ManyChat לאיש הקשר הזה — עוד לא התקבלה ממנו הודעה דרך ה-webhook, אז אי אפשר לשלוח.
+            אין לאיש הקשר מספר טלפון, ולא התקבלה ממנו הודעה בוואטסאפ — אין לאן לשלוח.
           </p>
-        ) : withinWindow ? (
-          <form action={sendWhatsAppReplyAction} className="flex flex-col gap-3">
-            <input type="hidden" name="contact_id" value={contact.id} />
-            <textarea
-              name="body"
-              rows={3}
-              required
-              placeholder="כתבו הודעה לשליחה בוואטסאפ..."
-              className="input"
-            />
-            <button type="submit" className="btn-primary self-start">
-              שלח בוואטסאפ
-            </button>
-          </form>
+        ) : openWindow ? (
+          <div className="flex flex-col gap-3">
+            <p className="inline-flex w-fit items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+              <span className="size-1.5 rounded-full bg-emerald-500" />
+              חלון פתוח — נותרו כ-{hoursLeft} שעות
+            </p>
+            <form action={sendWhatsAppReplyAction} className="flex flex-col gap-3">
+              <input type="hidden" name="contact_id" value={contact.id} />
+              <textarea
+                name="body"
+                rows={3}
+                required
+                placeholder="כתבו הודעה לשליחה בוואטסאפ..."
+                className="input"
+              />
+              <button type="submit" className="btn-primary self-start">
+                שלח בוואטסאפ
+              </button>
+            </form>
+          </div>
         ) : (
           <div className="flex flex-col gap-3">
-            <p className="text-sm text-[var(--muted)]">
-              איש הקשר מחוץ לחלון 24 השעות — וואטסאפ מאפשר לשלוח רק הודעת תבנית מאושרת, לא טקסט חופשי.
+            <p className="inline-flex w-fit items-center gap-2 rounded-full bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-600 ring-1 ring-inset ring-stone-500/15">
+              <span className="size-1.5 rounded-full bg-stone-400" />
+              חלון סגור — אפשר לשלוח רק תבנית מאושרת
             </p>
-            {sendableTemplates.length ? (
+
+            {approvedTemplates.length ? (
               <form action={sendWhatsAppTemplateAction} className="flex items-end gap-2">
                 <input type="hidden" name="contact_id" value={contact.id} />
                 <label className="field-label flex-1">
                   תבנית מאושרת
                   <select name="template_id" required className="input">
-                    {sendableTemplates.map((t) => (
+                    {approvedTemplates.map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.name}
                       </option>
@@ -288,11 +305,11 @@ export default async function ContactDetailPage(props: PageProps<"/contacts/[id]
               </form>
             ) : (
               <p className="text-sm text-[var(--muted)]">
-                אין עדיין תבניות וואטסאפ עם flow_ns מוגדר — צרו אחת בעמוד{" "}
+                אין עדיין תבנית וואטסאפ שאושרה ב-Meta. צרו אחת בעמוד{" "}
                 <Link href="/templates" className="text-[var(--primary)] underline">
                   תבניות הודעה
-                </Link>
-                .
+                </Link>{" "}
+                והזינו בה את שם התבנית כפי שאושרה.
               </p>
             )}
           </div>

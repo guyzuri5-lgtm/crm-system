@@ -17,9 +17,9 @@ import { listFields } from "@/lib/fields";
 import type { Contact, Database } from "@/lib/supabase/database.types";
 import { updateContactStatus } from "@/lib/automation-engine";
 
-// Manual contact creation — not driven by the ManyChat webhook. Lets the team add a
+// Manual contact creation — not driven by the WhatsApp webhook. Lets the team add a
 // lead by hand (phone lead, walk-in, referral, ...) and gives the dashboard something
-// to show/test before ManyChat is wired up.
+// to show/test before Green API is wired up.
 const createContactSchema = z.object({
   full_name: z.string().min(1, "חובה למלא שם"),
   phone: z.string().optional(),
@@ -274,7 +274,7 @@ export async function importContactsAction(
     const { data, error } = await db.from("contacts").select("*").in("phone", chunk);
     if (error) return { ok: false, error: error.message };
     // ממופתח תחת כל הצורות, כך שחיפוש לפי הצורה המנורמלת של הקובץ ימצא גם
-    // רשומה שנשמרה ב-‎+972‎ על ידי ה-webhook של ManyChat.
+    // רשומה שנשמרה ב-‎+972‎ מימי ManyChat, לפני המעבר ל-Green API.
     for (const contact of data ?? []) {
       if (!contact.phone) continue;
       for (const variant of phoneVariants(contact.phone)) existingByPhone.set(variant, contact);
@@ -304,7 +304,7 @@ export async function importContactsAction(
       const patch: Database["public"]["Tables"]["contacts"]["Update"] = {};
       if (row.full_name && row.full_name !== existing.full_name) patch.full_name = row.full_name;
       // רק אם אין טלפון בכלל — לא מחליפים ‎+972...‎ שמור ב-‎05...‎ ולהפך,
-      // כי זה אותו מספר וההחלפה רק הייתה מנתקת אותו מ-ManyChat.
+      // כי זה אותו מספר, וההחלפה רק הייתה מסכנת את הזיהוי מול הוואטסאפ.
       if (row.phone && !existing.phone) patch.phone = row.phone;
       if (row.email && !existing.email) patch.email = row.email;
       if (row.notes && row.notes !== existing.notes) patch.notes = row.notes;

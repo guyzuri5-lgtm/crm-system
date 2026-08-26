@@ -8,6 +8,7 @@ const NAV_LINKS = [
   { href: "/fields", label: "שדות" },
   { href: "/rules", label: "כללי אוטומציה" },
   { href: "/templates", label: "תבניות הודעה" },
+  { href: "/whatsapp", label: "וואטסאפ" },
   { href: "/booking", label: "פגישות" },
 ];
 

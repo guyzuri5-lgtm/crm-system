@@ -63,8 +63,8 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   // Runs on every page route, but not on /api/* (each API route owns its own auth —
-  // Supabase session for dashboard-facing endpoints, shared secrets for
-  // ManyChat/Vercel Cron callbacks) or static assets.
+  // Supabase session for dashboard-facing endpoints, bearer tokens for the
+  // Green API webhook and the Vercel Cron callback) or static assets.
   matcher: [
     "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
