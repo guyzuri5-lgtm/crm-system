@@ -313,24 +313,56 @@ export function verifyWebhookSignature(rawBody: string, header: string | null): 
  */
 export interface WhatsAppWebhook {
   object?: string;
+  /** המבנה של כפתור "Send to server" בקונסולה — ראו changeValues */
+  field?: string;
+  value?: WhatsAppChangeValue;
   entry?: {
     id?: string;
     changes?: {
       field?: string;
-      value?: {
-        messaging_product?: string;
-        metadata?: { display_phone_number?: string; phone_number_id?: string };
-        contacts?: { profile?: { name?: string }; wa_id?: string }[];
-        messages?: WhatsAppInboundMessage[];
-        statuses?: {
-          id?: string;
-          status?: string;
-          recipient_id?: string;
-          errors?: { code?: number; title?: string; message?: string }[];
-        }[];
-      };
+      value?: WhatsAppChangeValue;
     }[];
   }[];
+}
+
+export interface WhatsAppChangeValue {
+  messaging_product?: string;
+  metadata?: { display_phone_number?: string; phone_number_id?: string };
+  contacts?: { profile?: { name?: string }; wa_id?: string }[];
+  messages?: WhatsAppInboundMessage[];
+  statuses?: {
+    id?: string;
+    status?: string;
+    recipient_id?: string;
+    errors?: { code?: number; title?: string; message?: string }[];
+  }[];
+}
+
+/**
+ * כל אובייקטי ה-value שב-webhook, בלי קשר לצורה שבה הוא הגיע.
+ *
+ * Meta שולחת שתי צורות שונות לאותו תוכן:
+ *   webhook אמיתי  — { object, entry: [{ changes: [{ field, value }] }] }
+ *   כפתור הבדיקה   — { field, value }
+ *
+ * הראשונה היא מה שמגיע בפרודקשן. השנייה מגיעה מ-"Send to server" בקונסולה,
+ * שהוא כלי האבחון הראשון שמושיטים אליו יד כשמשהו לא עובד — ובלי לתמוך בו,
+ * הוא מחזיר "0 הודעות" ונראה כאילו הכל שבור דווקא כשמנסים לאמת שהכל תקין.
+ */
+function changeValues(payload: WhatsAppWebhook): WhatsAppChangeValue[] {
+  const values: WhatsAppChangeValue[] = [];
+
+  for (const entry of payload.entry ?? []) {
+    for (const change of entry.changes ?? []) {
+      if (change.value) values.push(change.value);
+    }
+  }
+
+  // רק כשאין entry בכלל — כדי ששדה value ברמה העליונה לא יוכל לשכפל תוכן
+  // שכבר נאסף מהמבנה התקני.
+  if (values.length === 0 && payload.value) values.push(payload.value);
+
+  return values;
 }
 
 export interface WhatsAppInboundMessage {
@@ -412,31 +444,28 @@ function messageText(message: WhatsAppInboundMessage): string {
 export function parseInboundMessages(payload: WhatsAppWebhook): ParsedInboundMessage[] {
   const parsed: ParsedInboundMessage[] = [];
 
-  for (const entry of payload.entry ?? []) {
-    for (const change of entry.changes ?? []) {
-      const value = change.value;
-      if (!value?.messages?.length) continue;
+  for (const value of changeValues(payload)) {
+    if (!value.messages?.length) continue;
 
-      const namesByWaId = new Map<string, string>();
-      for (const contact of value.contacts ?? []) {
-        const name = contact.profile?.name?.trim();
-        if (contact.wa_id && name) namesByWaId.set(contact.wa_id, name);
-      }
+    const namesByWaId = new Map<string, string>();
+    for (const contact of value.contacts ?? []) {
+      const name = contact.profile?.name?.trim();
+      if (contact.wa_id && name) namesByWaId.set(contact.wa_id, name);
+    }
 
-      for (const message of value.messages) {
-        if (!message.id || !message.from) continue;
-        parsed.push({
-          messageId: message.id,
-          waId: message.from,
-          phone: phoneFromWaId(message.from),
-          senderName: namesByWaId.get(message.from) ?? null,
-          text: messageText(message),
-          // timestamp מגיע כשניות מאז ה-epoch, כמחרוזת.
-          sentAt: message.timestamp
-            ? new Date(Number(message.timestamp) * 1000).toISOString()
-            : new Date().toISOString(),
-        });
-      }
+    for (const message of value.messages) {
+      if (!message.id || !message.from) continue;
+      parsed.push({
+        messageId: message.id,
+        waId: message.from,
+        phone: phoneFromWaId(message.from),
+        senderName: namesByWaId.get(message.from) ?? null,
+        text: messageText(message),
+        // timestamp מגיע כשניות מאז ה-epoch, כמחרוזת.
+        sentAt: message.timestamp
+          ? new Date(Number(message.timestamp) * 1000).toISOString()
+          : new Date().toISOString(),
+      });
     }
   }
 
@@ -455,17 +484,15 @@ export interface ParsedStatus {
  */
 export function parseStatuses(payload: WhatsAppWebhook): ParsedStatus[] {
   const parsed: ParsedStatus[] = [];
-  for (const entry of payload.entry ?? []) {
-    for (const change of entry.changes ?? []) {
-      for (const status of change.value?.statuses ?? []) {
-        if (!status.id || !status.status) continue;
-        const firstError = status.errors?.[0];
-        parsed.push({
-          messageId: status.id,
-          status: status.status,
-          error: firstError ? (firstError.message ?? firstError.title ?? null) : null,
-        });
-      }
+  for (const value of changeValues(payload)) {
+    for (const status of value.statuses ?? []) {
+      if (!status.id || !status.status) continue;
+      const firstError = status.errors?.[0];
+      parsed.push({
+        messageId: status.id,
+        status: status.status,
+        error: firstError ? (firstError.message ?? firstError.title ?? null) : null,
+      });
     }
   }
   return parsed;
