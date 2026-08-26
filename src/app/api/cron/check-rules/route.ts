@@ -7,19 +7,29 @@ import { runTimeSinceNoReplyRules } from "@/lib/automation-engine";
 // project — set one and this route (and only Vercel's own scheduler) can call it.
 export const dynamic = "force-dynamic";
 
-// Pro מאפשר עד 300 שניות; Hobby חוסם ב-60 בלי קשר למה שכתוב כאן. הערך גבוה
-// בכוונה — שליחות הוואטסאפ מושהות ביניהן (ראו whatsapp-throttle.ts), וכל שנייה
-// כאן היא עוד הודעה שנכנסת לריצה הזו במקום להידחות למחר.
+// Pro מאפשר עד 300 שניות; Hobby קוטע ב-60 **בלי קשר למה שכתוב כאן**.
 export const maxDuration = 300;
 
 /**
- * שולי הביטחון בין תקציב הריצה לבין הזמן שבו Vercel קוטע את הפונקציה בכוח.
+ * תקציב הריצה בפועל, בשניות.
  *
- * הקטיעה אינה מנומסת: אין onShutdown ואין הזדמנות לסיים. השוליים האלה הם מה
- * שמבטיח שהלולאה תעצור מרצון, תרשום את מה שנשלח, ותחזיר תשובה — במקום להיעלם
- * באמצע הודעה.
+ * למה זה לא נגזר מ-maxDuration: maxDuration הוא *בקשה*, לא הבטחה. ב-Hobby
+ * הוא נחתך בשקט ל-60, ותקציב שנגזר מ-300 היה גורם ללולאה להאמין שיש לה פי
+ * חמישה זמן ממה שיש — כלומר בדיוק הכשל שהמנגנון הזה נועד למנוע: הפונקציה
+ * נקטעת בכוח באמצע שליחה, בלי onShutdown ובלי הזדמנות לרשום מה יצא.
+ *
+ * ברירת המחדל בטוחה ל-Hobby. מי שעל Pro מרים אותה עד 280 דרך משתנה סביבה,
+ * ומקבל פי שישה הודעות בריצה — בלי לגעת בקוד ובלי להסתכן בטעות לכיוון השני.
  */
-const SAFETY_MARGIN_MS = 15_000;
+const DEFAULT_BUDGET_SECONDS = 45;
+
+function budgetMs(): number {
+  const configured = Number(process.env.CRON_TIME_BUDGET_SECONDS);
+  const seconds =
+    Number.isFinite(configured) && configured > 0 ? configured : DEFAULT_BUDGET_SECONDS;
+  // חסם עליון מול maxDuration עצמו: ערך גבוה ממנו לא יכול להיות נכון בשום תוכנית.
+  return Math.min(seconds, maxDuration - 15) * 1000;
+}
 
 export async function GET(request: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
@@ -30,10 +40,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const summary = await runTimeSinceNoReplyRules(
-    new Date(),
-    maxDuration * 1000 - SAFETY_MARGIN_MS
-  );
+  const summary = await runTimeSinceNoReplyRules(new Date(), budgetMs());
   const failed = summary.results.filter((r) => !r.ok);
 
   return NextResponse.json({
