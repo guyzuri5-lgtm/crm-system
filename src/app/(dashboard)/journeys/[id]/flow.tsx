@@ -1,34 +1,57 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { reorderStepsAction } from "../actions";
+import {
+  JOURNEY_CONDITION_LABELS,
+  type JourneyCondition,
+} from "@/lib/supabase/database.types";
+
 /**
- * תרשים הזרימה של המסע — תיבות וחיצים.
+ * תרשים הזרימה של המסע — תיבות, חיצים, וגרירה לשינוי סדר.
  *
- * SVG ולא ספריית קנבס: המסע הוא טור אחד של שלבים, וטור אחד לא מצדיק ספרייה
- * שמביאה איתה גרירה, פריסה אוטומטית וניהול מצב. כשיתווספו הסתעפויות אמיתיות
- * זו תהיה השאלה הנכונה לשאול מחדש.
+ * למה HTML ולא SVG: הגרסה הראשונה הייתה SVG, וזה עבד יפה כל עוד התרשים רק
+ * *הציג*. ברגע שנוספה גרירה, SVG הפך לנטל — אין בו drag-and-drop מובנה, וכל
+ * תיבה הייתה דורשת חישוב מיקום ידני. תיבות HTML בשורה מקבלות את זה מהדפדפן.
+ * החיצים הם אלמנטים דקים בין התיבות; זה מספיק לטור אחד.
  *
- * המידות מחושבות כאן ולא ב-CSS כי SVG צריך viewBox מספרי, והוא מה שמאפשר
- * לתרשים להתכווץ יפה במסך צר במקום להיחתך.
+ * הגרירה אופטימית: הסדר מתעדכן על המסך מיד, והשרת מקבל את התוצאה אחריו.
+ * שמירה שנכשלת מציגה שגיאה — ורענון מחזיר את האמת מהמסד.
  */
 
-interface FlowStep {
+export interface FlowStep {
+  id: string;
   position: number;
   waitDays: number;
   channel: "whatsapp" | "email";
   templateName: string;
-  stopIfReplied: boolean;
+  condition: JourneyCondition;
 }
 
-const BOX_W = 190;
-const BOX_H = 78;
-const GAP = 58;
-const PAD = 12;
-
 export function JourneyFlow({
+  journeyId,
   entryLabel,
+  stopOnReply,
   steps,
 }: {
+  journeyId: string;
   entryLabel: string;
+  stopOnReply: boolean;
   steps: FlowStep[];
 }) {
+  const [order, setOrder] = useState(steps);
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  // steps מגיע מחדש בכל רענון של השרת. בלי היישור הזה, מחיקת שלב הייתה
+  // משאירה על המסך את הרשימה הישנה עד לרענון מלא.
+  const ids = steps.map((s) => s.id).join(",");
+  const [lastIds, setLastIds] = useState(ids);
+  if (ids !== lastIds && !pending) {
+    setLastIds(ids);
+    setOrder(steps);
+  }
+
   if (!steps.length) {
     return (
       <p className="text-sm text-[var(--subtle)]">
@@ -37,158 +60,130 @@ export function JourneyFlow({
     );
   }
 
-  // תיבת הכניסה ואחריה שלב לכל צעד.
-  const boxes = steps.length + 1;
-  const width = boxes * BOX_W + (boxes - 1) * GAP + PAD * 2;
-  const height = BOX_H + PAD * 2 + 34;
+  function move(fromId: string, toId: string) {
+    if (fromId === toId) return;
+    const next = [...order];
+    const from = next.findIndex((s) => s.id === fromId);
+    const to = next.findIndex((s) => s.id === toId);
+    if (from < 0 || to < 0) return;
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    setOrder(next);
 
-  const x = (i: number) => PAD + i * (BOX_W + GAP);
-  const midY = PAD + BOX_H / 2;
+    startTransition(async () => {
+      const data = new FormData();
+      data.set("journey_id", journeyId);
+      data.set("order", next.map((s) => s.id).join(","));
+      await reorderStepsAction(data);
+    });
+  }
 
   return (
-    /*
-      dir=ltr על המכל ולא על ה-svg: הזרימה היא משמאל לימין כמו בכל תרשים
-      זרימה, גם בדף עברי, והפיכתה הייתה הופכת את החיצים לבלתי קריאים. על
-      אלמנט svg עצמו React אינו מקבל dir.
-    */
-    <div className="overflow-x-auto" dir="ltr">
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        width={width}
-        height={height}
-        role="img"
-        aria-label={`תרשים המסע: ${entryLabel}, ואחריו ${steps.length} שלבים`}
-        className="max-w-full"
-      >
-        <defs>
-          <marker
-            id="arrow"
-            viewBox="0 0 10 10"
-            refX="9"
-            refY="5"
-            markerWidth="6"
-            markerHeight="6"
-            orient="auto-start-reverse"
-          >
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--border)" />
-          </marker>
-        </defs>
+    <div className="flex flex-col gap-3">
+      {/*
+        dir=ltr: הזרימה משמאל לימין כמו בכל תרשים זרימה, גם בדף עברי.
+        הפיכתה הייתה הופכת את החיצים לבלתי קריאים.
+      */}
+      <div className="overflow-x-auto pb-2" dir="ltr">
+        <div className="flex min-w-max items-stretch gap-0">
+          <div className="flex w-44 shrink-0 flex-col justify-center rounded-2xl border border-[var(--border)] bg-[var(--background)] px-4 py-3">
+            <p className="text-[11px] text-[var(--subtle)]">נכנסים למסע</p>
+            <p className="mt-1 text-sm font-medium">{entryLabel}</p>
+          </div>
 
-        {/* ── כניסה ── */}
-        <g>
-          <rect
-            x={x(0)}
-            y={PAD}
-            width={BOX_W}
-            height={BOX_H}
-            rx={14}
-            className="fill-[var(--background)] stroke-[var(--border)]"
-            strokeWidth={1.5}
-          />
-          <text
-            x={x(0) + BOX_W / 2}
-            y={PAD + 28}
-            textAnchor="middle"
-            className="fill-[var(--subtle)] text-[11px]"
-          >
-            נכנסים למסע
-          </text>
-          <text
-            x={x(0) + BOX_W / 2}
-            y={PAD + 50}
-            textAnchor="middle"
-            className="fill-[var(--foreground)] text-[13px] font-medium"
-          >
-            {truncate(entryLabel, 24)}
-          </text>
-        </g>
-
-        {steps.map((step, i) => {
-          const left = x(i + 1);
-          const prevRight = x(i) + BOX_W;
-          const isEmail = step.channel === "email";
-
-          return (
-            <g key={step.position}>
-              {/* החץ, והתווית שמעליו — ההמתנה יושבת על הקשת ולא בתוך התיבה,
-                  כי היא מתארת את המעבר ולא את הפעולה. */}
-              <line
-                x1={prevRight}
-                y1={midY}
-                x2={left - 8}
-                y2={midY}
-                stroke="var(--border)"
-                strokeWidth={1.5}
-                markerEnd="url(#arrow)"
+          {order.map((step) => (
+            <div key={step.id} className="flex items-stretch">
+              <Arrow
+                waitDays={step.waitDays}
+                condition={step.condition}
               />
-              <text
-                x={(prevRight + left) / 2}
-                y={midY - 10}
-                textAnchor="middle"
-                className="fill-[var(--subtle)] text-[11px]"
-              >
-                {step.waitDays === 0 ? "מיד" : `${step.waitDays} ימים`}
-              </text>
 
-              <rect
-                x={left}
-                y={PAD}
-                width={BOX_W}
-                height={BOX_H}
-                rx={14}
-                className={
-                  isEmail
-                    ? "fill-sky-50 stroke-sky-300"
-                    : "fill-emerald-50 stroke-emerald-300"
-                }
-                strokeWidth={1.5}
-              />
-              <text
-                x={left + BOX_W / 2}
-                y={PAD + 26}
-                textAnchor="middle"
-                className={isEmail ? "fill-sky-700 text-[11px]" : "fill-emerald-700 text-[11px]"}
+              <div
+                draggable
+                onDragStart={() => setDragging(step.id)}
+                onDragEnd={() => setDragging(null)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => {
+                  if (dragging) move(dragging, step.id);
+                  setDragging(null);
+                }}
+                className={`w-44 shrink-0 cursor-grab rounded-2xl border px-4 py-3 transition-opacity active:cursor-grabbing ${
+                  dragging === step.id ? "opacity-40" : ""
+                } ${
+                  step.channel === "email"
+                    ? "border-sky-300 bg-sky-50"
+                    : "border-emerald-300 bg-emerald-50"
+                }`}
               >
-                {isEmail ? "מייל" : "וואטסאפ"}
-              </text>
-              <text
-                x={left + BOX_W / 2}
-                y={PAD + 47}
-                textAnchor="middle"
-                className="fill-[var(--foreground)] text-[13px] font-medium"
-              >
-                {truncate(step.templateName, 22)}
-              </text>
-              {step.stopIfReplied && (
-                <text
-                  x={left + BOX_W / 2}
-                  y={PAD + 66}
-                  textAnchor="middle"
-                  className="fill-[var(--subtle)] text-[10px]"
+                <p
+                  className={`text-[11px] ${step.channel === "email" ? "text-sky-700" : "text-emerald-700"}`}
                 >
-                  עוצר אם ענה
-                </text>
-              )}
-            </g>
-          );
-        })}
+                  {step.channel === "email" ? "מייל" : "וואטסאפ"}
+                </p>
+                <p className="mt-1 text-sm leading-snug font-medium break-words">
+                  {step.templateName}
+                </p>
+              </div>
+            </div>
+          ))}
 
-        {/* סוף המסע — קו קצר שמסמן שאין המשך, כדי שהתיבה האחרונה לא תיראה
-            כאילו נקטעה. */}
-        <line
-          x1={x(steps.length) + BOX_W}
-          y1={midY}
-          x2={x(steps.length) + BOX_W + 24}
-          y2={midY}
-          stroke="var(--border)"
-          strokeWidth={1.5}
-          strokeDasharray="3 3"
-        />
-      </svg>
+          {/* קצה פתוח — מסמן שאין המשך, כדי שהתיבה האחרונה לא תיראה כאילו נקטעה */}
+          <div className="flex w-8 items-center">
+            <div className="h-px w-full border-t border-dashed border-[var(--border)]" />
+          </div>
+        </div>
+      </div>
+
+      <p className="text-xs text-[var(--subtle)]">
+        גררו תיבה כדי לשנות את סדר השלבים.
+        {pending && <span className="mr-2 text-[var(--primary)]">שומר…</span>}
+        {!stopOnReply && (
+          <>
+            {" "}
+            תגובה של הלקוח אינה מסיימת את המסע — התנאים על החיצים הם שקובעים מי ממשיך
+            לאן.
+          </>
+        )}
+      </p>
     </div>
   );
 }
 
-function truncate(text: string, max: number): string {
-  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+/**
+ * החץ בין שתי תיבות. ההמתנה והתנאי יושבים כאן ולא בתוך התיבה, כי שניהם
+ * מתארים את *המעבר* — מתי עוברים ולמי מותר — ולא את הפעולה עצמה.
+ */
+function Arrow({
+  waitDays,
+  condition,
+}: {
+  waitDays: number;
+  condition: JourneyCondition;
+}) {
+  const conditional = condition !== "always";
+
+  return (
+    <div className="flex w-28 shrink-0 flex-col items-center justify-center px-1">
+      <span className="text-[11px] whitespace-nowrap text-[var(--subtle)]">
+        {waitDays === 0 ? "מיד" : `${waitDays} ימים`}
+      </span>
+
+      <div className="my-1 flex w-full items-center">
+        <div
+          className={`h-px flex-1 ${conditional ? "border-t border-dashed border-amber-400" : "bg-[var(--border)]"}`}
+        />
+        <span
+          className={`ml-[-1px] border-y-[5px] border-l-[7px] border-y-transparent ${
+            conditional ? "border-l-amber-400" : "border-l-[var(--border)]"
+          }`}
+        />
+      </div>
+
+      {conditional && (
+        <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap text-amber-700 ring-1 ring-amber-600/20 ring-inset">
+          {JOURNEY_CONDITION_LABELS[condition]}
+        </span>
+      )}
+    </div>
+  );
 }

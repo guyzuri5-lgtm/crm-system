@@ -7,6 +7,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { verifyTeamMember } from "@/lib/dal";
 import {
   JOURNEY_ENTRY_TYPES,
+  JOURNEY_CONDITIONS,
   MESSAGE_CHANNELS,
 } from "@/lib/supabase/database.types";
 
@@ -101,7 +102,7 @@ const stepSchema = z.object({
   wait_days: z.coerce.number().int().min(0).max(365),
   channel: z.enum(MESSAGE_CHANNELS),
   template_id: z.string().uuid("צריך לבחור תבנית"),
-  stop_if_replied: z.coerce.boolean(),
+  condition: z.enum(JOURNEY_CONDITIONS),
 });
 
 export async function addStepAction(formData: FormData) {
@@ -112,7 +113,7 @@ export async function addStepAction(formData: FormData) {
     wait_days: formData.get("wait_days") || 0,
     channel: formData.get("channel"),
     template_id: formData.get("template_id"),
-    stop_if_replied: formData.get("stop_if_replied") === "on",
+    condition: formData.get("condition") || "always",
   });
   if (!parsed.success) throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
 
@@ -180,6 +181,62 @@ export async function stopEnrollmentAction(formData: FormData) {
     .update({ state: "stopped_manual" })
     .eq("id", id);
   if (error) throw error;
+
+  revalidatePath(`/journeys/${journeyId}`);
+}
+
+/** מתג "תגובה מסיימת את המסע". כיבויו הוא מה שפותח מסלולים נפרדים. */
+export async function toggleStopOnReplyAction(formData: FormData) {
+  await verifyTeamMember();
+
+  const id = String(formData.get("id") ?? "");
+  const next = formData.get("stop_on_reply") === "true";
+
+  const { error } = await supabaseAdmin()
+    .from("journeys")
+    .update({ stop_on_reply: next })
+    .eq("id", id);
+  if (error) throw error;
+
+  revalidatePath(`/journeys/${id}`);
+}
+
+/**
+ * שינוי סדר השלבים — מקבל את המזהים בסדר החדש.
+ *
+ * הכתיבה היא בשני מעברים ולא באחד: ה-unique על (journey_id, position) היה
+ * נשבר באמצע כל החלפה, כי שני שלבים היו מחזיקים רגע את אותו מספר. המעבר
+ * הראשון מזיז את כולם לטווח שלילי פנוי, והשני מציב אותם בסדר הסופי.
+ */
+export async function reorderStepsAction(formData: FormData) {
+  await verifyTeamMember();
+
+  const journeyId = String(formData.get("journey_id") ?? "");
+  const ids = String(formData.get("order") ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (!journeyId || !ids.length) return;
+
+  const db = supabaseAdmin();
+
+  for (const [i, id] of ids.entries()) {
+    const { error } = await db
+      .from("journey_steps")
+      .update({ position: -(i + 1) })
+      .eq("id", id)
+      .eq("journey_id", journeyId);
+    if (error) throw error;
+  }
+
+  for (const [i, id] of ids.entries()) {
+    const { error } = await db
+      .from("journey_steps")
+      .update({ position: i + 1 })
+      .eq("id", id)
+      .eq("journey_id", journeyId);
+    if (error) throw error;
+  }
 
   revalidatePath(`/journeys/${journeyId}`);
 }

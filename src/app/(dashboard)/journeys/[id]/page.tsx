@@ -5,6 +5,8 @@ import { verifyTeamMember } from "@/lib/dal";
 import {
   JOURNEY_ENTRY_LABELS,
   JOURNEY_STATE_LABELS,
+  JOURNEY_CONDITIONS,
+  JOURNEY_CONDITION_LABELS,
   MESSAGE_CHANNELS,
   type Journey,
   type JourneyStep,
@@ -17,6 +19,7 @@ import {
   toggleJourneyAction,
   deleteJourneyAction,
   stopEnrollmentAction,
+  toggleStopOnReplyAction,
 } from "../actions";
 import { JourneyFlow } from "./flow";
 
@@ -107,10 +110,25 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
       {/* ── הקנבס ─────────────────────────────────────────────────────── */}
       <section className="card">
         <h2 className="mb-1 font-medium">המסע</h2>
-        <p className="mb-4 text-sm text-[var(--muted)]">
+        <p className="mb-3 text-sm text-[var(--muted)]">
           כך הוא נראה מנקודת מבטו של הלקוח, משמאל לימין.
         </p>
+
+        <form action={toggleStopOnReplyAction} className="mb-4">
+          <input type="hidden" name="id" value={journey.id} />
+          <input type="hidden" name="stop_on_reply" value={String(!journey.stop_on_reply)} />
+          <button
+            type="submit"
+            className="text-xs text-[var(--primary)] hover:underline"
+          >
+            {journey.stop_on_reply
+              ? "תגובה מסיימת את המסע — לחצו כדי לאפשר מסלולים נפרדים"
+              : "מסלולים נפרדים פעילים — לחצו כדי שתגובה תסיים את המסע"}
+          </button>
+        </form>
         <JourneyFlow
+          journeyId={journey.id}
+          stopOnReply={journey.stop_on_reply}
           entryLabel={
             JOURNEY_ENTRY_LABELS[journey.entry_type] +
             (journey.entry_type === "status" && journey.entry_value?.status
@@ -118,11 +136,12 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
               : "")
           }
           steps={steps.map((s) => ({
+            id: s.id,
             position: s.position,
             waitDays: s.wait_days,
             channel: s.channel,
             templateName: templateById.get(s.template_id)?.name ?? "תבנית חסרה",
-            stopIfReplied: s.stop_if_replied,
+            condition: s.condition,
           }))}
         />
       </section>
@@ -149,8 +168,10 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
                   <span className="font-medium">
                     {step.channel === "email" ? "מייל" : "וואטסאפ"}: {template?.name ?? "תבנית חסרה"}
                   </span>
-                  {step.stop_if_replied && (
-                    <span className="text-xs text-[var(--subtle)]">עוצר אם ענה</span>
+                  {step.condition !== "always" && (
+                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                      {JOURNEY_CONDITION_LABELS[step.condition]}
+                    </span>
                   )}
                 </div>
                 <form action={deleteStepAction}>
@@ -217,14 +238,18 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
             </select>
           </label>
 
-          <label className="flex items-start gap-2 self-end pb-2 text-sm font-medium">
-            <input
-              type="checkbox"
-              name="stop_if_replied"
-              defaultChecked
-              className="mt-0.5 size-4 accent-[var(--primary)]"
-            />
-            <span>עצור אם ענה</span>
+          <label className="field-label">
+            מתי לשלוח
+            <select name="condition" className="input" defaultValue="always">
+              {JOURNEY_CONDITIONS.map((c) => (
+                <option key={c} value={c}>
+                  {JOURNEY_CONDITION_LABELS[c]}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs font-normal text-[var(--subtle)]">
+              תנאי עובד רק כשתגובה אינה מסיימת את המסע.
+            </span>
           </label>
 
           <button type="submit" className="btn-primary self-start md:col-span-4">

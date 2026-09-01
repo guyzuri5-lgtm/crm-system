@@ -7,6 +7,7 @@ import type {
   MessageTemplate,
   InteractionType,
   JourneyEntryType,
+  JourneyCondition,
 } from "./supabase/database.types";
 
 /**
@@ -30,6 +31,7 @@ export interface Journey {
   entry_type: JourneyEntryType;
   entry_value: { status?: string } | null;
   active: boolean;
+  stop_on_reply: boolean;
 }
 
 export interface JourneyStep {
@@ -39,7 +41,7 @@ export interface JourneyStep {
   wait_days: number;
   channel: "whatsapp" | "email";
   template_id: string;
-  stop_if_replied: boolean;
+  condition: JourneyCondition;
 }
 
 export interface Enrollment {
@@ -55,6 +57,8 @@ export interface Enrollment {
 export interface JourneyRunSummary {
   enrolled: number;
   sent: number;
+  /** שלבים שתנאיהם לא התקיימו ולכן דולגו בלי לשלוח */
+  skippedByCondition: number;
   failed: { contactId: string; error: string }[];
   stoppedReplied: number;
   completed: number;
@@ -163,6 +167,7 @@ export async function runJourneys(
   const summary: JourneyRunSummary = {
     enrolled: 0,
     sent: 0,
+    skippedByCondition: 0,
     failed: [],
     stoppedReplied: 0,
     completed: 0,
@@ -184,6 +189,7 @@ export async function runJourneys(
   }
 
   const journeyIds = journeys.map((j) => j.id);
+  const journeyById = new Map(journeys.map((j) => [j.id, j]));
 
   const { data: stepsRaw, error: stepsError } = await db
     .from("journey_steps")
@@ -241,17 +247,42 @@ export async function runJourneys(
 
     if (!contact) continue;
 
-    // הלקוח ענה מאז שנכנס למסע — אין טעם להמשיך לרדוף אחריו.
-    if (
-      step.stop_if_replied &&
+    const journey = journeyById.get(enrollment.journey_id);
+    const replied = Boolean(
       contact.last_incoming_message_at &&
-      contact.last_incoming_message_at > enrollment.enrolled_at
-    ) {
+        contact.last_incoming_message_at > enrollment.enrolled_at
+    );
+
+    // עצירה ברמת המסע: הלקוח ענה, ואין טעם להמשיך לרדוף אחריו. זה המקרה
+    // השכיח, ולכן ברירת המחדל — אבל מכבים אותו כשרוצים מסלול נפרד לעונים.
+    if (journey?.stop_on_reply && replied) {
       await db
         .from("journey_enrollments")
         .update({ state: "stopped_replied" })
         .eq("id", enrollment.id);
       summary.stoppedReplied += 1;
+      continue;
+    }
+
+    // תנאי ברמת השלב: אם אינו מתקיים, מדלגים *מיד* לשלב הבא בלי להמתין
+    // שוב. המתנה מחודשת הייתה מזיזה את כל המסלול השני ביום לכל שלב מדולג,
+    // וזו לא הכוונה — ההמתנה כבר נספרה כשהגענו הנה.
+    if (!conditionHolds(step.condition, replied)) {
+      const skipTo = stepsByJourney
+        .get(enrollment.journey_id)
+        ?.find((s) => s.position === step.position + 1);
+
+      await db
+        .from("journey_enrollments")
+        .update(
+          skipTo
+            ? { next_position: skipTo.position, next_run_at: now.toISOString() }
+            : { state: "completed" }
+        )
+        .eq("id", enrollment.id);
+
+      summary.skippedByCondition += 1;
+      if (!skipTo) summary.completed += 1;
       continue;
     }
 
@@ -318,4 +349,17 @@ export async function runJourneys(
   }
 
   return summary;
+}
+
+/**
+ * האם השלב רץ עבור איש הקשר הזה.
+ *
+ * שני שלבים עוקבים עם תנאים הפוכים הם שני מסלולים על אותו טור — וזו
+ * ההסתעפות. הצורה הזו נבחרה על פני גרף אמיתי כי היא מכסה את מה שנדרש בפועל
+ * ("ענה / לא ענה") בלי להביא איתה עריכת גרף, זיהוי מעגלים וניהול מיקומים.
+ */
+function conditionHolds(condition: JourneyCondition, replied: boolean): boolean {
+  if (condition === "if_replied") return replied;
+  if (condition === "if_not_replied") return !replied;
+  return true;
 }

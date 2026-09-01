@@ -70,6 +70,19 @@ export const JOURNEY_ENTRY_LABELS: Record<JourneyEntryType, string> = {
   course_lead: "השאיר פרטים בדף הקורס",
 };
 
+/**
+ * האם השלב רץ. עם stop_on_reply כבוי, שני שלבים עוקבים עם תנאים הפוכים הם
+ * שני מסלולים — וזו ההסתעפות.
+ */
+export const JOURNEY_CONDITIONS = ["always", "if_replied", "if_not_replied"] as const;
+export type JourneyCondition = (typeof JOURNEY_CONDITIONS)[number];
+
+export const JOURNEY_CONDITION_LABELS: Record<JourneyCondition, string> = {
+  always: "תמיד",
+  if_replied: "רק אם ענה",
+  if_not_replied: "רק אם לא ענה",
+};
+
 export const JOURNEY_STATES = [
   "active",
   "completed",
@@ -480,6 +493,8 @@ export type Database = {
           /** {"status": "..."} עבור entry_type=status */
           entry_value: { status?: string };
           active: boolean;
+          /** נוסף ב-0017 — תגובה של הלקוח מסיימת את המסע כולו */
+          stop_on_reply: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -496,7 +511,8 @@ export type Database = {
           wait_days: number;
           channel: MessageChannel;
           template_id: string;
-          stop_if_replied: boolean;
+          /** נוסף ב-0017 — always | if_replied | if_not_replied */
+          condition: JourneyCondition;
           created_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["journey_steps"]["Row"]> & {
