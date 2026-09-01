@@ -240,6 +240,13 @@ export type Database = {
           meta_language_code: string;
           /** מה ממלא את {{1}}, {{2}} ... לפי הסדר, כמציינים של המערכת. */
           meta_variables: string[];
+          /** נוספו ב-0015 — תמונת מצב מסונכרנת מ-Meta, לא מקור אמת */
+          meta_template_id: string | null;
+          /** APPROVED | PENDING | REJECTED | PAUSED | DISABLED | MISSING */
+          meta_status: string | null;
+          meta_category: string | null;
+          meta_rejected_reason: string | null;
+          meta_synced_at: string | null;
           created_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["message_templates"]["Row"]> & {

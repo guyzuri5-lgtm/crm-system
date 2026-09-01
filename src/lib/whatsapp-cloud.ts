@@ -265,6 +265,155 @@ export async function sendTemplate({
   return result?.messages?.[0]?.id ?? null;
 }
 
+// ── ניהול תבניות מול Meta ────────────────────────────────────────────────
+
+/**
+ * מזהה ה-WABA. נדרש רק לניהול תבניות — השליחה עצמה עוברת דרך מזהה המספר.
+ *
+ * למה משתנה סביבה ולא גזירה מהטוקן: ניסינו. הצומת של המספר לא חושף את ה-WABA
+ * שמעליו, ו-/me/businesses דורש הרשאת business_management שאין לטוקן הזה ואין
+ * סיבה לתת לו. ערך מפורש עדיף על קריאה נוספת שממילא תיכשל.
+ */
+function wabaId(): string {
+  const id = process.env.WHATSAPP_WABA_ID?.trim();
+  if (!id) {
+    throw new Error(
+      "WHATSAPP_WABA_ID חסר. הוא נדרש לניהול תבניות מול Meta — מצאו אותו ב-WhatsApp Manager (מזהה חשבון הוואטסאפ העסקי) והוסיפו אותו ל-.env.local ול-Vercel."
+    );
+  }
+  return id;
+}
+
+export function isTemplateManagementConfigured(): boolean {
+  return isWhatsAppConfigured() && Boolean(process.env.WHATSAPP_WABA_ID?.trim());
+}
+
+/** הסיווג של Meta. UTILITY זולה משמעותית ועוברת אישור מהיר יותר מ-MARKETING. */
+export const META_TEMPLATE_CATEGORIES = ["UTILITY", "MARKETING"] as const;
+export type MetaTemplateCategory = (typeof META_TEMPLATE_CATEGORIES)[number];
+
+export interface MetaTemplate {
+  id: string;
+  name: string;
+  language: string;
+  status: string;
+  category: string | null;
+  /** מופיע רק על תבניות שנדחו, ומסביר מה לתקן */
+  rejectedReason: string | null;
+  body: string | null;
+}
+
+async function graphGet<T>(path: string, params: string): Promise<T> {
+  if (!isWhatsAppConfigured()) throw new WhatsAppNotConfiguredError();
+
+  const version = process.env.WHATSAPP_API_VERSION || DEFAULT_API_VERSION;
+  const response = await fetch(`https://graph.facebook.com/${version}/${path}?${params}`, {
+    headers: { Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}` },
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    const detail =
+      (payload as { error?: { message?: string } } | null)?.error?.message ??
+      `HTTP ${response.status}`;
+    throw new WhatsAppApiError(detail, response.status, payload);
+  }
+  return payload as T;
+}
+
+/**
+ * כל התבניות שקיימות ב-WABA, עם הסטטוס שלהן.
+ *
+ * זו הפונקציה שמאפשרת לדשבורד לדעת שתבנית נדחתה. בלעדיה רשומה מקומית יכולה
+ * להצביע על תבנית שכבר לא קיימת או שנדחתה, והגילוי מגיע רק כששליחה נכשלת —
+ * כלומר על לקוח אמיתי, ובשקט.
+ */
+export async function listMetaTemplates(): Promise<MetaTemplate[]> {
+  type Row = {
+    id: string;
+    name: string;
+    language: string;
+    status: string;
+    category?: string;
+    rejected_reason?: string;
+    components?: { type: string; text?: string }[];
+  };
+
+  const out: MetaTemplate[] = [];
+  let path = `${wabaId()}/message_templates`;
+  let params = "fields=id,name,language,status,category,rejected_reason,components&limit=100";
+
+  // Meta מחזירה עד 100 בעמוד. חשבון עם הרבה תבניות ותרגומים עובר את זה בקלות,
+  // וסנכרון חלקי גרוע מאין סנכרון: הוא היה מסמן תבניות קיימות כחסרות.
+  for (let page = 0; page < 10; page++) {
+    const res = await graphGet<{ data: Row[]; paging?: { next?: string } }>(path, params);
+
+    for (const row of res.data ?? []) {
+      out.push({
+        id: row.id,
+        name: row.name,
+        language: row.language,
+        status: row.status,
+        category: row.category ?? null,
+        rejectedReason:
+          row.rejected_reason && row.rejected_reason !== "NONE" ? row.rejected_reason : null,
+        body: row.components?.find((c) => c.type === "BODY")?.text ?? null,
+      });
+    }
+
+    const next = res.paging?.next;
+    if (!next) break;
+    const url = new URL(next);
+    path = url.pathname.replace(/^\/v\d+\.\d+\//, "");
+    params = url.searchParams.toString();
+  }
+
+  return out;
+}
+
+/**
+ * יצירת תבנית ב-Meta. מחזירה את המזהה והסטטוס ההתחלתי (בדרך כלל PENDING).
+ *
+ * example חובה כשיש משתנים: Meta דוחה תבנית עם {{1}} בלי דוגמה למה שממלא
+ * אותו, כי המאשר האנושי צריך לראות איך ההודעה נראית בפועל.
+ */
+export async function createMetaTemplate(input: {
+  name: string;
+  language: string;
+  category: MetaTemplateCategory;
+  body: string;
+  exampleValues: string[];
+}): Promise<{ id: string; status: string; category: string | null }> {
+  const component: Record<string, unknown> = { type: "BODY", text: input.body };
+  if (input.exampleValues.length > 0) {
+    component.example = { body_text: [input.exampleValues] };
+  }
+
+  return graphFetch(`${wabaId()}/message_templates`, {
+    name: input.name,
+    language: input.language,
+    category: input.category,
+    components: [component],
+  });
+}
+
+/** מחיקה ב-Meta לפי שם. מוחקת את כל התרגומים של אותו שם. */
+export async function deleteMetaTemplate(name: string): Promise<void> {
+  if (!isWhatsAppConfigured()) throw new WhatsAppNotConfiguredError();
+
+  const version = process.env.WHATSAPP_API_VERSION || DEFAULT_API_VERSION;
+  const response = await fetch(
+    `https://graph.facebook.com/${version}/${wabaId()}/message_templates?name=${encodeURIComponent(name)}`,
+    { method: "DELETE", headers: { Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}` } }
+  );
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    const detail =
+      (payload as { error?: { message?: string } } | null)?.error?.message ??
+      `HTTP ${response.status}`;
+    throw new WhatsAppApiError(detail, response.status, payload);
+  }
+}
+
 // ── Webhooks ────────────────────────────────────────────────────────────
 
 /**
