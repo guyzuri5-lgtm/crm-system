@@ -8,6 +8,8 @@ import type {
   InteractionType,
   JourneyEntryType,
   JourneyCondition,
+  JourneyAnchor,
+  Booking,
 } from "./supabase/database.types";
 
 /**
@@ -32,6 +34,7 @@ export interface Journey {
   entry_value: { status?: string } | null;
   active: boolean;
   stop_on_reply: boolean;
+  anchor: JourneyAnchor;
 }
 
 export interface JourneyStep {
@@ -42,6 +45,7 @@ export interface JourneyStep {
   channel: "whatsapp" | "email";
   template_id: string;
   condition: JourneyCondition;
+  offset_minutes: number;
 }
 
 export interface Enrollment {
@@ -52,6 +56,7 @@ export interface Enrollment {
   next_run_at: string;
   state: string;
   enrolled_at: string;
+  booking_id: string | null;
 }
 
 export interface JourneyRunSummary {
@@ -68,6 +73,25 @@ export interface JourneyRunSummary {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const MINUTE_MS = 60 * 1000;
+
+/**
+ * מתי שלב אמור לרוץ.
+ *
+ * שני העוגנים נבדלים בנקודת הייחוס, לא ביחידה: מהכניסה סופרים קדימה, ומפגישה
+ * סופרים יחסית — ולכן גם אחורה. offset_minutes שלילי הוא "לפני הפגישה".
+ */
+function stepDueAt(
+  anchor: JourneyAnchor,
+  step: { wait_days: number; offset_minutes: number },
+  from: { now: Date; bookingStartsAt: string | null }
+): Date | null {
+  if (anchor === "booking") {
+    if (!from.bookingStartsAt) return null;
+    return new Date(new Date(from.bookingStartsAt).getTime() + step.offset_minutes * MINUTE_MS);
+  }
+  return new Date(from.now.getTime() + step.wait_days * DAY_MS);
+}
 
 /** האינטראקציה שמסמנת כניסה, לכל סוג מסע שאינו מבוסס סטטוס. */
 const ENTRY_INTERACTION: Record<Exclude<JourneyEntryType, "status">, InteractionType> = {
@@ -110,6 +134,29 @@ async function enrollForJourney(journey: Journey, now: Date): Promise<number> {
     candidateIds = Array.from(new Set((data ?? []).map((i) => i.contact_id).filter(Boolean)));
   }
 
+  // מסע מעוגן-פגישה מצרף רק את מי שיש לו פגישה *עתידית ולא מבוטלת*. פגישה
+  // שכבר עברה אינה יכולה לקבל תזכורת "ערב לפני", ומצורף בלי פגישה היה נתקע
+  // בלי מועד לחשב ממנו.
+  const bookingByContact = new Map<string, Booking>();
+  if (journey.anchor === "booking") {
+    const { data: upcoming, error: bookingError } = await db
+      .from("bookings")
+      .select("*")
+      .in("contact_id", candidateIds.length ? candidateIds : ["00000000-0000-0000-0000-000000000000"])
+      .eq("status", "confirmed")
+      .gt("starts_at", now.toISOString())
+      .order("starts_at", { ascending: true });
+    if (bookingError) throw bookingError;
+
+    // הראשונה לכל איש קשר היא הקרובה ביותר, כי המיון עולה.
+    for (const booking of (upcoming ?? []) as Booking[]) {
+      if (booking.contact_id && !bookingByContact.has(booking.contact_id)) {
+        bookingByContact.set(booking.contact_id, booking);
+      }
+    }
+    candidateIds = candidateIds.filter((id) => bookingByContact.has(id));
+  }
+
   if (!candidateIds.length) return 0;
 
   const { data: existing, error: existingError } = await db
@@ -127,21 +174,33 @@ async function enrollForJourney(journey: Journey, now: Date): Promise<number> {
   // היה שולח מיד למי שנכנס, כי next_run_at היה now.
   const { data: firstStep } = await db
     .from("journey_steps")
-    .select("wait_days")
+    .select("wait_days, offset_minutes")
     .eq("journey_id", journey.id)
     .eq("position", 1)
     .maybeSingle();
 
-  const waitDays = (firstStep as { wait_days: number } | null)?.wait_days ?? 0;
-  const nextRunAt = new Date(now.getTime() + waitDays * DAY_MS).toISOString();
+  const step = (firstStep as { wait_days: number; offset_minutes: number } | null) ?? {
+    wait_days: 0,
+    offset_minutes: 0,
+  };
 
   const { error: insertError } = await db.from("journey_enrollments").insert(
-    fresh.map((contactId) => ({
-      journey_id: journey.id,
-      contact_id: contactId,
-      next_position: 1,
-      next_run_at: nextRunAt,
-    }))
+    fresh.map((contactId) => {
+      const booking = bookingByContact.get(contactId) ?? null;
+      const due =
+        stepDueAt(journey.anchor, step, {
+          now,
+          bookingStartsAt: booking?.starts_at ?? null,
+        }) ?? now;
+
+      return {
+        journey_id: journey.id,
+        contact_id: contactId,
+        booking_id: booking?.id ?? null,
+        next_position: 1,
+        next_run_at: due.toISOString(),
+      };
+    })
   );
   // 23505 = מרוץ בין שתי ריצות. ה-unique עשה את שלו; אין מה לעשות חוץ מלהתעלם.
   if (insertError && insertError.code !== "23505") throw insertError;
@@ -220,13 +279,22 @@ export async function runJourneys(
   if (!due.length) return summary;
 
   const contactIds = Array.from(new Set(due.map((e) => e.contact_id)));
-  const [{ data: contactsRaw }, { data: templatesRaw }] = await Promise.all([
-    db.from("contacts").select("*").in("id", contactIds),
-    db.from("message_templates").select("*"),
-  ]);
+  const bookingIds = Array.from(
+    new Set(due.map((e) => e.booking_id).filter((id): id is string => Boolean(id)))
+  );
+
+  const [{ data: contactsRaw }, { data: templatesRaw }, { data: bookingsRaw }] =
+    await Promise.all([
+      db.from("contacts").select("*").in("id", contactIds),
+      db.from("message_templates").select("*"),
+      bookingIds.length
+        ? db.from("bookings").select("*").in("id", bookingIds)
+        : Promise.resolve({ data: [] as Booking[] }),
+    ]);
 
   const contacts = new Map((contactsRaw ?? []).map((c) => [c.id, c as Contact]));
   const templates = new Map((templatesRaw ?? []).map((t) => [t.id, t as MessageTemplate]));
+  const bookings = new Map((bookingsRaw ?? []).map((b) => [b.id, b as Booking]));
 
   for (const enrollment of due) {
     const contact = contacts.get(enrollment.contact_id);
@@ -248,6 +316,23 @@ export async function runJourneys(
     if (!contact) continue;
 
     const journey = journeyById.get(enrollment.journey_id);
+    const booking = enrollment.booking_id ? (bookings.get(enrollment.booking_id) ?? null) : null;
+
+    // מסע מעוגן-פגישה מאבד את הטעם שלו ברגע שהפגישה בוטלה, נמחקה, או כבר
+    // התחילה. "תזכורת לפגישה מחר" שנשלחת אחרי שהיא הסתיימה גרועה מכלום.
+    if (journey?.anchor === "booking") {
+      const gone = !booking || booking.status !== "confirmed";
+      const started = booking && new Date(booking.starts_at).getTime() <= now.getTime();
+      if (gone || started) {
+        await db
+          .from("journey_enrollments")
+          .update({ state: "completed" })
+          .eq("id", enrollment.id);
+        summary.completed += 1;
+        continue;
+      }
+    }
+
     const replied = Boolean(
       contact.last_incoming_message_at &&
         contact.last_incoming_message_at > enrollment.enrolled_at
@@ -309,10 +394,11 @@ export async function runJourneys(
       channel: step.channel,
       subject:
         step.channel === "email"
-          ? renderTemplate(template.subject ?? template.name, contact)
+          ? renderTemplate(template.subject ?? template.name, contact, booking)
           : undefined,
-      body: renderTemplate(template.body, contact),
+      body: renderTemplate(template.body, contact, booking),
       template,
+      booking,
       logPrefix: `[${template.name}]`,
     });
 
@@ -339,7 +425,12 @@ export async function runJourneys(
         nextStep
           ? {
               next_position: nextStep.position,
-              next_run_at: new Date(now.getTime() + nextStep.wait_days * DAY_MS).toISOString(),
+              next_run_at: (
+                stepDueAt(journey?.anchor ?? "enrollment", nextStep, {
+                  now,
+                  bookingStartsAt: booking?.starts_at ?? null,
+                }) ?? now
+              ).toISOString(),
             }
           : { state: "completed" }
       )

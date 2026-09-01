@@ -199,7 +199,7 @@ export default async function TemplatesPage() {
             <input name="subject" className="input" />
           </label>
           <label className="field-label md:col-span-2">
-            {"תוכן — נתמכים: {{full_name}} {{first_name}} {{phone}} {{email}} {{status}}"}
+            {"תוכן — נתמכים: {{full_name}} {{first_name}} {{phone}} {{email}} {{status}} · ופגישה: {{booking_date}} {{booking_time}} {{booking_day}} {{booking_datetime}} {{booking_link}}"}
             <textarea name="body" required rows={4} className="input" />
           </label>
 

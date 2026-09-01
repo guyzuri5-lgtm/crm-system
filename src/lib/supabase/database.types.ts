@@ -74,6 +74,20 @@ export const JOURNEY_ENTRY_LABELS: Record<JourneyEntryType, string> = {
  * האם השלב רץ. עם stop_on_reply כבוי, שני שלבים עוקבים עם תנאים הפוכים הם
  * שני מסלולים — וזו ההסתעפות.
  */
+/**
+ * נקודת הייחוס לתזמון השלבים.
+ *
+ * enrollment — קדימה מרגע הכניסה. ההתנהגות המקורית.
+ * booking    — יחסית ל-starts_at של הפגישה, ולכן גם אחורה ממנה.
+ */
+export const JOURNEY_ANCHORS = ["enrollment", "booking"] as const;
+export type JourneyAnchor = (typeof JOURNEY_ANCHORS)[number];
+
+export const JOURNEY_ANCHOR_LABELS: Record<JourneyAnchor, string> = {
+  enrollment: "מרגע הכניסה למסע",
+  booking: "יחסית למועד הפגישה",
+};
+
 export const JOURNEY_CONDITIONS = ["always", "if_replied", "if_not_replied"] as const;
 export type JourneyCondition = (typeof JOURNEY_CONDITIONS)[number];
 
@@ -495,6 +509,8 @@ export type Database = {
           active: boolean;
           /** נוסף ב-0017 — תגובה של הלקוח מסיימת את המסע כולו */
           stop_on_reply: boolean;
+          /** נוסף ב-0018 — enrollment (wait_days) | booking (offset_minutes) */
+          anchor: JourneyAnchor;
           created_at: string;
           updated_at: string;
         };
@@ -513,6 +529,8 @@ export type Database = {
           template_id: string;
           /** נוסף ב-0017 — always | if_replied | if_not_replied */
           condition: JourneyCondition;
+          /** נוסף ב-0018 — דקות מ-starts_at של הפגישה. שלילי = לפני. */
+          offset_minutes: number;
           created_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["journey_steps"]["Row"]> & {
@@ -531,6 +549,8 @@ export type Database = {
           contact_id: string;
           next_position: number;
           next_run_at: string;
+          /** נוסף ב-0018 — הפגישה שאליה הצירוף קשור, במסע מעוגן-פגישה */
+          booking_id: string | null;
           /** active | completed | stopped_replied | stopped_manual */
           state: JourneyState;
           enrolled_at: string;

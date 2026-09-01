@@ -5,6 +5,8 @@ import { listStatuses } from "@/lib/statuses";
 import {
   JOURNEY_ENTRY_TYPES,
   JOURNEY_ENTRY_LABELS,
+  JOURNEY_ANCHORS,
+  JOURNEY_ANCHOR_LABELS,
   type Journey,
 } from "@/lib/supabase/database.types";
 import { createJourneyAction } from "./actions";
@@ -90,6 +92,21 @@ export default async function JourneysPage() {
                 </option>
               ))}
             </select>
+          </label>
+
+          <label className="field-label">
+            תזמון השלבים
+            <select name="anchor" className="input" defaultValue="enrollment">
+              {JOURNEY_ANCHORS.map((a) => (
+                <option key={a} value={a}>
+                  {JOURNEY_ANCHOR_LABELS[a]}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs font-normal text-[var(--subtle)]">
+              &quot;יחסית למועד הפגישה&quot; מאפשר לשלוח <strong>לפני</strong> הפגישה, ודורש
+              שהכניסה תהיה &quot;קבע פגישה&quot;.
+            </span>
           </label>
 
           <label className="field-label">

@@ -207,10 +207,25 @@ export async function sendWhatsAppTemplateAction(formData: FormData) {
   if (templateError) throw templateError;
   if (template.channel !== "whatsapp") throw new Error("זו לא תבנית וואטסאפ");
 
+  // הפגישה העתידית הקרובה, כדי ש-{{booking_time}} ודומיו יתמלאו גם בשליחה
+  // ידנית ולא רק ממסע. בלי זה תזכורת שנשלחת בלחיצה הייתה יוצאת עם המציין
+  // הגולמי.
+  const { data: booking } = await db
+    .from("bookings")
+    .select("*")
+    .eq("contact_id", contactId)
+    .eq("status", "confirmed")
+    .gt("starts_at", new Date().toISOString())
+    .order("starts_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
   const result = await sendMessageToContact({
     contact,
     channel: "whatsapp",
-    body: renderTemplate(template.body, contact),
+    body: renderTemplate(template.body, contact, booking),
+    template,
+    booking,
     logPrefix: `[${template.name}]`,
   });
   if (!result.ok) throw new Error(result.error);

@@ -8,6 +8,7 @@ import { verifyTeamMember } from "@/lib/dal";
 import {
   JOURNEY_ENTRY_TYPES,
   JOURNEY_CONDITIONS,
+  JOURNEY_ANCHORS,
   MESSAGE_CHANNELS,
 } from "@/lib/supabase/database.types";
 
@@ -16,6 +17,7 @@ const journeySchema = z.object({
   description: z.string().trim().optional(),
   entry_type: z.enum(JOURNEY_ENTRY_TYPES),
   status: z.string().trim().optional(),
+  anchor: z.enum(JOURNEY_ANCHORS),
 });
 
 export async function createJourneyAction(formData: FormData) {
@@ -26,11 +28,20 @@ export async function createJourneyAction(formData: FormData) {
     description: formData.get("description") || undefined,
     entry_type: formData.get("entry_type"),
     status: formData.get("status") || undefined,
+    anchor: formData.get("anchor") || "enrollment",
   });
   if (!parsed.success) throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
 
   if (parsed.data.entry_type === "status" && !parsed.data.status) {
     throw new Error("מסע שנכנסים אליו לפי סטטוס חייב שיוגדר לו סטטוס");
+  }
+
+  // עיגון לפגישה דורש שתהיה פגישה. מסע שנכנסים אליו לפי סטטוס לא מבטיח את
+  // זה, והצירוף היה מדלג על כולם בשקט — מצב שנראה כמו "המסע לא עובד".
+  if (parsed.data.anchor === "booking" && parsed.data.entry_type !== "booking") {
+    throw new Error(
+      "מסע שמעוגן למועד הפגישה חייב שהכניסה אליו תהיה \"קבע פגישה\" — אחרת אין ממה לחשב את המועד."
+    );
   }
 
   const { data, error } = await supabaseAdmin()
@@ -40,6 +51,7 @@ export async function createJourneyAction(formData: FormData) {
       description: parsed.data.description ?? null,
       entry_type: parsed.data.entry_type,
       entry_value: parsed.data.entry_type === "status" ? { status: parsed.data.status } : {},
+      anchor: parsed.data.anchor,
     })
     .select("id")
     .single();
@@ -100,6 +112,7 @@ export async function toggleJourneyAction(formData: FormData) {
 const stepSchema = z.object({
   journey_id: z.string().uuid(),
   wait_days: z.coerce.number().int().min(0).max(365),
+  offset_minutes: z.coerce.number().int().min(-43200).max(43200),
   channel: z.enum(MESSAGE_CHANNELS),
   template_id: z.string().uuid("צריך לבחור תבנית"),
   condition: z.enum(JOURNEY_CONDITIONS),
@@ -111,6 +124,7 @@ export async function addStepAction(formData: FormData) {
   const parsed = stepSchema.safeParse({
     journey_id: formData.get("journey_id"),
     wait_days: formData.get("wait_days") || 0,
+    offset_minutes: formData.get("offset_minutes") || 0,
     channel: formData.get("channel"),
     template_id: formData.get("template_id"),
     condition: formData.get("condition") || "always",

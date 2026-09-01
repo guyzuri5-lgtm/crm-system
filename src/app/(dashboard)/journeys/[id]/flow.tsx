@@ -5,6 +5,7 @@ import { reorderStepsAction } from "../actions";
 import {
   JOURNEY_CONDITION_LABELS,
   type JourneyCondition,
+  type JourneyAnchor,
 } from "@/lib/supabase/database.types";
 
 /**
@@ -23,6 +24,7 @@ export interface FlowStep {
   id: string;
   position: number;
   waitDays: number;
+  offsetMinutes: number;
   channel: "whatsapp" | "email";
   templateName: string;
   condition: JourneyCondition;
@@ -32,11 +34,13 @@ export function JourneyFlow({
   journeyId,
   entryLabel,
   stopOnReply,
+  anchor,
   steps,
 }: {
   journeyId: string;
   entryLabel: string;
   stopOnReply: boolean;
+  anchor: JourneyAnchor;
   steps: FlowStep[];
 }) {
   const [order, setOrder] = useState(steps);
@@ -94,7 +98,13 @@ export function JourneyFlow({
           {order.map((step) => (
             <div key={step.id} className="flex items-stretch">
               <Arrow
-                waitDays={step.waitDays}
+                label={
+                  anchor === "booking"
+                    ? offsetLabel(step.offsetMinutes)
+                    : step.waitDays === 0
+                      ? "מיד"
+                      : `${step.waitDays} ימים`
+                }
                 condition={step.condition}
               />
 
@@ -154,19 +164,17 @@ export function JourneyFlow({
  * מתארים את *המעבר* — מתי עוברים ולמי מותר — ולא את הפעולה עצמה.
  */
 function Arrow({
-  waitDays,
+  label,
   condition,
 }: {
-  waitDays: number;
+  label: string;
   condition: JourneyCondition;
 }) {
   const conditional = condition !== "always";
 
   return (
     <div className="flex w-28 shrink-0 flex-col items-center justify-center px-1">
-      <span className="text-[11px] whitespace-nowrap text-[var(--subtle)]">
-        {waitDays === 0 ? "מיד" : `${waitDays} ימים`}
-      </span>
+      <span className="text-[11px] whitespace-nowrap text-[var(--subtle)]">{label}</span>
 
       <div className="my-1 flex w-full items-center">
         <div
@@ -186,4 +194,17 @@ function Arrow({
       )}
     </div>
   );
+}
+
+/** "שעה לפני" קריא יותר מ-"‎-60 דקות" כשסורקים תרשים בעין. */
+function offsetLabel(minutes: number): string {
+  if (minutes === 0) return "במועד הפגישה";
+  const abs = Math.abs(minutes);
+  const unit =
+    abs % 1440 === 0
+      ? `${abs / 1440} ימים`
+      : abs % 60 === 0
+        ? `${abs / 60} שעות`
+        : `${abs} דק׳`;
+  return minutes < 0 ? `${unit} לפני` : `${unit} אחרי`;
 }

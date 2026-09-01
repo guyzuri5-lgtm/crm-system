@@ -7,6 +7,7 @@ import {
   JOURNEY_STATE_LABELS,
   JOURNEY_CONDITIONS,
   JOURNEY_CONDITION_LABELS,
+  JOURNEY_ANCHOR_LABELS,
   MESSAGE_CHANNELS,
   type Journey,
   type JourneyStep,
@@ -80,6 +81,8 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
             {journey.entry_type === "status" && journey.entry_value?.status
               ? ` — ${journey.entry_value.status}`
               : ""}
+            {" · "}
+            תזמון: {JOURNEY_ANCHOR_LABELS[journey.anchor]}
           </p>
         </div>
 
@@ -135,10 +138,12 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
               ? `: ${journey.entry_value.status}`
               : "")
           }
+          anchor={journey.anchor}
           steps={steps.map((s) => ({
             id: s.id,
             position: s.position,
             waitDays: s.wait_days,
+            offsetMinutes: s.offset_minutes,
             channel: s.channel,
             templateName: templateById.get(s.template_id)?.name ?? "תבנית חסרה",
             condition: s.condition,
@@ -163,7 +168,11 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
                     {step.position}
                   </span>
                   <span className="text-[var(--muted)]">
-                    {step.wait_days === 0 ? "מיד" : `אחרי ${step.wait_days} ימים`}
+                    {journey.anchor === "booking"
+                      ? offsetLabel(step.offset_minutes)
+                      : step.wait_days === 0
+                        ? "מיד"
+                        : `אחרי ${step.wait_days} ימים`}
                   </span>
                   <span className="font-medium">
                     {step.channel === "email" ? "מייל" : "וואטסאפ"}: {template?.name ?? "תבנית חסרה"}
@@ -197,20 +206,36 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
         >
           <input type="hidden" name="journey_id" value={journey.id} />
 
-          <label className="field-label">
-            להמתין (ימים)
-            <input
-              name="wait_days"
-              type="number"
-              min={0}
-              max={365}
-              defaultValue={steps.length ? 2 : 0}
-              className="input"
-            />
-            <span className="text-xs font-normal text-[var(--subtle)]">
-              מהשלב הקודם. 0 = מיד.
-            </span>
-          </label>
+          {journey.anchor === "booking" ? (
+            <label className="field-label">
+              כמה לפני הפגישה
+              <select name="offset_minutes" className="input" defaultValue="-1440">
+                {BEFORE_OPTIONS.map((o) => (
+                  <option key={o.minutes} value={o.minutes}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              <span className="text-xs font-normal text-[var(--subtle)]">
+                נמדד ממועד תחילת הפגישה.
+              </span>
+            </label>
+          ) : (
+            <label className="field-label">
+              להמתין (ימים)
+              <input
+                name="wait_days"
+                type="number"
+                min={0}
+                max={365}
+                defaultValue={steps.length ? 2 : 0}
+                className="input"
+              />
+              <span className="text-xs font-normal text-[var(--subtle)]">
+                מהשלב הקודם. 0 = מיד.
+              </span>
+            </label>
+          )}
 
           <label className="field-label">
             ערוץ
@@ -315,4 +340,30 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
       </section>
     </div>
   );
+}
+
+/**
+ * אפשרויות "לפני הפגישה", בדקות שליליות.
+ *
+ * רשימה סגורה ולא שדה חופשי: הערך הוא מספר שלילי, וזו בדיוק הצורה שקל
+ * לטעות בה — "60" במקום "-60" היה הופך תזכורת לשעה *אחרי* הפגישה.
+ */
+const BEFORE_OPTIONS = [
+  { minutes: -60, label: "שעה לפני" },
+  { minutes: -120, label: "שעתיים לפני" },
+  { minutes: -180, label: "שלוש שעות לפני" },
+  { minutes: -960, label: "ערב לפני (16 שעות)" },
+  { minutes: -1440, label: "יום לפני" },
+  { minutes: -2880, label: "יומיים לפני" },
+  { minutes: -10080, label: "שבוע לפני" },
+  { minutes: 0, label: "במועד הפגישה" },
+];
+
+function offsetLabel(minutes: number): string {
+  const known = BEFORE_OPTIONS.find((o) => o.minutes === minutes);
+  if (known) return known.label;
+  if (minutes === 0) return "במועד הפגישה";
+  const abs = Math.abs(minutes);
+  const unit = abs % 1440 === 0 ? `${abs / 1440} ימים` : `${Math.round(abs / 60)} שעות`;
+  return minutes < 0 ? `${unit} לפני` : `${unit} אחרי`;
 }
