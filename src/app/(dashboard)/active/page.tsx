@@ -22,6 +22,7 @@ export const dynamic = "force-dynamic";
 const ACTIVITY_LABELS: Record<InteractionType, string> = {
   whatsapp_in: "שלח הודעה",
   quiz_submitted: "מילא שאלון",
+  course_lead: "השאיר פרטים לקורס",
   booking_created: "קבע פגישה",
   booking_cancelled: "ביטל פגישה",
   whatsapp_out: "נשלחה אליו הודעה",

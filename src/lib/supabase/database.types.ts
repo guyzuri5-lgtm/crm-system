@@ -36,7 +36,9 @@ export type InteractionType =
   | "quiz_submitted"
   // נוספו ב-0005_booking.sql — קביעת פגישה וביטולה
   | "booking_created"
-  | "booking_cancelled";
+  | "booking_cancelled"
+  // נוסף ב-0013_course_leads.sql — השארת פרטים בדף הנחיתה של קורס המדיטציה
+  | "course_lead";
 
 /** סוגי רשומה בשאלון, לפי סדר עולה של "חום" הליד */
 export const QUIZ_KINDS = ["anonymous", "lead", "booking_click"] as const;
@@ -46,6 +48,15 @@ export const QUIZ_KIND_LABELS: Record<QuizKind, string> = {
   anonymous: "אנונימי",
   lead: "השאיר פרטים",
   booking_click: "יצא לקבוע פגישה",
+};
+
+/** סוגי רשומה בדף הנחיתה של הקורס, לפי סדר עולה של "חום" הליד */
+export const COURSE_LEAD_KINDS = ["lead", "payment_click"] as const;
+export type CourseLeadKind = (typeof COURSE_LEAD_KINDS)[number];
+
+export const COURSE_LEAD_KIND_LABELS: Record<CourseLeadKind, string> = {
+  lead: "השאיר פרטים",
+  payment_click: "יצא לתשלום",
 };
 
 export const BOOKING_LOCATIONS = ["google_meet", "phone", "in_person"] as const;
@@ -173,6 +184,30 @@ export type Database = {
           session_id: string;
         };
         Update: Partial<Database["public"]["Tables"]["quiz_submissions"]["Row"]>;
+        Relationships: Relationships;
+      };
+      course_leads: {
+        Row: {
+          id: string;
+          session_id: string;
+          contact_id: string | null;
+          kind: CourseLeadKind;
+          full_name: string | null;
+          email: string | null;
+          phone: string | null;
+          consent: boolean;
+          /** מתי ניתנה ההסכמה לדיוור. null כשלא אושרה — זו הראיה, ולכן לא נדרס בכל עדכון. */
+          consent_at: string | null;
+          source: string | null;
+          utm: Record<string, string>;
+          payment_clicked_at: string | null;
+          submitted_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["course_leads"]["Row"]> & {
+          session_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["course_leads"]["Row"]>;
         Relationships: Relationships;
       };
       interactions: {
@@ -435,4 +470,5 @@ export type BookingEventType = Database["public"]["Tables"]["booking_event_types
 export type BookingAvailability = Database["public"]["Tables"]["booking_availability"]["Row"];
 export type BookingBlackout = Database["public"]["Tables"]["booking_blackouts"]["Row"];
 export type Booking = Database["public"]["Tables"]["bookings"]["Row"];
+export type CourseLead = Database["public"]["Tables"]["course_leads"]["Row"];
 export type BookingDateOverride = Database["public"]["Tables"]["booking_date_overrides"]["Row"];
