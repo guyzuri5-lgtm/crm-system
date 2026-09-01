@@ -1,0 +1,49 @@
+# מתזמן חיצוני לקרון של ה-CRM.
+#
+# ── למה לא הקרון של Vercel ──
+# תוכנית Hobby מגבילה לקרון יומי אחד. תזכורת "שעה לפני הפגישה" זקוקה לריצה
+# תכופה בהרבה, ו-GitHub Actions נותן את זה בחינם על אותו endpoint שכבר קיים
+# ומוגן ב-CRON_SECRET.
+#
+# ── שני דברים שחשוב לדעת ──
+# 1. התזמון של GitHub הוא "מאמץ סביר" ולא הבטחה. בשעות עומס ריצה יכולה
+#    להידחות בכמה דקות. על תזכורת לפגישה זה חסר משמעות; על משהו שדורש דיוק
+#    לשנייה — לא היה מתאים.
+# 2. GitHub משבית תזמון בריפו שאין בו פעילות 60 יום. פוש כלשהו מאפס את
+#    המונה. אם הפרויקט נכנס לתרדמת ארוכה, שווה לוודא שהתזמון עדיין פעיל.
+
+name: CRM cron
+
+on:
+  schedule:
+    # כל 15 דקות. זו רזולוציית הדיוק של תזכורות שמעוגנות לפגישה.
+    - cron: "*/15 * * * *"
+  # הרצה ידנית מלשונית Actions — לבדיקה, בלי לחכות לתזמון.
+  workflow_dispatch:
+
+# ריצה שנתקעה לא תצטבר עם הבאות. השליחה עצמה בטוחה לחזרות, אבל שתי ריצות
+# במקביל יכולות שתיהן לשלוח לפני שאחת מהן הספיקה לרשום — וזו שליחה כפולה.
+concurrency:
+  group: crm-cron
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: הפעלת הקרון
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          # אם הדומיין של הפרודקשן משתנה — כאן משנים אותו.
+          CRM_URL: https://crm-system-eight-omega.vercel.app
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET לא מוגדר ב-Secrets של הריפו"
+            exit 1
+          fi
+
+          # ‎--fail-with-body מחזיר קוד יציאה שגוי על 4xx/5xx *ומדפיס* את הגוף,
+          # כך שהשגיאה של השרת נראית בלוג ולא רק "exit 22".
+          curl --fail-with-body --silent --show-error --max-time 120 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$CRM_URL/api/cron/check-rules"
