@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runTimeSinceNoReplyRules } from "@/lib/automation-engine";
+import { runJourneys } from "@/lib/journey-engine";
 
 // GET /api/cron/check-rules — per spec section 4, runs once a day (see vercel.json).
 // Vercel Cron always calls with GET, and automatically sends
@@ -40,14 +41,34 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const summary = await runTimeSinceNoReplyRules(new Date(), budgetMs());
+  const now = new Date();
+  const total = budgetMs();
+
+  // שני המנועים חולקים את אותו חלון ריצה ואת אותה תקרה יומית. החלוקה כאן היא
+  // של *זמן* בלבד — התקרה נספרת מהמסד, ולכן היא נאכפת נכון בשניהם בלי תיאום.
+  //
+  // הכללים רצים ראשונים ומקבלים את רוב החלון: הם המנגנון הוותיק, ומסע שמפספס
+  // יום ממשיך מעצמו בריצה הבאה בלי לאבד את מקומו — יתרון שלכללים אין.
+  const summary = await runTimeSinceNoReplyRules(now, Math.floor(total * 0.6));
   const failed = summary.results.filter((r) => !r.ok);
+
+  const journeys = await runJourneys(new Date(), Math.floor(total * 0.4));
 
   return NextResponse.json({
     ok: true,
     checked_at: new Date().toISOString(),
     sent: summary.results.length - failed.length,
     failed: failed.length,
+    journeys: {
+      enrolled: journeys.enrolled,
+      sent: journeys.sent,
+      completed: journeys.completed,
+      stopped_replied: journeys.stoppedReplied,
+      failed: journeys.failed.length,
+      skipped: journeys.skipped,
+      stopped: journeys.stopped,
+      errors: journeys.failed,
+    },
     // מה שלא נשלח בריצה הזו ייתפס בריצה הבאה — automation_rule_runs מבטיח
     // שמי שכן קיבל לא יקבל שוב.
     skipped: summary.skipped,

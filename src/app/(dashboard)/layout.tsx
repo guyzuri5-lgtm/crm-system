@@ -11,6 +11,7 @@ const NAV_LINKS = [
   { href: "/contacts", label: "אנשי קשר" },
   { href: "/booking", label: "פגישות" },
   { href: "/templates", label: "תבניות הודעה" },
+  { href: "/journeys", label: "מסע לקוח" },
   { href: "/rules", label: "כללי אוטומציה" },
   { href: "/whatsapp", label: "וואטסאפ" },
   { href: "/settings", label: "הגדרות" },

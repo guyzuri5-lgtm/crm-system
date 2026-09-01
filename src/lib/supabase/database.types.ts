@@ -59,6 +59,32 @@ export const COURSE_LEAD_KIND_LABELS: Record<CourseLeadKind, string> = {
   payment_click: "יצא לתשלום",
 };
 
+/** מה מכניס איש קשר למסע. כולם ניתנים לזיהוי בשאילתה מהקרון. */
+export const JOURNEY_ENTRY_TYPES = ["status", "quiz", "booking", "course_lead"] as const;
+export type JourneyEntryType = (typeof JOURNEY_ENTRY_TYPES)[number];
+
+export const JOURNEY_ENTRY_LABELS: Record<JourneyEntryType, string> = {
+  status: "נכנס לסטטוס",
+  quiz: "מילא את השאלון",
+  booking: "קבע פגישה",
+  course_lead: "השאיר פרטים בדף הקורס",
+};
+
+export const JOURNEY_STATES = [
+  "active",
+  "completed",
+  "stopped_replied",
+  "stopped_manual",
+] as const;
+export type JourneyState = (typeof JOURNEY_STATES)[number];
+
+export const JOURNEY_STATE_LABELS: Record<JourneyState, string> = {
+  active: "במסע",
+  completed: "סיים",
+  stopped_replied: "נעצר — ענה",
+  stopped_manual: "נעצר ידנית",
+};
+
 export const BOOKING_LOCATIONS = ["google_meet", "phone", "in_person"] as const;
 export type BookingLocation = (typeof BOOKING_LOCATIONS)[number];
 
@@ -442,6 +468,79 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["bookings"]["Row"]>;
         Relationships: Relationships;
       };
+
+      // ── נוספו ב-0016_journeys.sql ──────────────────────────────────────
+      journeys: {
+        Row: {
+          id: string;
+          name: string;
+          description: string | null;
+          /** status | quiz | booking | course_lead */
+          entry_type: JourneyEntryType;
+          /** {"status": "..."} עבור entry_type=status */
+          entry_value: { status?: string };
+          active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["journeys"]["Row"]> & { name: string; entry_type: JourneyEntryType };
+        Update: Partial<Database["public"]["Tables"]["journeys"]["Row"]>;
+        Relationships: Relationships;
+      };
+      journey_steps: {
+        Row: {
+          id: string;
+          journey_id: string;
+          position: number;
+          /** ימים להמתנה *לפני* השלב. הקרון רץ פעם ביום, ולכן יום הוא היחידה. */
+          wait_days: number;
+          channel: MessageChannel;
+          template_id: string;
+          stop_if_replied: boolean;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["journey_steps"]["Row"]> & {
+          journey_id: string;
+          position: number;
+          channel: MessageChannel;
+          template_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["journey_steps"]["Row"]>;
+        Relationships: Relationships;
+      };
+      journey_enrollments: {
+        Row: {
+          id: string;
+          journey_id: string;
+          contact_id: string;
+          next_position: number;
+          next_run_at: string;
+          /** active | completed | stopped_replied | stopped_manual */
+          state: JourneyState;
+          enrolled_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["journey_enrollments"]["Row"]> & {
+          journey_id: string;
+          contact_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["journey_enrollments"]["Row"]>;
+        Relationships: Relationships;
+      };
+      journey_step_runs: {
+        Row: {
+          id: string;
+          enrollment_id: string;
+          step_id: string;
+          sent_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["journey_step_runs"]["Row"]> & {
+          enrollment_id: string;
+          step_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["journey_step_runs"]["Row"]>;
+        Relationships: Relationships;
+      };
     };
     Views: {
       /** נוצרת ב-0012_contact_activity.sql — סיכום פעילות לכל איש קשר. */
@@ -477,5 +576,8 @@ export type BookingEventType = Database["public"]["Tables"]["booking_event_types
 export type BookingAvailability = Database["public"]["Tables"]["booking_availability"]["Row"];
 export type BookingBlackout = Database["public"]["Tables"]["booking_blackouts"]["Row"];
 export type Booking = Database["public"]["Tables"]["bookings"]["Row"];
+export type Journey = Database["public"]["Tables"]["journeys"]["Row"];
+export type JourneyStep = Database["public"]["Tables"]["journey_steps"]["Row"];
+export type JourneyEnrollment = Database["public"]["Tables"]["journey_enrollments"]["Row"];
 export type CourseLead = Database["public"]["Tables"]["course_leads"]["Row"];
 export type BookingDateOverride = Database["public"]["Tables"]["booking_date_overrides"]["Row"];
