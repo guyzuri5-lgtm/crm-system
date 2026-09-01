@@ -5,12 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { verifyTeamMember } from "@/lib/dal";
-import {
-  JOURNEY_ENTRY_TYPES,
-  JOURNEY_CONDITIONS,
-  JOURNEY_ANCHORS,
-  MESSAGE_CHANNELS,
-} from "@/lib/supabase/database.types";
+import { JOURNEY_ENTRY_TYPES, JOURNEY_ANCHORS } from "@/lib/supabase/database.types";
 
 const journeySchema = z.object({
   name: z.string().trim().min(1, "חובה למלא שם למסע"),
@@ -109,80 +104,6 @@ export async function toggleJourneyAction(formData: FormData) {
   revalidatePath(`/journeys/${id}`);
 }
 
-const stepSchema = z.object({
-  journey_id: z.string().uuid(),
-  wait_days: z.coerce.number().int().min(0).max(365),
-  offset_minutes: z.coerce.number().int().min(-43200).max(43200),
-  channel: z.enum(MESSAGE_CHANNELS),
-  template_id: z.string().uuid("צריך לבחור תבנית"),
-  condition: z.enum(JOURNEY_CONDITIONS),
-});
-
-export async function addStepAction(formData: FormData) {
-  await verifyTeamMember();
-
-  const parsed = stepSchema.safeParse({
-    journey_id: formData.get("journey_id"),
-    wait_days: formData.get("wait_days") || 0,
-    offset_minutes: formData.get("offset_minutes") || 0,
-    channel: formData.get("channel"),
-    template_id: formData.get("template_id"),
-    condition: formData.get("condition") || "always",
-  });
-  if (!parsed.success) throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
-
-  const db = supabaseAdmin();
-
-  // המיקום נגזר מהקיים ולא מגיע מהטופס — שני טפסים שנשלחו יחד היו מקבלים
-  // אותו מספר, וה-unique היה דוחה את השני בשגיאה לא מובנת.
-  const { data: last, error: lastError } = await db
-    .from("journey_steps")
-    .select("position")
-    .eq("journey_id", parsed.data.journey_id)
-    .order("position", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (lastError) throw lastError;
-
-  const { error } = await db.from("journey_steps").insert({
-    ...parsed.data,
-    position: (last?.position ?? 0) + 1,
-  });
-  if (error) throw error;
-
-  revalidatePath(`/journeys/${parsed.data.journey_id}`);
-}
-
-export async function deleteStepAction(formData: FormData) {
-  await verifyTeamMember();
-
-  const id = String(formData.get("id") ?? "");
-  const journeyId = String(formData.get("journey_id") ?? "");
-  const db = supabaseAdmin();
-
-  const { error } = await db.from("journey_steps").delete().eq("id", id);
-  if (error) throw error;
-
-  // סגירת החור במספור. בלעדיה מסע עם שלבים 1,3 היה נתקע: המנוע מחפש את
-  // position הבא בדיוק, ו-2 שנעלם היה מסיים את המסע לכולם באמצע.
-  const { data: rest, error: restError } = await db
-    .from("journey_steps")
-    .select("id, position")
-    .eq("journey_id", journeyId)
-    .order("position", { ascending: true });
-  if (restError) throw restError;
-
-  await Promise.all(
-    (rest ?? []).map((step, index) =>
-      step.position === index + 1
-        ? Promise.resolve()
-        : db.from("journey_steps").update({ position: index + 1 }).eq("id", step.id)
-    )
-  );
-
-  revalidatePath(`/journeys/${journeyId}`);
-}
-
 /** עצירה ידנית של אדם אחד באמצע מסע. */
 export async function stopEnrollmentAction(formData: FormData) {
   await verifyTeamMember();
@@ -213,44 +134,4 @@ export async function toggleStopOnReplyAction(formData: FormData) {
   if (error) throw error;
 
   revalidatePath(`/journeys/${id}`);
-}
-
-/**
- * שינוי סדר השלבים — מקבל את המזהים בסדר החדש.
- *
- * הכתיבה היא בשני מעברים ולא באחד: ה-unique על (journey_id, position) היה
- * נשבר באמצע כל החלפה, כי שני שלבים היו מחזיקים רגע את אותו מספר. המעבר
- * הראשון מזיז את כולם לטווח שלילי פנוי, והשני מציב אותם בסדר הסופי.
- */
-export async function reorderStepsAction(formData: FormData) {
-  await verifyTeamMember();
-
-  const journeyId = String(formData.get("journey_id") ?? "");
-  const ids = String(formData.get("order") ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  if (!journeyId || !ids.length) return;
-
-  const db = supabaseAdmin();
-
-  for (const [i, id] of ids.entries()) {
-    const { error } = await db
-      .from("journey_steps")
-      .update({ position: -(i + 1) })
-      .eq("id", id)
-      .eq("journey_id", journeyId);
-    if (error) throw error;
-  }
-
-  for (const [i, id] of ids.entries()) {
-    const { error } = await db
-      .from("journey_steps")
-      .update({ position: i + 1 })
-      .eq("id", id)
-      .eq("journey_id", journeyId);
-    if (error) throw error;
-  }
-
-  revalidatePath(`/journeys/${journeyId}`);
 }

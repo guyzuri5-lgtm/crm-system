@@ -522,24 +522,44 @@ export type Database = {
         Row: {
           id: string;
           journey_id: string;
-          position: number;
           /** ימים להמתנה *לפני* השלב. הקרון רץ פעם ביום, ולכן יום הוא היחידה. */
           wait_days: number;
           channel: MessageChannel;
           template_id: string;
-          /** נוסף ב-0017 — always | if_replied | if_not_replied */
-          condition: JourneyCondition;
-          /** נוסף ב-0018 — דקות מ-starts_at של הפגישה. שלילי = לפני. */
+          /** דקות מ-starts_at של הפגישה. שלילי = לפני. */
           offset_minutes: number;
+          /** נוספו ב-0019 — מיקום הכרטיסייה על המשטח */
+          pos_x: number;
+          pos_y: number;
+          /** שם קצר לכרטיסייה; אותה תבנית יכולה להופיע בכמה מסלולים */
+          label: string | null;
           created_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["journey_steps"]["Row"]> & {
           journey_id: string;
-          position: number;
           channel: MessageChannel;
           template_id: string;
         };
         Update: Partial<Database["public"]["Tables"]["journey_steps"]["Row"]>;
+        Relationships: Relationships;
+      };
+      journey_edges: {
+        Row: {
+          id: string;
+          journey_id: string;
+          /** ריק = יוצאת מנקודת הכניסה למסע */
+          from_step_id: string | null;
+          to_step_id: string;
+          condition: JourneyCondition;
+          /** סדר הבדיקה כשיוצאות כמה קשתות מאותו צומת. הראשונה שמתאימה זוכה. */
+          priority: number;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["journey_edges"]["Row"]> & {
+          journey_id: string;
+          to_step_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["journey_edges"]["Row"]>;
         Relationships: Relationships;
       };
       journey_enrollments: {
@@ -547,7 +567,10 @@ export type Database = {
           id: string;
           journey_id: string;
           contact_id: string;
-          next_position: number;
+          /** ריק = טרם התחיל, או שהצומת נמחק */
+          current_step_id: string | null;
+          /** חגורת ביטחון נגד מעגלים בגרף */
+          steps_taken: number;
           next_run_at: string;
           /** נוסף ב-0018 — הפגישה שאליה הצירוף קשור, במסע מעוגן-פגישה */
           booking_id: string | null;
@@ -614,6 +637,7 @@ export type BookingBlackout = Database["public"]["Tables"]["booking_blackouts"][
 export type Booking = Database["public"]["Tables"]["bookings"]["Row"];
 export type Journey = Database["public"]["Tables"]["journeys"]["Row"];
 export type JourneyStep = Database["public"]["Tables"]["journey_steps"]["Row"];
+export type JourneyEdge = Database["public"]["Tables"]["journey_edges"]["Row"];
 export type JourneyEnrollment = Database["public"]["Tables"]["journey_enrollments"]["Row"];
 export type CourseLead = Database["public"]["Tables"]["course_leads"]["Row"];
 export type BookingDateOverride = Database["public"]["Tables"]["booking_date_overrides"]["Row"];

@@ -40,19 +40,29 @@ export interface Journey {
 export interface JourneyStep {
   id: string;
   journey_id: string;
-  position: number;
   wait_days: number;
   channel: "whatsapp" | "email";
   template_id: string;
-  condition: JourneyCondition;
   offset_minutes: number;
+  label: string | null;
+}
+
+/** התנאי יושב על הקשת ולא על הצומת — זה מה שמאפשר שני מסלולים מאותו שלב. */
+export interface JourneyEdge {
+  id: string;
+  journey_id: string;
+  from_step_id: string | null;
+  to_step_id: string;
+  condition: JourneyCondition;
+  priority: number;
 }
 
 export interface Enrollment {
   id: string;
   journey_id: string;
   contact_id: string;
-  next_position: number;
+  current_step_id: string | null;
+  steps_taken: number;
   next_run_at: string;
   state: string;
   enrolled_at: string;
@@ -62,8 +72,8 @@ export interface Enrollment {
 export interface JourneyRunSummary {
   enrolled: number;
   sent: number;
-  /** שלבים שתנאיהם לא התקיימו ולכן דולגו בלי לשלוח */
-  skippedByCondition: number;
+  /** צירופים שהגיעו לצומת בלי קשת יוצאת שמתאימה להם */
+  deadEnded: number;
   failed: { contactId: string; error: string }[];
   stoppedReplied: number;
   completed: number;
@@ -74,6 +84,15 @@ export interface JourneyRunSummary {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MINUTE_MS = 60 * 1000;
+
+/**
+ * תקרת שלבים לצירוף אחד.
+ *
+ * בטור היה סוף מובנה — השלב האחרון. בגרף אפשר לכתוב מעגל, בטעות או בכוונה,
+ * וללא התקרה הזו לקוח אחד היה מקבל הודעה בכל ריצה לנצח. המספר נדיב מספיק
+ * שמסע לגיטימי לא ייתקל בו, ונמוך מספיק שטעות תיעצר תוך יום-יומיים.
+ */
+const MAX_STEPS_PER_ENROLLMENT = 50;
 
 /**
  * מתי שלב אמור לרוץ.
@@ -170,13 +189,23 @@ async function enrollForJourney(journey: Journey, now: Date): Promise<number> {
   const fresh = candidateIds.filter((id) => !already.has(id));
   if (!fresh.length) return 0;
 
-  // ההמתנה של השלב הראשון נספרת מרגע הכניסה. בלי זה מסע שמתחיל ב"חכה יומיים"
-  // היה שולח מיד למי שנכנס, כי next_run_at היה now.
+  // הצומת הראשון הוא היעד של הקשת שיוצאת מהכניסה. מסע בלי קשת כזו הוא מסע
+  // שיש בו כרטיסיות אבל אף אחת מהן אינה מחוברת להתחלה — ואין לאן לצרף.
+  const { data: entryEdges } = await db
+    .from("journey_edges")
+    .select("to_step_id, priority")
+    .eq("journey_id", journey.id)
+    .is("from_step_id", null)
+    .order("priority", { ascending: true })
+    .limit(1);
+
+  const firstStepId = (entryEdges ?? [])[0]?.to_step_id;
+  if (!firstStepId) return 0;
+
   const { data: firstStep } = await db
     .from("journey_steps")
     .select("wait_days, offset_minutes")
-    .eq("journey_id", journey.id)
-    .eq("position", 1)
+    .eq("id", firstStepId)
     .maybeSingle();
 
   const step = (firstStep as { wait_days: number; offset_minutes: number } | null) ?? {
@@ -197,7 +226,7 @@ async function enrollForJourney(journey: Journey, now: Date): Promise<number> {
         journey_id: journey.id,
         contact_id: contactId,
         booking_id: booking?.id ?? null,
-        next_position: 1,
+        current_step_id: firstStepId,
         next_run_at: due.toISOString(),
       };
     })
@@ -226,7 +255,7 @@ export async function runJourneys(
   const summary: JourneyRunSummary = {
     enrolled: 0,
     sent: 0,
-    skippedByCondition: 0,
+    deadEnded: 0,
     failed: [],
     stoppedReplied: 0,
     completed: 0,
@@ -254,15 +283,27 @@ export async function runJourneys(
     .from("journey_steps")
     .select("*")
     .in("journey_id", journeyIds)
-    .order("position", { ascending: true });
+    ;
   if (stepsError) throw stepsError;
 
   const steps = (stepsRaw ?? []) as unknown as JourneyStep[];
-  const stepsByJourney = new Map<string, JourneyStep[]>();
-  for (const step of steps) {
-    const list = stepsByJourney.get(step.journey_id) ?? [];
-    list.push(step);
-    stepsByJourney.set(step.journey_id, list);
+  const stepById = new Map(steps.map((s) => [s.id, s]));
+
+  const { data: edgesRaw, error: edgesError } = await db
+    .from("journey_edges")
+    .select("*")
+    .in("journey_id", journeyIds)
+    .order("priority", { ascending: true });
+  if (edgesError) throw edgesError;
+
+  // קשתות לפי צומת המוצא, כבר ממוינות לפי priority — הראשונה שתנאיה
+  // מתקיימים היא זו שנבחרת.
+  const edgesFrom = new Map<string, JourneyEdge[]>();
+  for (const edge of (edgesRaw ?? []) as unknown as JourneyEdge[]) {
+    const key = edge.from_step_id ?? "__entry__";
+    const list = edgesFrom.get(key) ?? [];
+    list.push(edge);
+    edgesFrom.set(key, list);
   }
 
   const { data: dueRaw, error: dueError } = await db
@@ -298,12 +339,10 @@ export async function runJourneys(
 
   for (const enrollment of due) {
     const contact = contacts.get(enrollment.contact_id);
-    const step = stepsByJourney
-      .get(enrollment.journey_id)
-      ?.find((s) => s.position === enrollment.next_position);
+    const step = enrollment.current_step_id ? stepById.get(enrollment.current_step_id) : undefined;
 
-    // אין שלב במיקום הזה = המסע נגמר. קורה גם כשמוחקים שלב אחרון בזמן שאנשים
-    // באמצע, ולכן זה "הושלם" ולא שגיאה.
+    // הצומת נמחק בזמן שמישהו עמד עליו. זה "הושלם" ולא שגיאה — עריכת מסע
+    // פעיל היא פעולה לגיטימית, ומי שנתקע אמצע לא צריך להיתקע לנצח.
     if (!step) {
       await db
         .from("journey_enrollments")
@@ -349,25 +388,14 @@ export async function runJourneys(
       continue;
     }
 
-    // תנאי ברמת השלב: אם אינו מתקיים, מדלגים *מיד* לשלב הבא בלי להמתין
-    // שוב. המתנה מחודשת הייתה מזיזה את כל המסלול השני ביום לכל שלב מדולג,
-    // וזו לא הכוונה — ההמתנה כבר נספרה כשהגענו הנה.
-    if (!conditionHolds(step.condition, replied)) {
-      const skipTo = stepsByJourney
-        .get(enrollment.journey_id)
-        ?.find((s) => s.position === step.position + 1);
-
+    // חגורת המעגלים. צירוף שעבר את התקרה כמעט בוודאות נמצא בלולאה שנכתבה
+    // בטעות, ועדיף לעצור אותו מאשר לשלוח ללקוח הודעה בכל ריצה לנצח.
+    if (enrollment.steps_taken >= MAX_STEPS_PER_ENROLLMENT) {
       await db
         .from("journey_enrollments")
-        .update(
-          skipTo
-            ? { next_position: skipTo.position, next_run_at: now.toISOString() }
-            : { state: "completed" }
-        )
+        .update({ state: "completed" })
         .eq("id", enrollment.id);
-
-      summary.skippedByCondition += 1;
-      if (!skipTo) summary.completed += 1;
+      summary.completed += 1;
       continue;
     }
 
@@ -415,16 +443,19 @@ export async function runJourneys(
       .from("journey_step_runs")
       .insert({ enrollment_id: enrollment.id, step_id: step.id });
 
-    const nextStep = stepsByJourney
-      .get(enrollment.journey_id)
-      ?.find((s) => s.position === step.position + 1);
+    // הקשת הראשונה שתנאיה מתקיימים זוכה. קשתות ממוינות לפי priority, ולכן
+    // 'always' שיושבת ראשונה תבלע את כל השאר — וזה מה שהממשק מזהיר עליו.
+    const outgoing = edgesFrom.get(step.id) ?? [];
+    const taken = outgoing.find((e) => conditionHolds(e.condition, replied));
+    const nextStep = taken ? stepById.get(taken.to_step_id) : undefined;
 
     await db
       .from("journey_enrollments")
       .update(
         nextStep
           ? {
-              next_position: nextStep.position,
+              current_step_id: nextStep.id,
+              steps_taken: enrollment.steps_taken + 1,
               next_run_at: (
                 stepDueAt(journey?.anchor ?? "enrollment", nextStep, {
                   now,
@@ -432,11 +463,16 @@ export async function runJourneys(
                 }) ?? now
               ).toISOString(),
             }
-          : { state: "completed" }
+          : { state: "completed", steps_taken: enrollment.steps_taken + 1 }
       )
       .eq("id", enrollment.id);
 
-    if (!nextStep) summary.completed += 1;
+    // אין קשת יוצאת שמתאימה — סוף מסלול. זה תקין לגמרי (קצה של ענף), אבל
+    // כשזה קורה להרבה אנשים זה בדרך כלל קשת שנשכחה, ולכן נספר בנפרד.
+    if (!nextStep) {
+      summary.completed += 1;
+      if (outgoing.length > 0) summary.deadEnded += 1;
+    }
   }
 
   return summary;

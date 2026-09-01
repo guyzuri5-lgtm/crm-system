@@ -5,24 +5,22 @@ import { verifyTeamMember } from "@/lib/dal";
 import {
   JOURNEY_ENTRY_LABELS,
   JOURNEY_STATE_LABELS,
-  JOURNEY_CONDITIONS,
-  JOURNEY_CONDITION_LABELS,
   JOURNEY_ANCHOR_LABELS,
   MESSAGE_CHANNELS,
   type Journey,
   type JourneyStep,
+  type JourneyEdge,
   type JourneyEnrollment,
   type MessageTemplate,
 } from "@/lib/supabase/database.types";
 import {
-  addStepAction,
-  deleteStepAction,
   toggleJourneyAction,
   deleteJourneyAction,
   stopEnrollmentAction,
   toggleStopOnReplyAction,
 } from "../actions";
-import { JourneyFlow } from "./flow";
+import { JourneyCanvas } from "./canvas";
+import { addNodeAction } from "./graph-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -54,8 +52,19 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
     ]);
 
   const steps = (stepsRaw ?? []) as JourneyStep[];
+
+  const { data: edgesRaw } = await db
+    .from("journey_edges")
+    .select("*")
+    .eq("journey_id", id)
+    .order("priority", { ascending: true });
+  const edges = (edgesRaw ?? []) as JourneyEdge[];
   const templates = (templatesRaw ?? []) as MessageTemplate[];
   const templateById = new Map(templates.map((t) => [t.id, t]));
+  // איפה כל אדם עומד — שם הכרטיסייה קריא יותר ממספר שלב, ובגרף אין ממילא מספר.
+  const stepLabelById = new Map(
+    steps.map((s) => [s.id, s.label || templateById.get(s.template_id)?.name || "כרטיסייה"])
+  );
   const enrollments = (enrollmentsRaw ?? []) as JourneyEnrollment[];
 
   // שליפה נפרדת ולא הטמעה: Relationships ב-database.types.ts ריק בכוונה
@@ -129,86 +138,59 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
               : "מסלולים נפרדים פעילים — לחצו כדי שתגובה תסיים את המסע"}
           </button>
         </form>
-        <JourneyFlow
+        <JourneyCanvas
           journeyId={journey.id}
-          stopOnReply={journey.stop_on_reply}
+          anchor={journey.anchor}
           entryLabel={
             JOURNEY_ENTRY_LABELS[journey.entry_type] +
             (journey.entry_type === "status" && journey.entry_value?.status
               ? `: ${journey.entry_value.status}`
               : "")
           }
-          anchor={journey.anchor}
-          steps={steps.map((s) => ({
+          nodes={steps.map((s) => ({
             id: s.id,
-            position: s.position,
+            x: s.pos_x,
+            y: s.pos_y,
+            label: s.label,
+            templateName: templateById.get(s.template_id)?.name ?? "תבנית חסרה",
+            channel: s.channel,
             waitDays: s.wait_days,
             offsetMinutes: s.offset_minutes,
-            channel: s.channel,
-            templateName: templateById.get(s.template_id)?.name ?? "תבנית חסרה",
-            condition: s.condition,
+          }))}
+          edges={edges.map((e) => ({
+            id: e.id,
+            fromId: e.from_step_id,
+            toId: e.to_step_id,
+            condition: e.condition,
           }))}
         />
       </section>
 
-      {/* ── עריכת שלבים ────────────────────────────────────────────────── */}
+      {/* ── הוספת כרטיסייה ──────────────────────────────────────────── */}
       <section className="card">
-        <h2 className="mb-4 font-medium">שלבים</h2>
+        <h2 className="mb-1 font-medium">כרטיסייה חדשה</h2>
+        <p className="mb-4 text-sm text-[var(--muted)]">
+          נוספת למשטח למעלה. הראשונה מתחברת אוטומטית לכניסה; את השאר מחברים בעצמכם
+          עם החץ.
+        </p>
 
-        <div className="flex flex-col gap-2">
-          {steps.map((step) => {
-            const template = templateById.get(step.template_id);
-            return (
-              <div
-                key={step.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--border)] px-4 py-3"
-              >
-                <div className="flex flex-wrap items-center gap-3 text-sm">
-                  <span className="grid size-6 place-items-center rounded-full bg-[var(--background)] text-xs font-bold">
-                    {step.position}
-                  </span>
-                  <span className="text-[var(--muted)]">
-                    {journey.anchor === "booking"
-                      ? offsetLabel(step.offset_minutes)
-                      : step.wait_days === 0
-                        ? "מיד"
-                        : `אחרי ${step.wait_days} ימים`}
-                  </span>
-                  <span className="font-medium">
-                    {step.channel === "email" ? "מייל" : "וואטסאפ"}: {template?.name ?? "תבנית חסרה"}
-                  </span>
-                  {step.condition !== "always" && (
-                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
-                      {JOURNEY_CONDITION_LABELS[step.condition]}
-                    </span>
-                  )}
-                </div>
-                <form action={deleteStepAction}>
-                  <input type="hidden" name="id" value={step.id} />
-                  <input type="hidden" name="journey_id" value={journey.id} />
-                  <button type="submit" className="text-xs text-[var(--danger)] hover:underline">
-                    הסר
-                  </button>
-                </form>
-              </div>
-            );
-          })}
-          {!steps.length && (
-            <p className="text-sm text-[var(--subtle)]">
-              אין עדיין שלבים. מסע בלי שלבים אי אפשר להפעיל.
-            </p>
-          )}
-        </div>
-
-        <form
-          action={addStepAction}
-          className="mt-6 grid grid-cols-1 gap-4 border-t border-[var(--border)] pt-6 md:grid-cols-4"
-        >
+        <form action={addNodeAction} className="grid grid-cols-1 gap-4 md:grid-cols-4">
           <input type="hidden" name="journey_id" value={journey.id} />
+          {/* מיקום ראשוני משורשר, כדי שכרטיסיות חדשות לא ייערמו זו על זו */}
+          <input type="hidden" name="pos_x" value={40 + ((steps.length + 1) % 4) * 230} />
+          <input type="hidden" name="pos_y" value={140 + Math.floor((steps.length + 1) / 4) * 130} />
+
+          <label className="field-label">
+            שם על הכרטיסייה
+            <input name="label" className="input" placeholder="תזכורת ראשונה" maxLength={60} />
+            <span className="text-xs font-normal text-[var(--subtle)]">
+              לא חובה. בלעדיו מוצג שם התבנית.
+            </span>
+          </label>
 
           {journey.anchor === "booking" ? (
             <label className="field-label">
-              כמה לפני הפגישה
+              מתי, יחסית לפגישה
               <select name="offset_minutes" className="input" defaultValue="-1440">
                 {BEFORE_OPTIONS.map((o) => (
                   <option key={o.minutes} value={o.minutes}>
@@ -216,9 +198,6 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
                   </option>
                 ))}
               </select>
-              <span className="text-xs font-normal text-[var(--subtle)]">
-                נמדד ממועד תחילת הפגישה.
-              </span>
             </label>
           ) : (
             <label className="field-label">
@@ -232,7 +211,7 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
                 className="input"
               />
               <span className="text-xs font-normal text-[var(--subtle)]">
-                מהשלב הקודם. 0 = מיד.
+                מהכרטיסייה שלפניה. 0 = מיד.
               </span>
             </label>
           )}
@@ -263,29 +242,17 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
             </select>
           </label>
 
-          <label className="field-label">
-            מתי לשלוח
-            <select name="condition" className="input" defaultValue="always">
-              {JOURNEY_CONDITIONS.map((c) => (
-                <option key={c} value={c}>
-                  {JOURNEY_CONDITION_LABELS[c]}
-                </option>
-              ))}
-            </select>
-            <span className="text-xs font-normal text-[var(--subtle)]">
-              תנאי עובד רק כשתגובה אינה מסיימת את המסע.
-            </span>
-          </label>
-
           <button type="submit" className="btn-primary self-start md:col-span-4">
-            הוסף שלב
+            הוסף כרטיסייה
           </button>
         </form>
 
-        <p className="mt-4 text-xs leading-relaxed text-[var(--subtle)]">
-          שלב וואטסאפ שנשלח מחוץ לחלון 24 השעות חייב תבנית שאושרה ב-Meta. תבנית בלי
-          קישור כזה תיכשל — במפורש, לא בשקט.
-        </p>
+        {!templates.length && (
+          <p className="mt-4 text-sm text-[var(--danger)]">
+            אין עדיין תבניות במערכת. צרו אחת בעמוד תבניות הודעה — בלעדיה אי אפשר
+            להוסיף כרטיסייה.
+          </p>
+        )}
       </section>
 
       {/* ── מי במסע ────────────────────────────────────────────────────── */}
@@ -309,7 +276,8 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
                 )}
                 <span className="text-xs text-[var(--subtle)]">
                   {JOURNEY_STATE_LABELS[e.state] ?? e.state}
-                  {e.state === "active" && ` · שלב ${e.next_position}`}
+                  {e.state === "active" &&
+                    ` · ${stepLabelById.get(e.current_step_id ?? "") ?? "ממתין"}`}
                 </span>
               </div>
               <div className="flex items-center gap-3">
@@ -358,12 +326,3 @@ const BEFORE_OPTIONS = [
   { minutes: -10080, label: "שבוע לפני" },
   { minutes: 0, label: "במועד הפגישה" },
 ];
-
-function offsetLabel(minutes: number): string {
-  const known = BEFORE_OPTIONS.find((o) => o.minutes === minutes);
-  if (known) return known.label;
-  if (minutes === 0) return "במועד הפגישה";
-  const abs = Math.abs(minutes);
-  const unit = abs % 1440 === 0 ? `${abs / 1440} ימים` : `${Math.round(abs / 60)} שעות`;
-  return minutes < 0 ? `${unit} לפני` : `${unit} אחרי`;
-}
