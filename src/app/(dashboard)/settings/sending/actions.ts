@@ -36,5 +36,5 @@ export async function saveWhatsAppSettingsAction(formData: FormData) {
     throw error;
   }
 
-  revalidatePath("/whatsapp");
+  revalidatePath("/settings/sending");
 }

@@ -9,7 +9,7 @@ import { FIELD_INPUT_TYPES, type FieldInputType } from "@/lib/supabase/database.
 // ניהול contact_fields (0006_fields.sql).
 
 function revalidateAll() {
-  revalidatePath("/fields");
+  revalidatePath("/settings/fields");
   revalidatePath("/contacts");
 }
 

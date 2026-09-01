@@ -10,7 +10,7 @@ import { STATUS_COLORS, type StatusColor } from "@/lib/status-colors";
 // /contacts ואת /rules, כי שתיהן בונות רשימות בחירה מהסטטוסים.
 
 function revalidateAll() {
-  revalidatePath("/statuses");
+  revalidatePath("/settings/statuses");
   revalidatePath("/contacts");
   revalidatePath("/rules");
 }

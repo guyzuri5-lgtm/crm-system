@@ -401,7 +401,23 @@ export type Database = {
         Relationships: Relationships;
       };
     };
-    Views: { [_ in never]: never };
+    Views: {
+      /** נוצרת ב-0012_contact_activity.sql — סיכום פעילות לכל איש קשר. */
+      contact_activity: {
+        Row: {
+          contact_id: string;
+          last_any_at: string | null;
+          /** רק מה שהלקוח יזם: whatsapp_in, quiz_submitted, booking_created/cancelled */
+          last_customer_at: string | null;
+          last_inbound_at: string | null;
+          last_inbound_text: string | null;
+          last_customer_type: InteractionType | null;
+          last_any_type: InteractionType | null;
+          inbound_count: number;
+        };
+        Relationships: Relationships;
+      };
+    };
     Functions: { [_ in never]: never };
   };
 };

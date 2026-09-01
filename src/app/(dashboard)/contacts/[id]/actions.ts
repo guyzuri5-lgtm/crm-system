@@ -26,6 +26,8 @@ export async function changeStatusAction(formData: FormData) {
 
   await updateContactStatus(contactId, status);
   revalidatePath(`/contacts/${contactId}`);
+  // אותן פעולות משרתות גם את תיבת הדואר ב-/active.
+  revalidatePath("/active");
   revalidatePath("/contacts");
 }
 
@@ -120,6 +122,8 @@ export async function updateContactFieldsAction(formData: FormData) {
   }
 
   revalidatePath(`/contacts/${contactId}`);
+  // אותן פעולות משרתות גם את תיבת הדואר ב-/active.
+  revalidatePath("/active");
   revalidatePath("/contacts");
 }
 
@@ -134,6 +138,8 @@ export async function updateNotesAction(formData: FormData) {
   if (error) throw error;
 
   revalidatePath(`/contacts/${contactId}`);
+  // אותן פעולות משרתות גם את תיבת הדואר ב-/active.
+  revalidatePath("/active");
 }
 
 export async function addManualNoteAction(formData: FormData) {
@@ -151,6 +157,8 @@ export async function addManualNoteAction(formData: FormData) {
   if (error) throw error;
 
   revalidatePath(`/contacts/${contactId}`);
+  // אותן פעולות משרתות גם את תיבת הדואר ב-/active.
+  revalidatePath("/active");
 }
 
 // Free-form reply, typed by a team member. Green API has no 24-hour window and no
@@ -176,6 +184,8 @@ export async function sendWhatsAppReplyAction(formData: FormData) {
   if (!result.ok) throw new Error(result.error);
 
   revalidatePath(`/contacts/${contactId}`);
+  // אותן פעולות משרתות גם את תיבת הדואר ב-/active.
+  revalidatePath("/active");
 }
 
 // Sends a saved template, rendered against this contact. Identical to the free-form
@@ -206,4 +216,6 @@ export async function sendWhatsAppTemplateAction(formData: FormData) {
   if (!result.ok) throw new Error(result.error);
 
   revalidatePath(`/contacts/${contactId}`);
+  // אותן פעולות משרתות גם את תיבת הדואר ב-/active.
+  revalidatePath("/active");
 }

@@ -63,10 +63,10 @@ export default async function ContactsPage(props: PageProps<"/contacts">) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">אנשי קשר</h1>
         <div className="flex items-center gap-1">
-          <Link href="/fields" className="btn-ghost">
+          <Link href="/settings/fields" className="btn-ghost">
             ניהול שדות
           </Link>
-          <Link href="/statuses" className="btn-ghost">
+          <Link href="/settings/statuses" className="btn-ghost">
             ניהול סטטוסים
           </Link>
         </div>

@@ -2,14 +2,18 @@ import Link from "next/link";
 import { verifyTeamMember } from "@/lib/dal";
 import { signOut } from "@/app/login/actions";
 
+/**
+ * סטטוסים ושדות ירדו מכאן אל /settings. שניהם הגדרה שנוגעים בה פעם בחודש, והם
+ * ישבו בין אנשי קשר לפגישות — כלומר בין הדברים שעושים כל יום.
+ */
 const NAV_LINKS = [
+  { href: "/active", label: "לקוחות פעילים" },
   { href: "/contacts", label: "אנשי קשר" },
-  { href: "/statuses", label: "סטטוסים" },
-  { href: "/fields", label: "שדות" },
-  { href: "/rules", label: "כללי אוטומציה" },
-  { href: "/templates", label: "תבניות הודעה" },
-  { href: "/whatsapp", label: "וואטסאפ" },
   { href: "/booking", label: "פגישות" },
+  { href: "/templates", label: "תבניות הודעה" },
+  { href: "/rules", label: "כללי אוטומציה" },
+  { href: "/whatsapp", label: "וואטסאפ" },
+  { href: "/settings", label: "הגדרות" },
 ];
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
