@@ -39,26 +39,37 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
 
   const journey = journeyRaw as Journey;
 
-  const [{ data: stepsRaw }, { data: templatesRaw }, { data: enrollmentsRaw }] =
-    await Promise.all([
-      db.from("journey_steps").select("*").eq("journey_id", id).order("position"),
-      db.from("message_templates").select("*").order("name"),
-      db
-        .from("journey_enrollments")
-        .select("*")
-        .eq("journey_id", id)
-        .order("updated_at", { ascending: false })
-        .limit(50),
-    ]);
+  // השגיאות נבדקות ולא נבלעות. הגרסה הקודמת לקחה רק את data, ומיון לפי עמודה
+  // שנמחקה במיגרציה 0019 החזיר שגיאה ש-data שלה null — כלומר הדף הציג "אין
+  // כרטיסיות" בזמן ששש מהן ישבו במסד. כישלון שקט גרוע מכישלון רועש.
+  const [stepsRes, templatesRes, enrollmentsRes] = await Promise.all([
+    db.from("journey_steps").select("*").eq("journey_id", id).order("created_at"),
+    db.from("message_templates").select("*").order("name"),
+    db
+      .from("journey_enrollments")
+      .select("*")
+      .eq("journey_id", id)
+      .order("updated_at", { ascending: false })
+      .limit(50),
+  ]);
+
+  if (stepsRes.error) throw stepsRes.error;
+  if (templatesRes.error) throw templatesRes.error;
+  if (enrollmentsRes.error) throw enrollmentsRes.error;
+
+  const { data: stepsRaw } = stepsRes;
+  const { data: templatesRaw } = templatesRes;
+  const { data: enrollmentsRaw } = enrollmentsRes;
 
   const steps = (stepsRaw ?? []) as JourneyStep[];
 
-  const { data: edgesRaw } = await db
+  const edgesRes = await db
     .from("journey_edges")
     .select("*")
     .eq("journey_id", id)
     .order("priority", { ascending: true });
-  const edges = (edgesRaw ?? []) as JourneyEdge[];
+  if (edgesRes.error) throw edgesRes.error;
+  const edges = (edgesRes.data ?? []) as JourneyEdge[];
   const templates = (templatesRaw ?? []) as MessageTemplate[];
   const templateById = new Map(templates.map((t) => [t.id, t]));
   // איפה כל אדם עומד — שם הכרטיסייה קריא יותר ממספר שלב, ובגרף אין ממילא מספר.
