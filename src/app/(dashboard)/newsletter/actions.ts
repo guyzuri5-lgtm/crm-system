@@ -6,7 +6,7 @@ import { verifyTeamMember } from "@/lib/dal";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { uploadPublicImage } from "@/lib/media";
 import { renderNewsletterHtml } from "@/lib/newsletter";
-import { sendEmail } from "@/lib/gmail";
+import { sendEmail } from "@/lib/email";
 import { clockToMinutes, parseDateKey, zonedTimeToUtc } from "@/lib/booking/timezone";
 import type { Contact, Newsletter, NewsletterBlock } from "@/lib/supabase/database.types";
 

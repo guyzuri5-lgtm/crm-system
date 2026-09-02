@@ -3,7 +3,7 @@ import "server-only";
 import { supabaseAdmin } from "./supabase/admin";
 import { sendMessageToContact } from "./send";
 import { renderTemplate } from "./templates";
-import { listAudienceContactIds, renderNewsletterHtml } from "./newsletter";
+import { listAudienceContactIds, renderNewsletterHtml, unsubscribeUrl } from "./newsletter";
 import type { Contact, Newsletter } from "./supabase/database.types";
 
 /**
@@ -140,6 +140,10 @@ export async function runNewsletters(
         subject: renderTemplate(newsletter.subject, contact),
         body: renderNewsletterHtml(newsletter, contact),
         logPrefix: "[ניוזלטר]",
+        // דיוור ולא תפעולי: Postmark דורש את ההפרדה, ואיתה מגיעה גם חובת
+        // כותרת ההסרה — אותו קישור חתום שיושב בפוטר של המייל.
+        stream: "broadcast",
+        listUnsubscribeUrl: unsubscribeUrl(contact.id),
       });
 
       if (result.ok) {

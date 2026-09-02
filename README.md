@@ -95,25 +95,45 @@ Next.js 16 (App Router, Turbopack) · Postgres + Auth דרך Supabase · Vercel 
 
 6. **תבניות**: WhatsApp Manager → Message Templates. צרו לפחות תבנית תזכורת אחת בקטגוריית **Utility** (לא Marketing — היא יקרה בהרבה ועוברת אישור קפדני יותר). אחרי האישור, הזינו את שמה המדויק ואת שפתה בעמוד **תבניות הודעה** בדשבורד.
 
-### 3. Gmail (Google Cloud OAuth2)
+### 3. שליחת מייל (Postmark)
 
-1. [Google Cloud Console](https://console.cloud.google.com) → פרויקט חדש (או קיים) → **APIs & Services → Library** → הפעילו את **Gmail API**.
-2. **APIs & Services → OAuth consent screen** — סוג External (חשבון Gmail רגיל, לא Workspace, אין אפשרות Internal). כל עוד המסך במצב **Testing**: רק "Test users" שתוסיפו יכולים להרשות גישה — תוסיפו שם את חשבון ה-Gmail השולח. **חשוב:** במצב Testing, ה-refresh token פג אחרי כ-7 ימים — אם לא רוצים לחדש אותו ידנית כל שבוע, יהיה צריך "לפרסם" (Publish) את המסך; בגלל שההיקף `gmail.send` נחשב רגיש, פרסום מלא עשוי לדרוש תהליך אימות של גוגל. שיקלול הפשרה הזו הוא בעצם סעיף 7 המקורי ("האם צריך OAuth consent screen מאומת") — עדיין החלטה פתוחה.
-3. **Credentials → Create Credentials → OAuth client ID → Web application** → `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`.
-4. קבלת `GOOGLE_REFRESH_TOKEN` (חד-פעמי) — יש סקריפט שעושה את כל התהליך:
-   ```bash
-   npm run auth:google
-   ```
-   הוא מבקש את שני ה-scopes יחד — `gmail.send` **וגם** `calendar` — ומחזיר טוקן אחד שמשרת גם את שליחת המייל וגם את יומן הפגישות. לפני ההרצה צריך להוסיף `http://localhost:53682` ל-**Authorized redirect URIs** של ה-OAuth Client ב-Google Cloud.
+עד 2.9.2026 המערכת שלחה דרך Gmail API. היא הוחלפה אחרי שני כשלים שהתבררו כמובנים
+ולא כתקלה: טוקן OAuth של אפליקציה במצב **Testing** פג אצל גוגל כל 7 ימים — וב-31.8
+הוא פג בשקט, בלי שאף אחד ידע, עד ששליחה נכשלה ב-`invalid_grant`. ובנוסף, מכסת Gmail
+(כ-500 ליום) קטנה מרשימת התפוצה עצמה, ודיוור מחשבון Gmail אישי נוחת בספאם.
 
-   > **אם כבר יש לכם טוקן ישן** שהופק עם `gmail.send` בלבד — הוא ימשיך לשלוח מיילים אבל יחזיר 403 מול היומן. הריצו את הסקריפט והחליפו אותו.
-5. מלאו גם `GMAIL_SENDER_EMAIL` (חשבון השולח בפועל) ו-`GMAIL_SENDER_NAME` (השם שמוצג לנמענים).
-6. מכסת שליחה: חשבון Gmail רגיל מוגבל בערך ל-500 מיילים ביום, Workspace בערך 2,000 — שווה לוודא מול [התיעוד העדכני](https://support.google.com/a/answer/166852) אם זה עדיין רלוונטי, אבל בנפח שדיברתם עליו (50–200 לידים/חודש) יש המון מרווח.
+1. חשבון ב-[postmarkapp.com](https://postmarkapp.com). המסלול החינמי מוגבל ל-100
+   מיילים בחודש (מספיק לבדיקות); Basic ב-15$ נותן 10,000.
+2. **Sender Signatures → Add Domain** → הדומיין שלכם. Postmark יציג רשומות DNS
+   (DKIM ו-Return-Path). מוסיפים אותן אצל מי שמנהל את ה-DNS.
+
+   > **זהירות עם SPF.** אם כבר קיימת רשומת SPF על הדומיין — **מוסיפים** אליה את
+   > Postmark, לא דורסים אותה. רשומת SPF שנייה שוברת את הראשונה, ואיתה את המייל
+   > שכבר עובד.
+3. **Message Streams** — צריך **שניים**, ו-Postmark אוכף את ההפרדה:
+   - `outbound` (תפעולי) — נוצר אוטומטית. אישורי פגישה, מסעות, כללים, דוח השאלון.
+   - `broadcast` (דיוור) — **יוצרים ידנית**. הניוזלטר בלבד.
+
+   ההפרדה אינה פורמלית: לזרמים יש טווחי IP נפרדים, כך שתלונת ספאם על ניוזלטר לא
+   פוגעת במסירה של אישור פגישה. Postmark גם דורש קישור הסרה בכל שליחת broadcast —
+   הוא קיים בפוטר של כל ניוזלטר, וגם ככותרת `List-Unsubscribe` (מאז 2024 Gmail
+   ו-Yahoo דורשים הסרה בלחיצה אחת ממי ששולח בכמות).
+4. **API Tokens** של השרת → `POSTMARK_SERVER_TOKEN`.
+5. מלאו `POSTMARK_FROM` (למשל `גיא צורי <guy@example.co.il>` — חייב להיות על הדומיין
+   המאומת) ו-`POSTMARK_REPLY_TO` (לאן יגיעו תשובות; אפשר תיבת Gmail רגילה).
 
 ### 4. יומן גוגל (למערכת זימון הפגישות)
 
-1. **APIs & Services → Library** → הפעילו את **Google Calendar API** (בנוסף ל-Gmail API).
-2. הריצו `npm run auth:google` והחליפו את `GOOGLE_REFRESH_TOKEN` בערך שהוא מחזיר (ראו סעיף 3).
+1. **APIs & Services → Library** → הפעילו את **Google Calendar API**.
+2. [Google Cloud Console](https://console.cloud.google.com) → **Credentials → OAuth client ID → Web application**
+   → `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`. הוסיפו `http://localhost:53682`
+   ל-**Authorized redirect URIs**, ואז הריצו `npm run auth:google` וקבלו
+   `GOOGLE_REFRESH_TOKEN`.
+
+   > **הטוקן הזה משמש היום את היומן בלבד** — המייל עבר ל-Postmark (סעיף 3).
+   > מגבלת 7 הימים של מצב Testing עדיין חלה עליו: כל עוד מסך ההסכמה לא פורסם,
+   > סנכרון היומן יישבר שבוע אחרי כל הפקה. הסקריפט עדיין מבקש גם את `gmail.send`,
+   > וזה מיותר אך לא מזיק.
 3. הריצו את `supabase/migrations/0005_booking.sql` ב-SQL editor של Supabase.
 
    > **סדר המיגרציות חשוב.** 0005 מגדיר מפתח זר אל `contact_statuses`, שנוצרת ב-`0003_statuses.sql`. אם 0002–0004 עוד לא הורצו על הפרויקט — הריצו אותן לפי הסדר קודם, אחרת 0005 ייכשל.
@@ -496,13 +516,15 @@ https://<הדומיין>/book/<slug>
 מייל אחד שיוצא לרשימה, להבדיל ממסע (רצף לאדם אחד) ומכלל (תגובה לאירוע).
 המסכים תחת `/newsletter`: הודעה חדשה · מתוזמנים · היסטוריה.
 
-### שתי הגדרות חד־פעמיות
+### שלוש הגדרות חד־פעמיות
 
 1. **מיגרציות** — `supabase/migrations/0022_newsletters.sql` (הטבלאות ועמודת
    `contacts.unsubscribed_at`) ו-`0023_media_bucket.sql` (הבאקט הציבורי
    `media`, שישמש בהמשך גם את תמונות דפי האירועים והקורסים). מריצים ב-SQL
    Editor של Supabase, לפי הסדר.
-2. **`NEWSLETTER_UNSUB_SECRET`** — חותם את קישור ההסרה בתחתית כל מייל.
+2. **Message Stream בשם `broadcast`** ב-Postmark (ראו "שליחת מייל" בהקמה).
+   בלעדיו השליחה נכשלת: Postmark דוחה דיוור שמנסה לעבור בזרם התפעולי.
+3. **`NEWSLETTER_UNSUB_SECRET`** — חותם את קישור ההסרה בתחתית כל מייל.
    נוצר עם `openssl rand -hex 32`, וכבר קיים ב-`.env.local`. **חייב להיות
    אותו ערך בפרודקשן** (Vercel → Project Settings → Environment Variables):
    שינוי שלו הופך קישורי הסרה שכבר נשלחו ללא תקפים. בלי המשתנה השליחה
@@ -516,7 +538,8 @@ https://<הדומיין>/book/<slug>
 Gmail אינה נכנסת בטיימאאוט של בקשה אחת, ושליחה שנקטעת באמצע בלי שורות
 נמענים היא שליחה שאי אפשר להמשיך.
 
-הקרון רץ כל רבע שעה ושולח עד **60 נמענים בריצה** — כלומר עד כ-240 בשעה.
+הקרון רץ כל רבע שעה ושולח עד **60 נמענים בריצה** — כלומר עד כ-240 בשעה. התקרה
+הזו נועדה לפרוס שליחה גדולה על כמה ריצות; מכסת Postmark עצמה גבוהה בהרבה.
 שורת `newsletter_recipients` מסומנת `sent` רק אחרי שליחה מוצלחת, ולכן
 ריצה שנקטעה ממשיכה בדיוק מאותו מקום, ואף אחד לא מקבל פעמיים.
 

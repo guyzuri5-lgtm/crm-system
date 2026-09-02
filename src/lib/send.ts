@@ -8,7 +8,7 @@ import {
   waIdFromPhone,
 } from "./whatsapp-cloud";
 import { renderTemplate } from "./templates";
-import { sendEmail } from "./gmail";
+import { sendEmail, type MessageStream } from "./email";
 import type { Contact, MessageChannel, MessageTemplate, Booking } from "./supabase/database.types";
 
 // המקום היחיד ששולח בפועל הודעה לאיש קשר ורושם אותה ביומן — משותף למנוע
@@ -33,6 +33,16 @@ export interface SendMessageInput {
   /** קידומת לתוכן שנרשם ב-interactions, למשל "[תבנית מעקב יום 3] ". */
   logPrefix?: string;
   /**
+   * מייל בלבד: תפעולי או דיוור.
+   *
+   * ברירת המחדל תפעולית, וזה הנכון כמעט תמיד — הודעה אחת לאדם אחד. רק
+   * הניוזלטר מבקש broadcast, ו-Postmark דורש את ההפרדה הזו (טווחי IP נפרדים,
+   * כך שתלונה על דיוור לא פוגעת במסירה של אישור פגישה).
+   */
+  stream?: MessageStream;
+  /** מייל בלבד: כתובת ההסרה, לכותרת List-Unsubscribe. חובה בפועל לדיוור. */
+  listUnsubscribeUrl?: string;
+  /**
    * הפגישה שההודעה מדברת עליה, אם יש.
    *
    * נדרשת גם כאן ולא רק ברינדור הגוף: מציין כמו {{booking_time}} יכול לשבת
@@ -54,7 +64,13 @@ export async function sendMessageToContact(input: SendMessageInput): Promise<Sen
       if (!input.contact.email) throw new Error("לאיש הקשר אין כתובת מייל");
       if (!input.subject) throw new Error("חסרה כותרת (subject) למייל");
 
-      await sendEmail({ to: input.contact.email, subject: input.subject, html: input.body });
+      await sendEmail({
+        to: input.contact.email,
+        subject: input.subject,
+        html: input.body,
+        stream: input.stream,
+        listUnsubscribeUrl: input.listUnsubscribeUrl,
+      });
 
       const { error } = await db.from("interactions").insert({
         contact_id: input.contact.id,

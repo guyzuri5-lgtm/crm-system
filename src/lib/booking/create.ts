@@ -1,7 +1,7 @@
 import "server-only";
 
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { sendEmail } from "@/lib/gmail";
+import { sendEmail } from "@/lib/email";
 import {
   createCalendarEvent,
   deleteCalendarEvent,
