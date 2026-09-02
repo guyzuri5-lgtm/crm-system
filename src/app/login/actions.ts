@@ -8,7 +8,7 @@ export type SignInState = { error?: string } | undefined;
 export async function signIn(_prevState: SignInState, formData: FormData): Promise<SignInState> {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
-  const next = String(formData.get("next") ?? "/contacts");
+  const next = String(formData.get("next") ?? "/");
 
   if (!email || !password) {
     return { error: "נא למלא אימייל וסיסמה" };
@@ -21,7 +21,7 @@ export async function signIn(_prevState: SignInState, formData: FormData): Promi
     return { error: "אימייל או סיסמה שגויים" };
   }
 
-  redirect(next.startsWith("/") ? next : "/contacts");
+  redirect(next.startsWith("/") ? next : "/");
 }
 
 export async function signOut() {

@@ -3,7 +3,7 @@ import { LoginForm } from "./login-form";
 export default async function LoginPage(props: PageProps<"/login">) {
   const searchParams = await props.searchParams;
   const nextParam = searchParams.next;
-  const next = typeof nextParam === "string" && nextParam.startsWith("/") ? nextParam : "/contacts";
+  const next = typeof nextParam === "string" && nextParam.startsWith("/") ? nextParam : "/";
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_50%_0%,var(--primary-soft),var(--background)_55%)] p-6">

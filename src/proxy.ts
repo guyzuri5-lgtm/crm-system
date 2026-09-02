@@ -53,7 +53,7 @@ export async function proxy(request: NextRequest) {
 
   if (isAuthed && pathname === "/login") {
     const url = request.nextUrl.clone();
-    url.pathname = "/contacts";
+    url.pathname = "/";
     url.search = "";
     return NextResponse.redirect(url);
   }
