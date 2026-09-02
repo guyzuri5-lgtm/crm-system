@@ -2,7 +2,7 @@ import Link from "next/link";
 import { verifyTeamMember } from "@/lib/dal";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getBookingSettings, listEventTypes } from "@/lib/booking/data";
-import { utcToZonedParts, zonedTimeToUtc, formatTime } from "@/lib/booking/timezone";
+import { utcToZonedParts, zonedTimeToUtc, formatTime, formatDateTime } from "@/lib/booking/timezone";
 import { getWhatsAppSettings } from "@/lib/whatsapp-throttle";
 import { isWhatsAppConfigured, getPhoneNumberStatus } from "@/lib/whatsapp-cloud";
 import { statusColorClasses } from "@/lib/status-colors";
@@ -141,6 +141,7 @@ export default async function DashboardPage() {
     { data: todayBookings },
     { data: quietContacts },
     { data: lastWhatsAppOut },
+    { data: nextNewsletter },
     eventTypes,
     bookingSettings,
     whatsappSettings,
@@ -192,6 +193,15 @@ export default async function DashboardPage() {
       .select("created_at")
       .eq("type", "whatsapp_out")
       .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    // הניוזלטר הקרוב. שגיאה כאן (מיגרציה 0022 שטרם רצה) לא מפילה את דף
+    // הבית — השורה פשוט לא תוצג.
+    db
+      .from("newsletters")
+      .select("id, subject, scheduled_at")
+      .in("status", ["scheduled", "sending"])
+      .order("scheduled_at")
       .limit(1)
       .maybeSingle(),
     listEventTypes(),
@@ -294,7 +304,7 @@ export default async function DashboardPage() {
       <section className="grid gap-4 lg:grid-cols-2">
         <div className="card flex flex-col gap-3">
           <h2 className="font-medium">היום</h2>
-          {!bookings.length ? (
+          {!bookings.length && !nextNewsletter ? (
             <p className="text-sm text-[var(--muted)]">אין פגישות היום.</p>
           ) : (
             <ul className="flex flex-col gap-2">
@@ -329,6 +339,20 @@ export default async function DashboardPage() {
                 );
               })}
             </ul>
+          )}
+
+          {nextNewsletter && (
+            <p className="border-t border-[var(--border)] pt-3 text-sm">
+              <Link href="/newsletter/scheduled" className="hover:underline">
+                <span className="font-medium">ניוזלטר:</span>{" "}
+                <span className="text-[var(--muted)]">
+                  {nextNewsletter.subject}
+                  {nextNewsletter.scheduled_at
+                    ? ` · ${formatDateTime(new Date(nextNewsletter.scheduled_at), bookingSettings.timezone)}`
+                    : ""}
+                </span>
+              </Link>
+            </p>
           )}
         </div>
 

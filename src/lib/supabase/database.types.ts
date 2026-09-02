@@ -113,6 +113,40 @@ export const JOURNEY_STATE_LABELS: Record<JourneyState, string> = {
   stopped_manual: "נעצר ידנית",
 };
 
+// ── נוספו ב-0022_newsletters.sql ────────────────────────────────────────
+
+/**
+ * מצב הניוזלטר. "שלח עכשיו" נכנס כ-scheduled עם scheduled_at=now() ולא כ-sending:
+ * השליחה בפועל תמיד דרך הקרון, כדי ששליחה ל-200 איש לא תיחסם על טיימאאוט
+ * של הדפדפן.
+ */
+export const NEWSLETTER_STATUSES = ["draft", "scheduled", "sending", "sent", "canceled"] as const;
+export type NewsletterStatus = (typeof NEWSLETTER_STATUSES)[number];
+
+export const NEWSLETTER_STATUS_LABELS: Record<NewsletterStatus, string> = {
+  draft: "טיוטה",
+  scheduled: "מתוזמן",
+  sending: "בשליחה",
+  sent: "נשלח",
+  canceled: "בוטל",
+};
+
+export const NEWSLETTER_RECIPIENT_STATUSES = ["pending", "sent", "failed"] as const;
+export type NewsletterRecipientStatus = (typeof NEWSLETTER_RECIPIENT_STATUSES)[number];
+
+/** בלוק תוכן אחד בגוף הניוזלטר, לפי הסדר שבו נערך. */
+export type NewsletterBlock =
+  | { type: "text"; html: string }
+  | { type: "image"; url: string; alt: string }
+  /** רק המזהה, לא הכתובת המלאה — במייל אין iframe, ולכן נשלחת תמונה שמקושרת ליוטיוב. */
+  | { type: "youtube"; videoId: string; caption: string };
+
+export const NEWSLETTER_BLOCK_TYPES = ["text", "image", "youtube"] as const;
+export type NewsletterBlockType = (typeof NEWSLETTER_BLOCK_TYPES)[number];
+
+/** מי מקבל. statuses = רק אנשי קשר שנמצאים כרגע באחד מהסטטוסים האלה. */
+export type NewsletterAudience = { type: "all" } | { type: "statuses"; statuses: string[] };
+
 export const BOOKING_LOCATIONS = ["google_meet", "phone", "in_person"] as const;
 export type BookingLocation = (typeof BOOKING_LOCATIONS)[number];
 
@@ -164,6 +198,8 @@ export type Database = {
           /** wa_id של Meta — המספר בפורמט בינלאומי בלי +, "972501234567" */
           whatsapp_id: string | null;
           last_incoming_message_at: string | null;
+          /** נוסף ב-0022 — ביקש/ה לצאת מרשימת התפוצה. חוסם ניוזלטרים בלבד. */
+          unsubscribed_at: string | null;
           notes: string | null;
           /** ערכי השדות המותאמים, ממופתחים לפי contact_fields.key */
           custom: Record<string, string>;
@@ -607,6 +643,45 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["journey_step_runs"]["Row"]>;
         Relationships: Relationships;
       };
+
+      // ── נוספו ב-0022_newsletters.sql ───────────────────────────────────
+      newsletters: {
+        Row: {
+          id: string;
+          subject: string;
+          blocks: NewsletterBlock[];
+          audience: NewsletterAudience;
+          status: NewsletterStatus;
+          scheduled_at: string | null;
+          sent_count: number;
+          failed_count: number;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["newsletters"]["Row"]> & {
+          subject: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["newsletters"]["Row"]>;
+        Relationships: Relationships;
+      };
+      /**
+       * תמונת מצב של הקהל ברגע שהשליחה התחילה. השורות נוצרות פעם אחת, ומהן
+       * הקרון יודע למי כבר שלח — מה שהופך שליחה שנפרסת על כמה ריצות לבטוחה.
+       */
+      newsletter_recipients: {
+        Row: {
+          id: string;
+          newsletter_id: string;
+          contact_id: string;
+          status: NewsletterRecipientStatus;
+          error: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["newsletter_recipients"]["Row"]> & {
+          newsletter_id: string;
+          contact_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["newsletter_recipients"]["Row"]>;
+        Relationships: Relationships;
+      };
     };
     Views: {
       /** נוצרת ב-0012_contact_activity.sql — סיכום פעילות לכל איש קשר. */
@@ -648,3 +723,5 @@ export type JourneyEdge = Database["public"]["Tables"]["journey_edges"]["Row"];
 export type JourneyEnrollment = Database["public"]["Tables"]["journey_enrollments"]["Row"];
 export type CourseLead = Database["public"]["Tables"]["course_leads"]["Row"];
 export type BookingDateOverride = Database["public"]["Tables"]["booking_date_overrides"]["Row"];
+export type Newsletter = Database["public"]["Tables"]["newsletters"]["Row"];
+export type NewsletterRecipient = Database["public"]["Tables"]["newsletter_recipients"]["Row"];

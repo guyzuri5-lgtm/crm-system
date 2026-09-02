@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runTimeSinceNoReplyRules } from "@/lib/automation-engine";
 import { runJourneys } from "@/lib/journey-engine";
+import { runNewsletters } from "@/lib/newsletter-engine";
 
 // GET /api/cron/check-rules — per spec section 4, runs once a day (see vercel.json).
 // Vercel Cron always calls with GET, and automatically sends
@@ -44,15 +45,18 @@ export async function GET(request: NextRequest) {
   const now = new Date();
   const total = budgetMs();
 
-  // שני המנועים חולקים את אותו חלון ריצה ואת אותה תקרה יומית. החלוקה כאן היא
-  // של *זמן* בלבד — התקרה נספרת מהמסד, ולכן היא נאכפת נכון בשניהם בלי תיאום.
+  // שלושת המנועים חולקים את אותו חלון ריצה. החלוקה כאן היא של *זמן* בלבד —
+  // כל תקרה נספרת מהמסד, ולכן היא נאכפת נכון בכולם בלי תיאום ביניהם.
   //
-  // הכללים רצים ראשונים ומקבלים את רוב החלון: הם המנגנון הוותיק, ומסע שמפספס
-  // יום ממשיך מעצמו בריצה הבאה בלי לאבד את מקומו — יתרון שלכללים אין.
-  const summary = await runTimeSinceNoReplyRules(now, Math.floor(total * 0.6));
+  // הכללים רצים ראשונים ומקבלים את רוב החלון: הם המנגנון הוותיק, ומסע או
+  // ניוזלטר שמפספסים ריצה ממשיכים מעצמם בבאה בלי לאבד את מקומם — יתרון
+  // שלכללים אין.
+  const summary = await runTimeSinceNoReplyRules(now, Math.floor(total * 0.45));
   const failed = summary.results.filter((r) => !r.ok);
 
-  const journeys = await runJourneys(new Date(), Math.floor(total * 0.4));
+  const journeys = await runJourneys(new Date(), Math.floor(total * 0.3));
+
+  const newsletters = await runNewsletters(new Date(), Math.floor(total * 0.25));
 
   return NextResponse.json({
     ok: true,
@@ -69,6 +73,14 @@ export async function GET(request: NextRequest) {
       skipped: journeys.skipped,
       stopped: journeys.stopped,
       errors: journeys.failed,
+    },
+    newsletters: {
+      sent: newsletters.sent,
+      failed: newsletters.failed,
+      completed: newsletters.completed,
+      remaining: newsletters.remaining,
+      stopped: newsletters.stopped,
+      errors: newsletters.errors,
     },
     // מה שלא נשלח בריצה הזו ייתפס בריצה הבאה — automation_rule_runs מבטיח
     // שמי שכן קיבל לא יקבל שוב.

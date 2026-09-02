@@ -18,16 +18,25 @@ const supabaseHostname = hostnameOf(process.env.NEXT_PUBLIC_SUPABASE_URL);
 
 const nextConfig: NextConfig = {
   images: {
-    remotePatterns: supabaseHostname
-      ? [
-          {
-            protocol: "https" as const,
-            hostname: supabaseHostname,
-            // רק הנתיב הציבורי של האחסון — לא כל כתובת בדומיין של הפרויקט.
-            pathname: "/storage/v1/object/public/**",
-          },
-        ]
-      : [],
+    remotePatterns: [
+      // תמונת התצוגה המקדימה של בלוק יוטיוב בעורך הניוזלטר. הכתובת נבנית
+      // מהמזהה בלבד, והמארח הזה מגיש רק תמונות.
+      {
+        protocol: "https" as const,
+        hostname: "img.youtube.com",
+        pathname: "/vi/**",
+      },
+      ...(supabaseHostname
+        ? [
+            {
+              protocol: "https" as const,
+              hostname: supabaseHostname,
+              // רק הנתיב הציבורי של האחסון — לא כל כתובת בדומיין של הפרויקט.
+              pathname: "/storage/v1/object/public/**",
+            },
+          ]
+        : []),
+    ],
   },
   experimental: {
     // ייבוא אנשי קשר עובר דרך Server Action, ותקרת הגוף שלהן היא 1MB כברירת
