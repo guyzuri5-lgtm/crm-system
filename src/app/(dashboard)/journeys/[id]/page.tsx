@@ -163,6 +163,7 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
             templateName: templateById.get(s.template_id)?.name ?? "תבנית חסרה",
             channel: s.channel,
             waitDays: s.wait_days,
+            relativeAtMinutes: s.relative_at_minutes,
             offsetMinutes: s.offset_minutes,
             timing: s.timing,
             dayOffset: s.day_offset,

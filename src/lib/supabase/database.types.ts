@@ -523,6 +523,8 @@ export type Database = {
           journey_id: string;
           /** ימים להמתנה *לפני* השלב. הקרון רץ פעם ביום, ולכן יום הוא היחידה. */
           wait_days: number;
+          /** נוסף ב-0021 — רק ל-relative: יישור לשעה ביום אחרי הוספת הימים. ריק = באותה שעה כמו הקודמת. */
+          relative_at_minutes: number | null;
           channel: MessageChannel;
           template_id: string;
           /** דקות מ-starts_at של הפגישה. שלילי = לפני. */

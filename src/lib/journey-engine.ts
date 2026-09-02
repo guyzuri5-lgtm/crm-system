@@ -40,6 +40,7 @@ export interface JourneyStep {
   id: string;
   journey_id: string;
   wait_days: number;
+  relative_at_minutes: number | null;
   channel: "whatsapp" | "email";
   template_id: string;
   offset_minutes: number;
@@ -165,6 +166,7 @@ export function stepDueAt(
   step: {
     timing: StepTiming;
     wait_days: number;
+    relative_at_minutes: number | null;
     offset_minutes: number;
     day_offset: number;
     day_at_minutes: number;
@@ -172,7 +174,16 @@ export function stepDueAt(
   from: { now: Date; booking: { starts_at: string; invitee_timezone: string } | null }
 ): Date | null {
   if (step.timing === "relative") {
-    return new Date(from.now.getTime() + step.wait_days * DAY_MS);
+    const base = new Date(from.now.getTime() + step.wait_days * DAY_MS);
+    if (step.relative_at_minutes == null) return base;
+
+    // יישור לשעה ביום: בשעון הלקוח אם יש פגישה, אחרת בשעון ישראל. אם השעה
+    // כבר עברה — גולשים ליום המחרת; הודעה לעולם לא מקבלת מועד בעבר.
+    const tz = from.booking?.invitee_timezone || "Asia/Jerusalem";
+    const at = wallClockToUtc(base, 0, step.relative_at_minutes, tz);
+    return at.getTime() > from.now.getTime()
+      ? at
+      : wallClockToUtc(base, 1, step.relative_at_minutes, tz);
   }
 
   if (!from.booking) return null;
@@ -292,6 +303,7 @@ async function enrollForJourney(journey: Journey, now: Date): Promise<number> {
   const step = (firstStep as JourneyStep | null) ?? {
     timing: "relative" as StepTiming,
     wait_days: 0,
+    relative_at_minutes: null,
     offset_minutes: 0,
     day_offset: 0,
     day_at_minutes: 540,

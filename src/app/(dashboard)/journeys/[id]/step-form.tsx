@@ -49,6 +49,7 @@ export function StepForm({
   // גם התזמון נשלט, כי שורת הדוגמה ("תישלח ביום שלישי ב-20:00") מחושבת ממנו.
   const [timing, setTiming] = useState<StepTiming>(node?.timing ?? "relative");
   const [waitDays, setWaitDays] = useState(node?.waitDays ?? 0);
+  const [relativeAt, setRelativeAt] = useState<number | null>(node?.relativeAtMinutes ?? null);
   const [offsetMinutes, setOffsetMinutes] = useState(node?.offsetMinutes ?? -60);
   const [dayOffset, setDayOffset] = useState(node?.dayOffset ?? 0);
   const [dayAtMinutes, setDayAtMinutes] = useState(node?.dayAtMinutes ?? 540);
@@ -219,8 +220,21 @@ export function StepForm({
             onChange={(e) => setWaitDays(Math.max(0, Number(e.target.value) || 0))}
             className="input w-20"
           />
-          <span>ימים אחרי הכרטיסייה הקודמת</span>
-          <span className="text-xs text-[var(--subtle)]">(0 = מיד)</span>
+          <span>ימים אחרי הכרטיסייה הקודמת, בשעה</span>
+          <select
+            name="relative_at_minutes"
+            className="input w-auto"
+            value={relativeAt === null ? "" : String(relativeAt)}
+            onChange={(e) => setRelativeAt(e.target.value === "" ? null : Number(e.target.value))}
+          >
+            <option value="">שבה נשלחה הקודמת</option>
+            {HOUR_OPTIONS.map((h) => (
+              <option key={h.minutes} value={h.minutes}>
+                {h.label}
+              </option>
+            ))}
+          </select>
+          <span className="text-xs text-[var(--subtle)]">(0 ימים = באותו יום)</span>
         </div>
 
         {/* בלי כניסת "קבע פגישה" אין פגישה לעגן אליה, והמשפטים לא מוצגים —
@@ -295,7 +309,7 @@ export function StepForm({
         )}
 
         <p className="rounded-xl bg-sky-50 px-4 py-2.5 text-sm text-sky-900">
-          {timingExample(timing, waitDays, offsetMinutes, dayOffset, dayAtMinutes)}
+          {timingExample(timing, waitDays, relativeAt, offsetMinutes, dayOffset, dayAtMinutes)}
         </p>
       </div>
 
@@ -341,14 +355,22 @@ function MetaBadge({ template }: { template: CanvasTemplate }) {
 function timingExample(
   timing: StepTiming,
   waitDays: number,
+  relativeAt: number | null,
   offsetMinutes: number,
   dayOffset: number,
   dayAtMinutes: number
 ): string {
   if (timing === "relative") {
-    if (waitDays === 0) return "תישלח מיד, ברגע שהלקוח מגיע לכרטיסייה הזו.";
-    if (waitDays === 1) return "תישלח יום אחרי שהלקוח קיבל את הכרטיסייה הקודמת.";
-    return `תישלח ${waitDays} ימים אחרי שהלקוח קיבל את הכרטיסייה הקודמת.`;
+    const days =
+      waitDays === 0 ? "באותו יום" : waitDays === 1 ? "יום אחרי" : `${waitDays} ימים אחרי`;
+    if (relativeAt == null) {
+      if (waitDays === 0) return "תישלח מיד, ברגע שהלקוח מגיע לכרטיסייה הזו.";
+      return `תישלח ${days} שהלקוח קיבל את הכרטיסייה הקודמת, באותה שעה.`;
+    }
+    const at = `${String(Math.floor(relativeAt / 60)).padStart(2, "0")}:${String(
+      relativeAt % 60
+    ).padStart(2, "0")}`;
+    return `תישלח ${days}${waitDays === 0 ? "" : " הקודמת"}, בסביבות ${at} — ואם השעה כבר עברה, למחרת ב-${at}.`;
   }
 
   const booking = new Date();

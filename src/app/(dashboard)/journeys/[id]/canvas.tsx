@@ -42,6 +42,7 @@ export interface CanvasNode {
   templateName: string;
   channel: "whatsapp" | "email";
   waitDays: number;
+  relativeAtMinutes: number | null;
   offsetMinutes: number;
   timing: StepTiming;
   dayOffset: number;
@@ -550,11 +551,18 @@ export function JourneyCanvas({
 function timingLabel(n: {
   timing: StepTiming;
   waitDays: number;
+  relativeAtMinutes: number | null;
   offsetMinutes: number;
   dayOffset: number;
   dayAtMinutes: number;
 }): string {
-  if (n.timing === "relative") return n.waitDays === 0 ? "מיד" : `${n.waitDays} ימים אחרי`;
+  if (n.timing === "relative") {
+    if (n.relativeAtMinutes == null) return n.waitDays === 0 ? "מיד" : `${n.waitDays} ימים אחרי`;
+    const at = `${String(Math.floor(n.relativeAtMinutes / 60)).padStart(2, "0")}:${String(
+      n.relativeAtMinutes % 60
+    ).padStart(2, "0")}`;
+    return n.waitDays === 0 ? `ב-${at} הקרוב` : `${n.waitDays} ימים אחרי, ב-${at}`;
+  }
 
   if (n.timing === "booking_offset") {
     const m = n.offsetMinutes;

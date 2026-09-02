@@ -46,6 +46,8 @@ const addStepSchema = z.object({
   journey_id: idSchema,
   template_id: idSchema,
   wait_days: z.coerce.number().int().min(0).max(365),
+  // ריק = באותה שעה כמו השליחה הקודמת (ההתנהגות המקורית של relative).
+  relative_at_minutes: z.coerce.number().int().min(0).max(1439).nullable(),
   offset_minutes: z.coerce.number().int().min(-43200).max(43200),
   timing: z.enum(STEP_TIMINGS),
   day_offset: z.coerce.number().int().min(-30).max(30),
@@ -62,6 +64,7 @@ export async function addNodeAction(formData: FormData) {
     journey_id: formData.get("journey_id"),
     template_id: formData.get("template_id"),
     wait_days: formData.get("wait_days") || 0,
+    relative_at_minutes: formData.get("relative_at_minutes") || null,
     offset_minutes: formData.get("offset_minutes") || 0,
     timing: formData.get("timing") || "relative",
     day_offset: formData.get("day_offset") || 0,
@@ -121,6 +124,7 @@ export async function updateNodeAction(formData: FormData) {
   const parsed = updateStepSchema.safeParse({
     template_id: formData.get("template_id"),
     wait_days: formData.get("wait_days") || 0,
+    relative_at_minutes: formData.get("relative_at_minutes") || null,
     offset_minutes: formData.get("offset_minutes") || 0,
     timing: formData.get("timing") || "relative",
     day_offset: formData.get("day_offset") || 0,
