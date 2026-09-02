@@ -26,12 +26,15 @@ import type { CanvasNode, CanvasTemplate } from "./canvas";
 export function StepForm({
   journeyId,
   templates,
+  bookingEntry,
   node,
   draftPos,
   onSaved,
 }: {
   journeyId: string;
   templates: CanvasTemplate[];
+  /** האם הכניסה למסע היא "קבע פגישה" — רק אז יש פגישה לעגן אליה תזמון. */
+  bookingEntry: boolean;
   /** כרטיסייה קיימת = מצב עריכה. */
   node?: CanvasNode;
   /** מיקום על המשטח = מצב יצירה. */
@@ -213,6 +216,16 @@ export function StepForm({
           <span className="text-xs text-[var(--subtle)]">(0 = מיד)</span>
         </div>
 
+        {/* בלי כניסת "קבע פגישה" אין פגישה לעגן אליה, והמשפטים לא מוצגים —
+            ולידציה דרך אי-אפשרות. התנאי כולל את התזמון הנוכחי כדי שכרטיסייה
+            ישנה עם עיגון-פגישה במסע אחר עדיין תוצג ותהיה ניתנת לתיקון. */}
+        {!bookingEntry && timing !== "booking_offset" && timing !== "booking_day_at" ? (
+          <p className="px-1 text-xs text-[var(--subtle)]">
+            תזמון סביב פגישה אפשרי רק במסע שהכניסה אליו היא &quot;קבע פגישה&quot; —
+            במסע הזה אין פגישה לעגן אליה.
+          </p>
+        ) : (
+          <>
         <div className={timingCard("booking_offset")} onClick={() => setTiming("booking_offset")}>
           <input
             type="radio"
@@ -271,6 +284,8 @@ export function StepForm({
           </select>
           <span className="text-xs text-[var(--subtle)]">בשעון של הלקוח</span>
         </div>
+          </>
+        )}
 
         <p className="rounded-xl bg-[var(--background)] px-4 py-2.5 text-sm text-[var(--muted)]">
           {timingExample(timing, waitDays, offsetMinutes, dayOffset, dayAtMinutes)}

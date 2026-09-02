@@ -72,12 +72,15 @@ const ENTRY_ID = "__entry__";
 export function JourneyCanvas({
   journeyId,
   entryLabel,
+  bookingEntry,
   nodes,
   edges,
   templates,
 }: {
   journeyId: string;
   entryLabel: string;
+  /** האם הכניסה למסע היא "קבע פגישה" — קובע אילו תזמונים מוצעים בטופס. */
+  bookingEntry: boolean;
   nodes: CanvasNode[];
   edges: CanvasEdge[];
   templates: CanvasTemplate[];
@@ -397,6 +400,7 @@ export function JourneyCanvas({
           <StepForm
             journeyId={journeyId}
             templates={templates}
+            bookingEntry={bookingEntry}
             draftPos={draft}
             onSaved={(id) => {
               setDraft(null);
@@ -468,7 +472,13 @@ export function JourneyCanvas({
           <div className="border-t border-[var(--border)] pt-4">
             {/* key מאפס את ערכי הטופס במעבר בין כרטיסיות — בלעדיו defaultValue
                 של הכרטיסייה הקודמת היה נשאר על המסך. */}
-            <StepForm key={selected.id} journeyId={journeyId} templates={templates} node={selected} />
+            <StepForm
+              key={selected.id}
+              journeyId={journeyId}
+              templates={templates}
+              bookingEntry={bookingEntry}
+              node={selected}
+            />
           </div>
         </div>
       )}

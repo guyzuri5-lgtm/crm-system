@@ -146,6 +146,7 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
         </form>
         <JourneyCanvas
           journeyId={journey.id}
+          bookingEntry={journey.entry_type === "booking"}
           entryLabel={
             JOURNEY_ENTRY_LABELS[journey.entry_type] +
             (journey.entry_type === "status" && journey.entry_value?.status
