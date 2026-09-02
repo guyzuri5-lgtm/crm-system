@@ -2,11 +2,7 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
-import {
-  MESSAGE_CHANNELS,
-  STEP_TIMINGS,
-  STEP_TIMING_LABELS,
-} from "@/lib/supabase/database.types";
+import { STEP_TIMINGS, STEP_TIMING_LABELS } from "@/lib/supabase/database.types";
 import { addNodeAction, updateNodeAction } from "./graph-actions";
 import type { CanvasNode, CanvasTemplate } from "./canvas";
 
@@ -16,6 +12,10 @@ import type { CanvasNode, CanvasTemplate } from "./canvas";
  * עד עכשיו היו שני טפסים כמעט זהים: הוספה ב-page.tsx ועריכה ב-canvas.tsx,
  * וכל שיפור היה צריך להיכתב פעמיים. עכשיו יש מקום אחד, וההבדל היחיד בין
  * המצבים הוא מקור הערכים: כרטיסייה קיימת (עריכה) או מיקום טיוטה (יצירה).
+ *
+ * הבחירה מתחילה מהתבנית, ומה שייכתב ללקוח מוצג מיד מתחתיה — בעבר בחרו לפי
+ * שם בלבד, והתוכן התגלה רק אחרי השמירה. אין שדה ערוץ: הערוץ נגזר מהתבנית
+ * בשרת, כי בטופס הישן אפשר היה לבחור תבנית מייל עם ערוץ וואטסאפ.
  *
  * השליחה עוברת דרך onSubmit ולא דרך action של הטופס, משתי סיבות: היצירה
  * צריכה לקבל חזרה את ה-id של הכרטיסייה כדי לפתוח אותה מסומנת, וכפתור
@@ -41,7 +41,13 @@ export function StepForm({
 }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // התבנית נשלטת (ולא defaultValue) כדי שהתצוגה המקדימה תתעדכן עם הבחירה.
+  const [templateId, setTemplateId] = useState(node?.templateId ?? "");
+  const chosen = templates.find((t) => t.id === templateId) ?? null;
   const isNew = !node;
+
+  const whatsappTemplates = templates.filter((t) => t.channel === "whatsapp");
+  const emailTemplates = templates.filter((t) => t.channel === "email");
 
   if (!templates.length) {
     return (
@@ -97,31 +103,70 @@ export function StepForm({
         />
       </label>
 
-      <label className="field-label">
-        ערוץ
-        <select name="channel" className="input" required defaultValue={node?.channel ?? "whatsapp"}>
-          {MESSAGE_CHANNELS.map((c) => (
-            <option key={c} value={c}>
-              {c === "email" ? "מייל" : "וואטסאפ"}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label className="field-label">
-        תבנית
-        <select name="template_id" className="input" required defaultValue={node?.templateId ?? ""}>
+      {/* אין שדה ערוץ: הוא נגזר מהתבנית בשרת, ואי-התאמה בלתי אפשרית. */}
+      <label className="field-label md:col-span-2">
+        מה שולחים
+        <select
+          name="template_id"
+          className="input"
+          required
+          value={templateId}
+          onChange={(e) => setTemplateId(e.target.value)}
+        >
           <option value="" disabled>
             בחרו תבנית
           </option>
-          {templates.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
-              {t.channel === "whatsapp" && !t.metaTemplateName ? " (בלי תבנית ב-Meta)" : ""}
-            </option>
-          ))}
+          {whatsappTemplates.length > 0 && (
+            <optgroup label="וואטסאפ">
+              {whatsappTemplates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                  {!t.metaTemplateName ? " (בלי אישור ב-Meta)" : ""}
+                </option>
+              ))}
+            </optgroup>
+          )}
+          {emailTemplates.length > 0 && (
+            <optgroup label="מייל">
+              {emailTemplates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </optgroup>
+          )}
         </select>
       </label>
+
+      {/* ── מה הלקוח יקבל בפועל, ברגע הבחירה ולא אחרי השמירה ── */}
+      <div className="md:col-span-3">
+        {chosen ? (
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4">
+            <p className="mb-2 text-xs text-[var(--muted)]">
+              {chosen.channel === "email" ? "יישלח במייל" : "יישלח בוואטסאפ"}
+              {chosen.metaTemplateName && (
+                <span className="mr-2 text-[var(--subtle)]" dir="ltr">
+                  · {chosen.metaTemplateName}
+                  {chosen.metaStatus ? ` (${chosen.metaStatus})` : ""}
+                </span>
+              )}
+            </p>
+            <p className="rounded-xl bg-white px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ring-1 ring-[var(--border)] ring-inset">
+              {chosen.body}
+            </p>
+            {chosen.channel === "whatsapp" && !chosen.metaTemplateName && (
+              <p className="mt-2 text-xs text-[var(--danger)]">
+                לתבנית הזו אין תבנית מאושרת ב-Meta. ללקוח שלא כתב לכם ב-24 השעות
+                האחרונות — השליחה תיכשל.
+              </p>
+            )}
+          </div>
+        ) : (
+          <p className="rounded-xl border border-dashed border-[var(--border)] px-4 py-3 text-sm text-[var(--subtle)]">
+            בחרו תבנית כדי לראות כאן את ההודעה שתישלח ללקוח.
+          </p>
+        )}
+      </div>
 
       {/*
         שלושת סוגי התזמון מוצגים יחד ולא מאחורי בורר שמחליף שדות. השרת ממילא

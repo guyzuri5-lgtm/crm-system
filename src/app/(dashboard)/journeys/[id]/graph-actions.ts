@@ -20,11 +20,30 @@ import {
 
 const idSchema = z.string().uuid();
 
+/**
+ * הערוץ של כרטיסייה אינו נבחר בטופס אלא נגזר כאן מהתבנית.
+ *
+ * בטופס הישן היו שני שדות נפרדים, ואפשר היה לבחור תבנית מייל עם ערוץ
+ * וואטסאפ — שילוב שנראה תקין על המסך ונכשל רק בשליחה. גזירה בשרת הופכת
+ * את אי-ההתאמה לבלתי אפשרית, גם אם הטופס ישתבש.
+ */
+async function channelOfTemplate(templateId: string) {
+  const { data, error } = await supabaseAdmin()
+    .from("message_templates")
+    .select("channel")
+    .eq("id", templateId)
+    .single();
+  if (error) throw error;
+
+  const parsed = z.enum(MESSAGE_CHANNELS).safeParse(data.channel);
+  if (!parsed.success) throw new Error("לתבנית שנבחרה אין ערוץ מוכר");
+  return parsed.data;
+}
+
 // ── צמתים ──────────────────────────────────────────────────────────────────
 
 const addStepSchema = z.object({
   journey_id: idSchema,
-  channel: z.enum(MESSAGE_CHANNELS),
   template_id: idSchema,
   wait_days: z.coerce.number().int().min(0).max(365),
   offset_minutes: z.coerce.number().int().min(-43200).max(43200),
@@ -41,7 +60,6 @@ export async function addNodeAction(formData: FormData) {
 
   const parsed = addStepSchema.safeParse({
     journey_id: formData.get("journey_id"),
-    channel: formData.get("channel"),
     template_id: formData.get("template_id"),
     wait_days: formData.get("wait_days") || 0,
     offset_minutes: formData.get("offset_minutes") || 0,
@@ -55,9 +73,10 @@ export async function addNodeAction(formData: FormData) {
   if (!parsed.success) throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
 
   const db = supabaseAdmin();
+  const channel = await channelOfTemplate(parsed.data.template_id);
   const { data: step, error } = await db
     .from("journey_steps")
-    .insert({ ...parsed.data, label: parsed.data.label ?? null })
+    .insert({ ...parsed.data, channel, label: parsed.data.label ?? null })
     .select("id")
     .single();
   if (error) throw error;
@@ -100,7 +119,6 @@ export async function updateNodeAction(formData: FormData) {
   if (!id) return;
 
   const parsed = updateStepSchema.safeParse({
-    channel: formData.get("channel"),
     template_id: formData.get("template_id"),
     wait_days: formData.get("wait_days") || 0,
     offset_minutes: formData.get("offset_minutes") || 0,
@@ -111,9 +129,10 @@ export async function updateNodeAction(formData: FormData) {
   });
   if (!parsed.success) throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
 
+  const channel = await channelOfTemplate(parsed.data.template_id);
   const { error } = await supabaseAdmin()
     .from("journey_steps")
-    .update({ ...parsed.data, label: parsed.data.label ?? null })
+    .update({ ...parsed.data, channel, label: parsed.data.label ?? null })
     .eq("id", id);
   if (error) throw error;
 

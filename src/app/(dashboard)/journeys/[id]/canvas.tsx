@@ -214,7 +214,6 @@ export function JourneyCanvas({
   }
 
   const selected = selectedId ? (nodes.find((n) => n.id === selectedId) ?? null) : null;
-  const selectedTemplate = selected ? templates.find((t) => t.id === selected.templateId) : null;
   const incoming = selected ? edges.filter((e) => e.toId === selected.id) : [];
   const outgoing = selected ? edges.filter((e) => e.fromId === selected.id) : [];
   const nameOf = (id: string) => {
@@ -420,26 +419,7 @@ export function JourneyCanvas({
             </button>
           </div>
 
-          {/* ── התוכן שיישלח ── */}
-          <div className="mb-5">
-            <p className="mb-1.5 text-xs font-medium text-[var(--muted)]">
-              התוכן שיישלח
-              {selectedTemplate?.metaTemplateName && (
-                <span className="mr-2 font-normal text-[var(--subtle)]" dir="ltr">
-                  · {selectedTemplate.metaTemplateName}
-                  {selectedTemplate.metaStatus ? ` (${selectedTemplate.metaStatus})` : ""}
-                </span>
-              )}
-            </p>
-            <p className="rounded-xl bg-[var(--background)] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap">
-              {selectedTemplate?.body ?? "התבנית לא נמצאה"}
-            </p>
-            {selected.channel === "whatsapp" && !selectedTemplate?.metaTemplateName && (
-              <p className="mt-1.5 text-xs text-[var(--danger)]">
-                אין לתבנית קישור לתבנית מאושרת ב-Meta. שליחה מחוץ לחלון 24 השעות תיכשל.
-              </p>
-            )}
-          </div>
+          {/* התוכן שיישלח מוצג בתוך הטופס עצמו, חי עם בחירת התבנית. */}
 
           {/* ── מי מגיע לכאן, ולאן ממשיכים ── */}
           <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
