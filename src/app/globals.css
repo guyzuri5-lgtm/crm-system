@@ -17,6 +17,25 @@
 
   --danger: #b91c1c;
   --danger-soft: #fdf1f1;
+
+  /* צבעי קבוצות הניווט */
+  --nav-pink: #993556;
+  --nav-pink-icon: #d4537e;
+  --nav-pink-soft: #fbeaf0;
+  --nav-purple: #534ab7;
+  --nav-purple-icon: #7f77dd;
+  --nav-purple-soft: #eeedfe;
+  --nav-coral: #993c1d;
+  --nav-coral-icon: #d85a30;
+  --nav-coral-soft: #faece7;
+  --nav-amber: #854f0b;
+  --nav-amber-icon: #ef9f27;
+  --nav-amber-soft: #faeeda;
+  --nav-blue: #0c447c;
+  --nav-blue-icon: #378add;
+  --nav-blue-soft: #e6f1fb;
+  --nav-gray: #5f5e5a;
+  --nav-gray-soft: #f1efe8;
 }
 
 @theme inline {
