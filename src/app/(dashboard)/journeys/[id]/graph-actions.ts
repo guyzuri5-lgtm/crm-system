@@ -79,6 +79,9 @@ export async function addNodeAction(formData: FormData) {
   }
 
   revalidatePath(`/journeys/${parsed.data.journey_id}`);
+
+  // ה-id חוזר כדי שהמשטח יוכל לפתוח את הכרטיסייה החדשה מסומנת מיד.
+  return { id: step.id as string };
 }
 
 /**

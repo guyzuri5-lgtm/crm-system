@@ -5,9 +5,6 @@ import { verifyTeamMember } from "@/lib/dal";
 import {
   JOURNEY_ENTRY_LABELS,
   JOURNEY_STATE_LABELS,
-  STEP_TIMINGS,
-  STEP_TIMING_LABELS,
-  MESSAGE_CHANNELS,
   type Journey,
   type JourneyStep,
   type JourneyEdge,
@@ -21,7 +18,6 @@ import {
   toggleStopOnReplyAction,
 } from "../actions";
 import { JourneyCanvas } from "./canvas";
-import { addNodeAction } from "./graph-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -187,128 +183,6 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
         />
       </section>
 
-      {/* ── הוספת כרטיסייה ──────────────────────────────────────────── */}
-      <section className="card">
-        <h2 className="mb-1 font-medium">כרטיסייה חדשה</h2>
-        <p className="mb-4 text-sm text-[var(--muted)]">
-          נוספת למשטח למעלה. הראשונה מתחברת אוטומטית לכניסה; את השאר מחברים בעצמכם
-          עם החץ. <strong>כל כרטיסייה מתוזמנת בנפרד</strong> — אפשר לערבב באותו מסע
-          מייל מיד עם הקביעה, תזכורת ערב לפני, ותזכורת שעה לפני.
-        </p>
-
-        <form action={addNodeAction} className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <input type="hidden" name="journey_id" value={journey.id} />
-          <input type="hidden" name="pos_x" value={40 + ((steps.length + 1) % 4) * 230} />
-          <input type="hidden" name="pos_y" value={140 + Math.floor((steps.length + 1) / 4) * 130} />
-
-          <label className="field-label">
-            שם על הכרטיסייה
-            <input name="label" className="input" placeholder="תזכורת ערב לפני" maxLength={60} />
-          </label>
-
-          <label className="field-label">
-            ערוץ
-            <select name="channel" className="input" required defaultValue="whatsapp">
-              {MESSAGE_CHANNELS.map((c) => (
-                <option key={c} value={c}>
-                  {c === "email" ? "מייל" : "וואטסאפ"}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="field-label">
-            תבנית
-            <select name="template_id" className="input" required defaultValue="">
-              <option value="" disabled>
-                בחרו תבנית
-              </option>
-              {templates.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                  {t.channel === "whatsapp" && !t.meta_template_name ? " (בלי תבנית ב-Meta)" : ""}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {/*
-            שלושת סוגי התזמון מוצגים יחד ולא מאחורי בורר שמחליף שדות. הטופס
-            הוא HTML טהור בלי JavaScript, והשרת ממילא קורא רק את השדות
-            הרלוונטיים לסוג שנבחר — כך שהצגת הכול פשוטה יותר ואינה מסתירה
-            מהמשתמש מה קיים.
-          */}
-          <label className="field-label md:col-span-3">
-            מתי לשלוח
-            <select name="timing" className="input" required defaultValue="relative">
-              {STEP_TIMINGS.map((t) => (
-                <option key={t} value={t}>
-                  {STEP_TIMING_LABELS[t]}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4 md:col-span-3">
-            <p className="mb-3 text-xs text-[var(--muted)]">
-              מלאו רק את השורה שמתאימה לסוג שבחרתם למעלה.
-            </p>
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <label className="field-label">
-                אחרי הקודמת — ימים
-                <input name="wait_days" type="number" min={0} max={365} defaultValue={0} className="input" />
-                <span className="text-xs font-normal text-[var(--subtle)]">0 = מיד</span>
-              </label>
-
-              <label className="field-label">
-                מרחק מהפגישה
-                <select name="offset_minutes" className="input" defaultValue="-60">
-                  {OFFSET_OPTIONS.map((o) => (
-                    <option key={o.minutes} value={o.minutes}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <div className="field-label">
-                שעה ביום, סביב הפגישה
-                <div className="flex gap-2">
-                  <select name="day_offset" className="input" defaultValue="0">
-                    <option value="0">ביום הפגישה</option>
-                    <option value="-1">יום לפני</option>
-                    <option value="-2">יומיים לפני</option>
-                    <option value="-7">שבוע לפני</option>
-                  </select>
-                  <select name="day_at_minutes" className="input" defaultValue="540">
-                    {HOUR_OPTIONS.map((h) => (
-                      <option key={h.minutes} value={h.minutes}>
-                        {h.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <span className="text-xs font-normal text-[var(--subtle)]">
-                  בשעון של הלקוח, לפי אזור הזמן שבחר בהזמנה.
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <button type="submit" className="btn-primary self-start md:col-span-3">
-            הוסף כרטיסייה
-          </button>
-        </form>
-
-        {!templates.length && (
-          <p className="mt-4 text-sm text-[var(--danger)]">
-            אין עדיין תבניות במערכת. צרו אחת בעמוד תבניות הודעה — בלעדיה אי אפשר
-            להוסיף כרטיסייה.
-          </p>
-        )}
-      </section>
-
       {/* ── מי במסע ────────────────────────────────────────────────────── */}
       <section className="card">
         <h2 className="mb-4 font-medium">מי במסע</h2>
@@ -363,24 +237,3 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
     </div>
   );
 }
-
-/**
- * מרחקים מהפגישה, בדקות. שליליים = לפני.
- *
- * רשימה סגורה ולא שדה חופשי: הערך הוא מספר שלילי, וזו בדיוק הצורה שקל
- * לטעות בה — "60" במקום "-60" היה הופך תזכורת לשעה *אחרי* הפגישה.
- */
-const HOUR_OPTIONS = Array.from({ length: 15 }, (_, i) => {
-  const minutes = (i + 6) * 60;
-  return { minutes, label: `${String(i + 6).padStart(2, "0")}:00` };
-});
-
-const OFFSET_OPTIONS = [
-  { minutes: -60, label: "שעה לפני" },
-  { minutes: -120, label: "שעתיים לפני" },
-  { minutes: -180, label: "שלוש שעות לפני" },
-  { minutes: -1440, label: "יום לפני" },
-  { minutes: 0, label: "במועד הפגישה" },
-  { minutes: 60, label: "שעה אחרי" },
-  { minutes: 1440, label: "יום אחרי" },
-];

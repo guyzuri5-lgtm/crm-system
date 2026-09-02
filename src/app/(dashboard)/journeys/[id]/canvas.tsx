@@ -1,12 +1,10 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import { useFormStatus } from "react-dom";
 import {
   JOURNEY_CONDITIONS,
   JOURNEY_CONDITION_LABELS,
-  STEP_TIMINGS,
-  STEP_TIMING_LABELS,
-  MESSAGE_CHANNELS,
   type JourneyCondition,
   type StepTiming,
 } from "@/lib/supabase/database.types";
@@ -16,8 +14,8 @@ import {
   deleteEdgeAction,
   deleteNodeAction,
   setEdgeConditionAction,
-  updateNodeAction,
 } from "./graph-actions";
+import { StepForm } from "./step-form";
 
 /**
  * משטח עריכת המסע.
@@ -89,6 +87,8 @@ export function JourneyCanvas({
   const [drag, setDrag] = useState<{ id: string; dx: number; dy: number } | null>(null);
   const [connectFrom, setConnectFrom] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // מיקום של כרטיסיית טיוטה: מופיעה מיד על המשטח, נשמרת למסד רק ב"הוסף".
+  const [draft, setDraft] = useState<{ x: number; y: number } | null>(null);
   const [, startTransition] = useTransition();
 
   // נקודת ההתחלה של הגרירה, כדי להבחין בין לחיצה לגרירה. בלי הסף הזה כל
@@ -153,6 +153,7 @@ export function JourneyCanvas({
         delete next[id];
         return next;
       });
+      setDraft(null);
       setSelectedId((cur) => (cur === id ? null : id));
       return;
     }
@@ -187,6 +188,31 @@ export function JourneyCanvas({
     });
   }
 
+  /** פתיחת טיוטה: כרטיסייה מסומנת נסגרת — פאנל אחד פתוח בכל רגע. */
+  function openDraft(pos: { x: number; y: number }) {
+    setDraft(pos);
+    setSelectedId(null);
+    setConnectFrom(null);
+  }
+
+  // מקום פנוי לכרטיסייה מכפתור ההוספה — אותה נוסחת רשת ששימשה את הטופס הישן.
+  const freeSpot = () => ({
+    x: 40 + ((nodes.length + 1) % 4) * 230,
+    y: 140 + Math.floor((nodes.length + 1) / 4) * 130,
+  });
+
+  // לחיצה כפולה על שטח ריק יוצרת טיוטה שם, ממורכזת סביב נקודת הלחיצה.
+  // ה-scroll מתווסף כי המיקומים נמדדים בתוך התוכן הנגלל, לא בחלון הנראה.
+  function onSurfaceDoubleClick(e: React.MouseEvent) {
+    const el = surface.current;
+    if (!el || e.target !== el) return;
+    const rect = el.getBoundingClientRect();
+    openDraft({
+      x: Math.max(0, Math.round(e.clientX - rect.left + el.scrollLeft - CARD_W / 2)),
+      y: Math.max(0, Math.round(e.clientY - rect.top + el.scrollTop - CARD_H / 2)),
+    });
+  }
+
   const selected = selectedId ? (nodes.find((n) => n.id === selectedId) ?? null) : null;
   const selectedTemplate = selected ? templates.find((t) => t.id === selected.templateId) : null;
   const incoming = selected ? edges.filter((e) => e.toId === selected.id) : [];
@@ -197,11 +223,17 @@ export function JourneyCanvas({
   };
 
   // גובה המשטח נגזר מהכרטיסייה הנמוכה ביותר, עם מרווח לגרירה כלפי מטה.
-  const maxY = Math.max(entryPos.y, ...nodes.map((n) => posOf(n).y)) + CARD_H;
-  const maxX = Math.max(entryPos.x, ...nodes.map((n) => posOf(n).x)) + CARD_W;
+  const maxY = Math.max(entryPos.y, draft?.y ?? 0, ...nodes.map((n) => posOf(n).y)) + CARD_H;
+  const maxX = Math.max(entryPos.x, draft?.x ?? 0, ...nodes.map((n) => posOf(n).x)) + CARD_W;
 
   return (
     <div className="flex flex-col gap-3">
+      <div>
+        <button onClick={() => openDraft(freeSpot())} className="btn-primary text-sm">
+          + כרטיסייה חדשה
+        </button>
+      </div>
+
       {connectFrom && (
         <div className="rounded-xl bg-amber-50 px-4 py-2 text-sm text-amber-900 ring-1 ring-amber-600/20 ring-inset">
           מצב חיבור: לחצו על הכרטיסייה שאליה יימשך החץ.{" "}
@@ -216,6 +248,7 @@ export function JourneyCanvas({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerLeave={onPointerUp}
+        onDoubleClick={onSurfaceDoubleClick}
         dir="ltr"
         className="relative overflow-auto rounded-2xl border border-[var(--border)] bg-[var(--background)]"
         style={{ height: Math.max(320, maxY + 80), minWidth: maxX + 80 }}
@@ -332,18 +365,47 @@ export function JourneyCanvas({
               >
                 <input type="hidden" name="id" value={node.id} />
                 <input type="hidden" name="journey_id" value={journeyId} />
-                <button
-                  type="submit"
-                  title="מחק כרטיסייה"
-                  className="size-5 rounded-full border border-[var(--border)] bg-white text-[11px] leading-none text-[var(--danger)] hover:bg-red-50"
-                >
-                  ×
-                </button>
+                <DeleteButton />
               </form>
             </div>
           );
         })}
+
+        {/* ── כרטיסיית טיוטה: קיימת רק על המסך עד השמירה ── */}
+        {draft && (
+          <div
+            style={{ left: draft.x, top: draft.y, width: CARD_W, height: CARD_H }}
+            className="absolute flex flex-col justify-center rounded-2xl border-2 border-dashed border-[var(--primary)] bg-white/80 px-4"
+          >
+            <p className="text-[11px] text-[var(--subtle)]">טיוטה — עוד לא נשמרה</p>
+            <p className="mt-0.5 text-sm leading-snug font-medium">כרטיסייה חדשה</p>
+          </div>
+        )}
       </div>
+
+      {/* ── פאנל יצירה: אותו טופס של העריכה, במצב טיוטה ── */}
+      {draft && (
+        <div className="rounded-2xl border-2 border-dashed border-[var(--primary)] bg-white p-5">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="font-medium">כרטיסייה חדשה</h3>
+            <button
+              onClick={() => setDraft(null)}
+              className="text-sm text-[var(--muted)] hover:underline"
+            >
+              ביטול
+            </button>
+          </div>
+          <StepForm
+            journeyId={journeyId}
+            templates={templates}
+            draftPos={draft}
+            onSaved={(id) => {
+              setDraft(null);
+              setSelectedId(id);
+            }}
+          />
+        </div>
+      )}
 
       {/* ── פאנל הכרטיסייה הנבחרת ── */}
       {selected && (
@@ -423,94 +485,11 @@ export function JourneyCanvas({
           </div>
 
           {/* ── עריכה ── */}
-          <form action={updateNodeAction} className="grid grid-cols-1 gap-4 border-t border-[var(--border)] pt-4 md:grid-cols-3">
-            <input type="hidden" name="id" value={selected.id} />
-            <input type="hidden" name="journey_id" value={journeyId} />
-
-            <label className="field-label">
-              שם על הכרטיסייה
-              <input name="label" defaultValue={selected.label ?? ""} className="input" maxLength={60} />
-            </label>
-
-            <label className="field-label">
-              ערוץ
-              <select name="channel" className="input" defaultValue={selected.channel}>
-                {MESSAGE_CHANNELS.map((c) => (
-                  <option key={c} value={c}>
-                    {c === "email" ? "מייל" : "וואטסאפ"}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="field-label">
-              תבנית
-              <select name="template_id" className="input" defaultValue={selected.templateId}>
-                {templates.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="field-label md:col-span-3">
-              מתי לשלוח
-              <select name="timing" className="input" defaultValue={selected.timing}>
-                {STEP_TIMINGS.map((t) => (
-                  <option key={t} value={t}>
-                    {STEP_TIMING_LABELS[t]}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="field-label">
-              אחרי הקודמת — ימים
-              <input
-                name="wait_days"
-                type="number"
-                min={0}
-                max={365}
-                defaultValue={selected.waitDays}
-                className="input"
-              />
-            </label>
-
-            <label className="field-label">
-              מרחק מהפגישה
-              <select name="offset_minutes" className="input" defaultValue={String(selected.offsetMinutes)}>
-                {OFFSETS.map((o) => (
-                  <option key={o.m} value={o.m}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <div className="field-label">
-              שעה ביום, סביב הפגישה
-              <div className="flex gap-2">
-                <select name="day_offset" className="input" defaultValue={String(selected.dayOffset)}>
-                  <option value="0">ביום הפגישה</option>
-                  <option value="-1">יום לפני</option>
-                  <option value="-2">יומיים לפני</option>
-                  <option value="-7">שבוע לפני</option>
-                </select>
-                <select name="day_at_minutes" className="input" defaultValue={String(selected.dayAtMinutes)}>
-                  {HOURS.map((h) => (
-                    <option key={h.m} value={h.m}>
-                      {h.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <button type="submit" className="btn-primary self-start md:col-span-3">
-              שמור שינויים
-            </button>
-          </form>
+          <div className="border-t border-[var(--border)] pt-4">
+            {/* key מאפס את ערכי הטופס במעבר בין כרטיסיות — בלעדיו defaultValue
+                של הכרטיסייה הקודמת היה נשאר על המסך. */}
+            <StepForm key={selected.id} journeyId={journeyId} templates={templates} node={selected} />
+          </div>
         </div>
       )}
 
@@ -565,10 +544,13 @@ export function JourneyCanvas({
       )}
 
       <p className="text-xs leading-relaxed text-[var(--subtle)]">
-        גררו כרטיסייה כדי להזיז אותה. לחצו על <strong>→</strong> שבצידה, ואז על כרטיסייה
-        אחרת, כדי למתוח חץ ביניהן. שני חצים מאותה כרטיסייה עם תנאים שונים הם שני
-        מסלולים — <strong>אבל חץ &quot;תמיד&quot; בולע את מה שאחריו</strong>, כי הראשון
-        שמתאים הוא זה שנבחר.
+        מוסיפים כרטיסייה בכפתור למעלה, או בלחיצה כפולה על מקום ריק במשטח.{" "}
+        <strong>כל כרטיסייה מתוזמנת בנפרד</strong> — אפשר לערבב באותו מסע מייל מיד עם
+        הקביעה, תזכורת ערב לפני, ותזכורת שעה לפני. גררו כרטיסייה כדי להזיז אותה. לחצו
+        על <strong>→</strong> שבצידה, ואז על כרטיסייה אחרת, כדי למתוח חץ ביניהן. שני
+        חצים מאותה כרטיסייה עם תנאים שונים הם שני מסלולים —{" "}
+        <strong>אבל חץ &quot;תמיד&quot; בולע את מה שאחריו</strong>, כי הראשון שמתאים
+        הוא זה שנבחר.
       </p>
     </div>
   );
@@ -600,17 +582,17 @@ function timingLabel(n: {
   return `${day} ב-${hh}:${mm}`;
 }
 
-const OFFSETS = [
-  { m: -60, label: "שעה לפני" },
-  { m: -120, label: "שעתיים לפני" },
-  { m: -180, label: "שלוש שעות לפני" },
-  { m: -1440, label: "יום לפני" },
-  { m: 0, label: "במועד הפגישה" },
-  { m: 60, label: "שעה אחרי" },
-  { m: 1440, label: "יום אחרי" },
-];
-
-const HOURS = Array.from({ length: 15 }, (_, i) => ({
-  m: (i + 6) * 60,
-  label: `${String(i + 6).padStart(2, "0")}:00`,
-}));
+/** כפתור מחיקה שננעל בזמן שהמחיקה רצה, כדי שלחיצה כפולה לא תירה פעמיים. */
+function DeleteButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      title="מחק כרטיסייה"
+      className="size-5 rounded-full border border-[var(--border)] bg-white text-[11px] leading-none text-[var(--danger)] hover:bg-red-50 disabled:opacity-50"
+    >
+      ×
+    </button>
+  );
+}
