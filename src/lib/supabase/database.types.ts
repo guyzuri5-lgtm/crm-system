@@ -75,17 +75,18 @@ export const JOURNEY_ENTRY_LABELS: Record<JourneyEntryType, string> = {
  * שני מסלולים — וזו ההסתעפות.
  */
 /**
- * נקודת הייחוס לתזמון השלבים.
+ * ממה נמדד הזמן של כרטיסייה בודדת.
  *
- * enrollment — קדימה מרגע הכניסה. ההתנהגות המקורית.
- * booking    — יחסית ל-starts_at של הפגישה, ולכן גם אחורה ממנה.
+ * שלושה ולא שניים, כי "בוקר של הפגישה" אינו מרחק ממנה אלא שעה ביום: לפגישה
+ * ב-15:00 הבוקר הוא שש שעות לפני, ולפגישה ב-11:00 שעתיים.
  */
-export const JOURNEY_ANCHORS = ["enrollment", "booking"] as const;
-export type JourneyAnchor = (typeof JOURNEY_ANCHORS)[number];
+export const STEP_TIMINGS = ["relative", "booking_offset", "booking_day_at"] as const;
+export type StepTiming = (typeof STEP_TIMINGS)[number];
 
-export const JOURNEY_ANCHOR_LABELS: Record<JourneyAnchor, string> = {
-  enrollment: "מרגע הכניסה למסע",
-  booking: "יחסית למועד הפגישה",
+export const STEP_TIMING_LABELS: Record<StepTiming, string> = {
+  relative: "אחרי הכרטיסייה שלפניה",
+  booking_offset: "מרחק מהפגישה",
+  booking_day_at: "שעה ביום, סביב הפגישה",
 };
 
 export const JOURNEY_CONDITIONS = ["always", "if_replied", "if_not_replied"] as const;
@@ -509,8 +510,6 @@ export type Database = {
           active: boolean;
           /** נוסף ב-0017 — תגובה של הלקוח מסיימת את המסע כולו */
           stop_on_reply: boolean;
-          /** נוסף ב-0018 — enrollment (wait_days) | booking (offset_minutes) */
-          anchor: JourneyAnchor;
           created_at: string;
           updated_at: string;
         };
@@ -528,6 +527,12 @@ export type Database = {
           template_id: string;
           /** דקות מ-starts_at של הפגישה. שלילי = לפני. */
           offset_minutes: number;
+          /** נוספו ב-0020 — התזמון ירד מהמסע אל הכרטיסייה */
+          timing: StepTiming;
+          /** 0 = יום הפגישה, ‎-1 = היום שלפניו */
+          day_offset: number;
+          /** דקות מחצות בשעון הלקוח. 540 = 09:00 */
+          day_at_minutes: number;
           /** נוספו ב-0019 — מיקום הכרטיסייה על המשטח */
           pos_x: number;
           pos_y: number;

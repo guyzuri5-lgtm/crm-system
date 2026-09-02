@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { verifyTeamMember } from "@/lib/dal";
-import { JOURNEY_CONDITIONS, MESSAGE_CHANNELS } from "@/lib/supabase/database.types";
+import {
+  JOURNEY_CONDITIONS,
+  MESSAGE_CHANNELS,
+  STEP_TIMINGS,
+} from "@/lib/supabase/database.types";
 
 /**
  * עריכת הגרף מהמשטח.
@@ -24,6 +28,9 @@ const addStepSchema = z.object({
   template_id: idSchema,
   wait_days: z.coerce.number().int().min(0).max(365),
   offset_minutes: z.coerce.number().int().min(-43200).max(43200),
+  timing: z.enum(STEP_TIMINGS),
+  day_offset: z.coerce.number().int().min(-30).max(30),
+  day_at_minutes: z.coerce.number().int().min(0).max(1439),
   label: z.string().trim().max(60).optional(),
   pos_x: z.coerce.number().int(),
   pos_y: z.coerce.number().int(),
@@ -38,6 +45,9 @@ export async function addNodeAction(formData: FormData) {
     template_id: formData.get("template_id"),
     wait_days: formData.get("wait_days") || 0,
     offset_minutes: formData.get("offset_minutes") || 0,
+    timing: formData.get("timing") || "relative",
+    day_offset: formData.get("day_offset") || 0,
+    day_at_minutes: formData.get("day_at_minutes") || 540,
     label: formData.get("label") || undefined,
     pos_x: formData.get("pos_x") || 0,
     pos_y: formData.get("pos_y") || 0,

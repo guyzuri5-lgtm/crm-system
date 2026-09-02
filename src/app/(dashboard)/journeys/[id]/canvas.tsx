@@ -5,7 +5,7 @@ import {
   JOURNEY_CONDITIONS,
   JOURNEY_CONDITION_LABELS,
   type JourneyCondition,
-  type JourneyAnchor,
+  type StepTiming,
 } from "@/lib/supabase/database.types";
 import {
   moveNodeAction,
@@ -40,6 +40,9 @@ export interface CanvasNode {
   channel: "whatsapp" | "email";
   waitDays: number;
   offsetMinutes: number;
+  timing: StepTiming;
+  dayOffset: number;
+  dayAtMinutes: number;
 }
 
 export interface CanvasEdge {
@@ -56,13 +59,11 @@ const ENTRY_ID = "__entry__";
 export function JourneyCanvas({
   journeyId,
   entryLabel,
-  anchor,
   nodes,
   edges,
 }: {
   journeyId: string;
   entryLabel: string;
-  anchor: JourneyAnchor;
   nodes: CanvasNode[];
   edges: CanvasEdge[];
 }) {
@@ -248,7 +249,7 @@ export function JourneyCanvas({
               }`}
             >
               <p className="text-[10px] text-[var(--subtle)]">
-                {anchor === "booking" ? offsetLabel(node.offsetMinutes) : node.waitDays === 0 ? "מיד" : `${node.waitDays} ימים`}
+                {timingLabel(node)}
                 {" · "}
                 {node.channel === "email" ? "מייל" : "וואטסאפ"}
               </p>
@@ -348,10 +349,28 @@ export function JourneyCanvas({
   );
 }
 
-function offsetLabel(minutes: number): string {
-  if (minutes === 0) return "במועד הפגישה";
-  const abs = Math.abs(minutes);
-  const unit =
-    abs % 1440 === 0 ? `${abs / 1440} ימים` : abs % 60 === 0 ? `${abs / 60} שעות` : `${abs} דק׳`;
-  return minutes < 0 ? `${unit} לפני` : `${unit} אחרי`;
+/** תיאור התזמון בשפה שקוראים אותה בסריקה מהירה, לא במספרים. */
+function timingLabel(n: {
+  timing: StepTiming;
+  waitDays: number;
+  offsetMinutes: number;
+  dayOffset: number;
+  dayAtMinutes: number;
+}): string {
+  if (n.timing === "relative") return n.waitDays === 0 ? "מיד" : `${n.waitDays} ימים אחרי`;
+
+  if (n.timing === "booking_offset") {
+    const m = n.offsetMinutes;
+    if (m === 0) return "במועד הפגישה";
+    const abs = Math.abs(m);
+    const unit =
+      abs % 1440 === 0 ? `${abs / 1440} ימים` : abs % 60 === 0 ? `${abs / 60} שעות` : `${abs} דק׳`;
+    return m < 0 ? `${unit} לפני הפגישה` : `${unit} אחרי הפגישה`;
+  }
+
+  const hh = String(Math.floor(n.dayAtMinutes / 60)).padStart(2, "0");
+  const mm = String(n.dayAtMinutes % 60).padStart(2, "0");
+  const day =
+    n.dayOffset === 0 ? "ביום הפגישה" : n.dayOffset === -1 ? "ערב לפני" : `${-n.dayOffset} ימים לפני`;
+  return `${day} ב-${hh}:${mm}`;
 }

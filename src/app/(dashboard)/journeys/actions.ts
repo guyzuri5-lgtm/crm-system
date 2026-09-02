@@ -5,14 +5,13 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { verifyTeamMember } from "@/lib/dal";
-import { JOURNEY_ENTRY_TYPES, JOURNEY_ANCHORS } from "@/lib/supabase/database.types";
+import { JOURNEY_ENTRY_TYPES } from "@/lib/supabase/database.types";
 
 const journeySchema = z.object({
   name: z.string().trim().min(1, "חובה למלא שם למסע"),
   description: z.string().trim().optional(),
   entry_type: z.enum(JOURNEY_ENTRY_TYPES),
   status: z.string().trim().optional(),
-  anchor: z.enum(JOURNEY_ANCHORS),
 });
 
 export async function createJourneyAction(formData: FormData) {
@@ -23,20 +22,11 @@ export async function createJourneyAction(formData: FormData) {
     description: formData.get("description") || undefined,
     entry_type: formData.get("entry_type"),
     status: formData.get("status") || undefined,
-    anchor: formData.get("anchor") || "enrollment",
   });
   if (!parsed.success) throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
 
   if (parsed.data.entry_type === "status" && !parsed.data.status) {
     throw new Error("מסע שנכנסים אליו לפי סטטוס חייב שיוגדר לו סטטוס");
-  }
-
-  // עיגון לפגישה דורש שתהיה פגישה. מסע שנכנסים אליו לפי סטטוס לא מבטיח את
-  // זה, והצירוף היה מדלג על כולם בשקט — מצב שנראה כמו "המסע לא עובד".
-  if (parsed.data.anchor === "booking" && parsed.data.entry_type !== "booking") {
-    throw new Error(
-      "מסע שמעוגן למועד הפגישה חייב שהכניסה אליו תהיה \"קבע פגישה\" — אחרת אין ממה לחשב את המועד."
-    );
   }
 
   const { data, error } = await supabaseAdmin()
@@ -46,7 +36,6 @@ export async function createJourneyAction(formData: FormData) {
       description: parsed.data.description ?? null,
       entry_type: parsed.data.entry_type,
       entry_value: parsed.data.entry_type === "status" ? { status: parsed.data.status } : {},
-      anchor: parsed.data.anchor,
     })
     .select("id")
     .single();

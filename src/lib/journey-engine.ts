@@ -8,7 +8,7 @@ import type {
   InteractionType,
   JourneyEntryType,
   JourneyCondition,
-  JourneyAnchor,
+  StepTiming,
   Booking,
 } from "./supabase/database.types";
 
@@ -34,7 +34,6 @@ export interface Journey {
   entry_value: { status?: string } | null;
   active: boolean;
   stop_on_reply: boolean;
-  anchor: JourneyAnchor;
 }
 
 export interface JourneyStep {
@@ -45,6 +44,9 @@ export interface JourneyStep {
   template_id: string;
   offset_minutes: number;
   label: string | null;
+  timing: StepTiming;
+  day_offset: number;
+  day_at_minutes: number;
 }
 
 /** התנאי יושב על הקשת ולא על הצומת — זה מה שמאפשר שני מסלולים מאותו שלב. */
@@ -95,21 +97,90 @@ const MINUTE_MS = 60 * 1000;
 const MAX_STEPS_PER_ENROLLMENT = 50;
 
 /**
- * מתי שלב אמור לרוץ.
+ * ההיסט של אזור זמן ברגע נתון, במילישניות.
  *
- * שני העוגנים נבדלים בנקודת הייחוס, לא ביחידה: מהכניסה סופרים קדימה, ומפגישה
- * סופרים יחסית — ולכן גם אחורה. offset_minutes שלילי הוא "לפני הפגישה".
+ * ‎Date‎ מכיר רק UTC ואת אזור הזמן של השרת, ואנחנו צריכים שעון של לקוח
+ * במקום אחר. הדרך היחידה בלי ספרייה: לפרמט את הרגע באזור המבוקש, לקרוא את
+ * החלקים בחזרה כאילו היו UTC, וההפרש הוא ההיסט. עובד גם על מעברי שעון קיץ,
+ * כי ההיסט נמדד ברגע עצמו ולא בכלל קבוע.
+ */
+function tzOffsetMs(at: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  })
+    .formatToParts(at)
+    .reduce<Record<string, number>>((acc, p) => {
+      if (p.type !== "literal") acc[p.type] = Number(p.value);
+      return acc;
+    }, {});
+
+  // hour24 מגיע כ-24 בחצות אצל חלק מהמנועים; Date.UTC מגלגל את זה נכון.
+  const asUtc = Date.UTC(
+    parts.year,
+    parts.month - 1,
+    parts.day,
+    parts.hour,
+    parts.minute,
+    parts.second
+  );
+  return asUtc - at.getTime();
+}
+
+/** שעה מסוימת ביום מסוים, בשעון של הלקוח → הרגע המוחלט. */
+function wallClockToUtc(
+  base: Date,
+  dayOffset: number,
+  minutesFromMidnight: number,
+  timeZone: string
+): Date {
+  // התאריך של הפגישה כפי שהלקוח רואה אותו — לא כפי שהשרת רואה.
+  const local = new Date(base.getTime() + tzOffsetMs(base, timeZone));
+  const y = local.getUTCFullYear();
+  const m = local.getUTCMonth();
+  const d = local.getUTCDate() + dayOffset;
+
+  const guess = Date.UTC(y, m, d, Math.floor(minutesFromMidnight / 60), minutesFromMidnight % 60);
+  // ההיסט נמדד סביב הניחוש עצמו, כדי שיום שחוצה מעבר שעון ייצא נכון.
+  return new Date(guess - tzOffsetMs(new Date(guess), timeZone));
+}
+
+/**
+ * מתי הכרטיסייה אמורה לרוץ.
+ *
+ * שלושת הסוגים נבדלים בנקודת הייחוס: הקודמת, הפגישה כמרחק, או הפגישה כיום
+ * שיש בו שעה. כרטיסייה שמעוגנת לפגישה בלי פגישה מחזירה null, והמנוע מדלג
+ * עליה — עדיף לדלג על תזכורת מאשר לשלוח אותה בזמן שרירותי.
  */
 function stepDueAt(
-  anchor: JourneyAnchor,
-  step: { wait_days: number; offset_minutes: number },
-  from: { now: Date; bookingStartsAt: string | null }
+  step: {
+    timing: StepTiming;
+    wait_days: number;
+    offset_minutes: number;
+    day_offset: number;
+    day_at_minutes: number;
+  },
+  from: { now: Date; booking: { starts_at: string; invitee_timezone: string } | null }
 ): Date | null {
-  if (anchor === "booking") {
-    if (!from.bookingStartsAt) return null;
-    return new Date(new Date(from.bookingStartsAt).getTime() + step.offset_minutes * MINUTE_MS);
+  if (step.timing === "relative") {
+    return new Date(from.now.getTime() + step.wait_days * DAY_MS);
   }
-  return new Date(from.now.getTime() + step.wait_days * DAY_MS);
+
+  if (!from.booking) return null;
+  const startsAt = new Date(from.booking.starts_at);
+  const tz = from.booking.invitee_timezone || "Asia/Jerusalem";
+
+  if (step.timing === "booking_offset") {
+    return new Date(startsAt.getTime() + step.offset_minutes * MINUTE_MS);
+  }
+
+  return wallClockToUtc(startsAt, step.day_offset, step.day_at_minutes, tz);
 }
 
 /** האינטראקציה שמסמנת כניסה, לכל סוג מסע שאינו מבוסס סטטוס. */
@@ -153,11 +224,18 @@ async function enrollForJourney(journey: Journey, now: Date): Promise<number> {
     candidateIds = Array.from(new Set((data ?? []).map((i) => i.contact_id).filter(Boolean)));
   }
 
-  // מסע מעוגן-פגישה מצרף רק את מי שיש לו פגישה *עתידית ולא מבוטלת*. פגישה
-  // שכבר עברה אינה יכולה לקבל תזכורת "ערב לפני", ומצורף בלי פגישה היה נתקע
-  // בלי מועד לחשב ממנו.
+  // דרישת הפגישה נגזרת מהשלבים ולא מהמסע: אם יש בו ולו כרטיסייה אחת שמעוגנת
+  // לפגישה, אין טעם לצרף מי שאין לו אחת — הוא ייתקע על אותה כרטיסייה.
+  const { data: timings } = await db
+    .from("journey_steps")
+    .select("timing")
+    .eq("journey_id", journey.id);
+  const needsBooking = (timings ?? []).some(
+    (t) => (t as { timing: string }).timing !== "relative"
+  );
+
   const bookingByContact = new Map<string, Booking>();
-  if (journey.anchor === "booking") {
+  if (needsBooking || journey.entry_type === "booking") {
     const { data: upcoming, error: bookingError } = await db
       .from("bookings")
       .select("*")
@@ -204,23 +282,23 @@ async function enrollForJourney(journey: Journey, now: Date): Promise<number> {
 
   const { data: firstStep } = await db
     .from("journey_steps")
-    .select("wait_days, offset_minutes")
+    .select("*")
     .eq("id", firstStepId)
     .maybeSingle();
 
-  const step = (firstStep as { wait_days: number; offset_minutes: number } | null) ?? {
+  const step = (firstStep as JourneyStep | null) ?? {
+    timing: "relative" as StepTiming,
     wait_days: 0,
     offset_minutes: 0,
+    day_offset: 0,
+    day_at_minutes: 540,
   };
 
   const { error: insertError } = await db.from("journey_enrollments").insert(
     fresh.map((contactId) => {
       const booking = bookingByContact.get(contactId) ?? null;
       const due =
-        stepDueAt(journey.anchor, step, {
-          now,
-          bookingStartsAt: booking?.starts_at ?? null,
-        }) ?? now;
+        stepDueAt(step, { now, booking }) ?? now;
 
       return {
         journey_id: journey.id,
@@ -355,22 +433,19 @@ export async function runJourneys(
     if (!contact) continue;
 
     const journey = journeyById.get(enrollment.journey_id);
-    const booking = enrollment.booking_id ? (bookings.get(enrollment.booking_id) ?? null) : null;
+    const rawBooking = enrollment.booking_id ? (bookings.get(enrollment.booking_id) ?? null) : null;
 
-    // מסע מעוגן-פגישה מאבד את הטעם שלו ברגע שהפגישה בוטלה, נמחקה, או כבר
-    // התחילה. "תזכורת לפגישה מחר" שנשלחת אחרי שהיא הסתיימה גרועה מכלום.
-    if (journey?.anchor === "booking") {
-      const gone = !booking || booking.status !== "confirmed";
-      const started = booking && new Date(booking.starts_at).getTime() <= now.getTime();
-      if (gone || started) {
-        await db
-          .from("journey_enrollments")
-          .update({ state: "completed" })
-          .eq("id", enrollment.id);
-        summary.completed += 1;
-        continue;
-      }
-    }
+    // שתי הבחנות שנראות זהות ואינן:
+    //
+    // booking       — לרינדור. גם פגישה שכבר עברה שווה להזכיר בהודעת מעקב.
+    // anchorBooking — לתזמון. פגישה שבוטלה או שכבר התחילה אינה יכולה לעגן
+    //                 תזכורת "לפני", וכרטיסייה כזו תדולג.
+    //
+    // הגרסה הקודמת סיימה את המסע *כולו* כשהפגישה עברה. עם תזמון ברמת
+    // הכרטיסייה זה שגוי: מייל מעקב אחרי הפגישה הוא בדיוק מה שאמור לרוץ אז.
+    const booking = rawBooking && rawBooking.status === "confirmed" ? rawBooking : null;
+    const anchorBooking =
+      booking && new Date(booking.starts_at).getTime() > now.getTime() ? booking : null;
 
     const replied = Boolean(
       contact.last_incoming_message_at &&
@@ -396,6 +471,32 @@ export async function runJourneys(
         .update({ state: "completed" })
         .eq("id", enrollment.id);
       summary.completed += 1;
+      continue;
+    }
+
+    // כרטיסייה שמעוגנת לפגישה, ואין פגישה. לשלוח אותה בזמן שרירותי גרוע
+    // מלדלג עליה — "תזכורת לפגישה" בלי פגישה היא הודעה חסרת פשר.
+    if (step.timing !== "relative" && !anchorBooking) {
+      const skipEdges = edgesFrom.get(step.id) ?? [];
+      const skipTo = skipEdges.find((e) => conditionHolds(e.condition, replied));
+      const skipStep = skipTo ? stepById.get(skipTo.to_step_id) : undefined;
+
+      await db
+        .from("journey_enrollments")
+        .update(
+          skipStep
+            ? {
+                current_step_id: skipStep.id,
+                steps_taken: enrollment.steps_taken + 1,
+                next_run_at: (
+                  stepDueAt(skipStep, { now, booking: anchorBooking }) ?? now
+                ).toISOString(),
+              }
+            : { state: "completed" }
+        )
+        .eq("id", enrollment.id);
+
+      if (!skipStep) summary.completed += 1;
       continue;
     }
 
@@ -456,11 +557,10 @@ export async function runJourneys(
           ? {
               current_step_id: nextStep.id,
               steps_taken: enrollment.steps_taken + 1,
+              // כרטיסייה שמעוגנת לפגישה בלי פגישה מקבלת now, כלומר תרוץ
+              // בריצה הבאה ותדולג שם — ולא נתקעת לנצח.
               next_run_at: (
-                stepDueAt(journey?.anchor ?? "enrollment", nextStep, {
-                  now,
-                  bookingStartsAt: booking?.starts_at ?? null,
-                }) ?? now
+                stepDueAt(nextStep, { now, booking: anchorBooking }) ?? now
               ).toISOString(),
             }
           : { state: "completed", steps_taken: enrollment.steps_taken + 1 }
