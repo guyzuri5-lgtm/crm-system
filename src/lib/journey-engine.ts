@@ -134,7 +134,7 @@ function tzOffsetMs(at: Date, timeZone: string): number {
 }
 
 /** שעה מסוימת ביום מסוים, בשעון של הלקוח → הרגע המוחלט. */
-function wallClockToUtc(
+export function wallClockToUtc(
   base: Date,
   dayOffset: number,
   minutesFromMidnight: number,
@@ -157,8 +157,11 @@ function wallClockToUtc(
  * שלושת הסוגים נבדלים בנקודת הייחוס: הקודמת, הפגישה כמרחק, או הפגישה כיום
  * שיש בו שעה. כרטיסייה שמעוגנת לפגישה בלי פגישה מחזירה null, והמנוע מדלג
  * עליה — עדיף לדלג על תזכורת מאשר לשלוח אותה בזמן שרירותי.
+ *
+ * מיוצאת גם ל"הצג מסע לדוגמה": הסימולציה חייבת לחשב עם אותה פונקציה בדיוק,
+ * אחרת היא מציגה זמנים שהמנוע לא באמת ישלח בהם.
  */
-function stepDueAt(
+export function stepDueAt(
   step: {
     timing: StepTiming;
     wait_days: number;

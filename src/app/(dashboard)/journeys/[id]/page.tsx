@@ -18,6 +18,7 @@ import {
   toggleStopOnReplyAction,
 } from "../actions";
 import { JourneyCanvas } from "./canvas";
+import { JourneySimulation } from "./simulation";
 
 export const dynamic = "force-dynamic";
 
@@ -183,6 +184,14 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
           }))}
         />
       </section>
+
+      {/* ── מסע לדוגמה: הבדיקה האחרונה לפני שמדליקים ─────────────────── */}
+      <JourneySimulation
+        steps={steps}
+        edges={edges}
+        templates={templates}
+        bookingEntry={journey.entry_type === "booking"}
+      />
 
       {/* ── מי במסע ────────────────────────────────────────────────────── */}
       <section className="card">
