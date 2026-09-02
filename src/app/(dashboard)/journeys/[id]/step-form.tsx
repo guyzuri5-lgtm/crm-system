@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
-import { STEP_TIMINGS, STEP_TIMING_LABELS } from "@/lib/supabase/database.types";
+import type { StepTiming } from "@/lib/supabase/database.types";
 import { addNodeAction, updateNodeAction } from "./graph-actions";
 import type { CanvasNode, CanvasTemplate } from "./canvas";
 
@@ -43,8 +43,23 @@ export function StepForm({
   const [error, setError] = useState<string | null>(null);
   // התבנית נשלטת (ולא defaultValue) כדי שהתצוגה המקדימה תתעדכן עם הבחירה.
   const [templateId, setTemplateId] = useState(node?.templateId ?? "");
+  // גם התזמון נשלט, כי שורת הדוגמה ("תישלח ביום שלישי ב-20:00") מחושבת ממנו.
+  const [timing, setTiming] = useState<StepTiming>(node?.timing ?? "relative");
+  const [waitDays, setWaitDays] = useState(node?.waitDays ?? 0);
+  const [offsetMinutes, setOffsetMinutes] = useState(node?.offsetMinutes ?? -60);
+  const [dayOffset, setDayOffset] = useState(node?.dayOffset ?? 0);
+  const [dayAtMinutes, setDayAtMinutes] = useState(node?.dayAtMinutes ?? 540);
   const chosen = templates.find((t) => t.id === templateId) ?? null;
   const isNew = !node;
+
+  // משפט-תזמון שנבחר מודגש; השאר מעומעמים אבל לחיצים — נגיעה בשדה של
+  // משפט אחר בוחרת אותו, כך שאין מצב של מילוי שדה שלא ייקרא.
+  const timingCard = (t: StepTiming) =>
+    `flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-xl border-2 px-4 py-3 text-sm cursor-pointer ${
+      timing === t
+        ? "border-[var(--primary)] bg-white"
+        : "border-[var(--border)] bg-[var(--background)] text-[var(--muted)]"
+    }`;
 
   const whatsappTemplates = templates.filter((t) => t.channel === "whatsapp");
   const emailTemplates = templates.filter((t) => t.channel === "email");
@@ -169,81 +184,97 @@ export function StepForm({
       </div>
 
       {/*
-        שלושת סוגי התזמון מוצגים יחד ולא מאחורי בורר שמחליף שדות. השרת ממילא
-        קורא רק את השדות הרלוונטיים לסוג שנבחר, כך שהצגת הכול אינה מסתירה
-        מהמשתמש מה קיים. (הצגה דינמית לפי הסוג — שלב 3 של השיפוץ.)
+        התזמון הוא שלושה משפטים בעברית עם חורים למילוי, לא בורר-סוג ושדות
+        מנותקים. בוחרים משפט וממלאים רק את החורים שבו — אין מה לזכור איזה
+        שדה שייך לאיזה סוג, והשרת ממילא קורא רק את השדות של הסוג שנבחר.
       */}
-      <label className="field-label md:col-span-3">
-        מתי לשלוח
-        <select name="timing" className="input" required defaultValue={node?.timing ?? "relative"}>
-          {STEP_TIMINGS.map((t) => (
-            <option key={t} value={t}>
-              {STEP_TIMING_LABELS[t]}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="flex flex-col gap-2 md:col-span-3">
+        <p className="text-sm font-medium">מתי לשלוח</p>
 
-      <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4 md:col-span-3">
-        <p className="mb-3 text-xs text-[var(--muted)]">
-          מלאו רק את השורה שמתאימה לסוג שבחרתם למעלה.
-        </p>
-
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <label className="field-label">
-            אחרי הקודמת — ימים
-            <input
-              name="wait_days"
-              type="number"
-              min={0}
-              max={365}
-              defaultValue={node?.waitDays ?? 0}
-              className="input"
-            />
-            <span className="text-xs font-normal text-[var(--subtle)]">0 = מיד</span>
-          </label>
-
-          <label className="field-label">
-            מרחק מהפגישה
-            <select
-              name="offset_minutes"
-              className="input"
-              defaultValue={String(node?.offsetMinutes ?? -60)}
-            >
-              {OFFSET_OPTIONS.map((o) => (
-                <option key={o.minutes} value={o.minutes}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <div className="field-label">
-            שעה ביום, סביב הפגישה
-            <div className="flex gap-2">
-              <select name="day_offset" className="input" defaultValue={String(node?.dayOffset ?? 0)}>
-                <option value="0">ביום הפגישה</option>
-                <option value="-1">יום לפני</option>
-                <option value="-2">יומיים לפני</option>
-                <option value="-7">שבוע לפני</option>
-              </select>
-              <select
-                name="day_at_minutes"
-                className="input"
-                defaultValue={String(node?.dayAtMinutes ?? 540)}
-              >
-                {HOUR_OPTIONS.map((h) => (
-                  <option key={h.minutes} value={h.minutes}>
-                    {h.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <span className="text-xs font-normal text-[var(--subtle)]">
-              בשעון של הלקוח, לפי אזור הזמן שבחר בהזמנה.
-            </span>
-          </div>
+        <div className={timingCard("relative")} onClick={() => setTiming("relative")}>
+          <input
+            type="radio"
+            name="timing"
+            value="relative"
+            checked={timing === "relative"}
+            onChange={() => setTiming("relative")}
+          />
+          <span>שלחו</span>
+          <input
+            name="wait_days"
+            type="number"
+            min={0}
+            max={365}
+            value={waitDays}
+            onChange={(e) => setWaitDays(Math.max(0, Number(e.target.value) || 0))}
+            className="input w-20"
+          />
+          <span>ימים אחרי הכרטיסייה הקודמת</span>
+          <span className="text-xs text-[var(--subtle)]">(0 = מיד)</span>
         </div>
+
+        <div className={timingCard("booking_offset")} onClick={() => setTiming("booking_offset")}>
+          <input
+            type="radio"
+            name="timing"
+            value="booking_offset"
+            checked={timing === "booking_offset"}
+            onChange={() => setTiming("booking_offset")}
+          />
+          <span>שלחו ביחס למועד הפגישה:</span>
+          <select
+            name="offset_minutes"
+            className="input w-auto"
+            value={String(offsetMinutes)}
+            onChange={(e) => setOffsetMinutes(Number(e.target.value))}
+          >
+            {OFFSET_OPTIONS.map((o) => (
+              <option key={o.minutes} value={o.minutes}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className={timingCard("booking_day_at")} onClick={() => setTiming("booking_day_at")}>
+          <input
+            type="radio"
+            name="timing"
+            value="booking_day_at"
+            checked={timing === "booking_day_at"}
+            onChange={() => setTiming("booking_day_at")}
+          />
+          <span>שלחו</span>
+          <select
+            name="day_offset"
+            className="input w-auto"
+            value={String(dayOffset)}
+            onChange={(e) => setDayOffset(Number(e.target.value))}
+          >
+            <option value="0">ביום הפגישה</option>
+            <option value="-1">יום לפני הפגישה</option>
+            <option value="-2">יומיים לפני הפגישה</option>
+            <option value="-7">שבוע לפני הפגישה</option>
+          </select>
+          <span>בשעה</span>
+          <select
+            name="day_at_minutes"
+            className="input w-auto"
+            value={String(dayAtMinutes)}
+            onChange={(e) => setDayAtMinutes(Number(e.target.value))}
+          >
+            {HOUR_OPTIONS.map((h) => (
+              <option key={h.minutes} value={h.minutes}>
+                {h.label}
+              </option>
+            ))}
+          </select>
+          <span className="text-xs text-[var(--subtle)]">בשעון של הלקוח</span>
+        </div>
+
+        <p className="rounded-xl bg-[var(--background)] px-4 py-2.5 text-sm text-[var(--muted)]">
+          {timingExample(timing, waitDays, offsetMinutes, dayOffset, dayAtMinutes)}
+        </p>
       </div>
 
       <div className="flex items-center gap-3 md:col-span-3">
@@ -254,6 +285,46 @@ export function StepForm({
       </div>
     </form>
   );
+}
+
+/**
+ * תרגום התזמון המופשט לדוגמה קונקרטית: "יום לפני ב-20:00" הופך ל"לפגישה
+ * ביום רביעי — תישלח ביום שלישי". הדוגמה מעוגנת בפגישה דמיונית ביום רביעי
+ * הקרוב ב-11:15, כי מול תאריך אמיתי קל לוודא שהכיוון נכון (לפני ולא אחרי).
+ * "בסביבות" ולא שעה מדויקת — הקרון רץ כל רבע שעה.
+ */
+function timingExample(
+  timing: StepTiming,
+  waitDays: number,
+  offsetMinutes: number,
+  dayOffset: number,
+  dayAtMinutes: number
+): string {
+  if (timing === "relative") {
+    if (waitDays === 0) return "תישלח מיד, ברגע שהלקוח מגיע לכרטיסייה הזו.";
+    if (waitDays === 1) return "תישלח יום אחרי שהלקוח קיבל את הכרטיסייה הקודמת.";
+    return `תישלח ${waitDays} ימים אחרי שהלקוח קיבל את הכרטיסייה הקודמת.`;
+  }
+
+  const booking = new Date();
+  booking.setDate(booking.getDate() + (((3 - booking.getDay() + 7) % 7) || 7));
+  booking.setHours(11, 15, 0, 0);
+
+  const send = new Date(booking);
+  if (timing === "booking_offset") {
+    send.setMinutes(send.getMinutes() + offsetMinutes);
+  } else {
+    send.setDate(send.getDate() + dayOffset);
+    send.setHours(0, dayAtMinutes, 0, 0);
+  }
+
+  // התאריך המספרי מכריע כשהיום בשבוע זהה — "שבוע לפני" הוא אותו יום רביעי.
+  const day = (d: Date) =>
+    `${d.toLocaleDateString("he-IL", { weekday: "long" })} ${d.getDate()}.${d.getMonth() + 1}`;
+  const hhmm = (d: Date) =>
+    `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+
+  return `לדוגמה: לפגישה ב${day(booking)} בשעה 11:15 — תישלח ב${day(send)} בסביבות ${hhmm(send)}.`;
 }
 
 /**
