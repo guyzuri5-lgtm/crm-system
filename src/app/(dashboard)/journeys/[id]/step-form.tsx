@@ -52,7 +52,6 @@ export function StepForm({
   const [offsetMinutes, setOffsetMinutes] = useState(node?.offsetMinutes ?? -60);
   const [dayOffset, setDayOffset] = useState(node?.dayOffset ?? 0);
   const [dayAtMinutes, setDayAtMinutes] = useState(node?.dayAtMinutes ?? 540);
-  const chosen = templates.find((t) => t.id === templateId) ?? null;
   const isNew = !node;
 
   // משפט-תזמון שנבחר מודגש; השאר מעומעמים אבל לחיצים — נגיעה בשדה של
@@ -63,9 +62,6 @@ export function StepForm({
         ? "border-[var(--primary)] bg-white"
         : "border-[var(--border)] bg-[var(--background)] text-[var(--muted)]"
     }`;
-
-  const whatsappTemplates = templates.filter((t) => t.channel === "whatsapp");
-  const emailTemplates = templates.filter((t) => t.channel === "email");
 
   if (!templates.length) {
     return (
@@ -121,67 +117,78 @@ export function StepForm({
         />
       </label>
 
-      {/* אין שדה ערוץ: הוא נגזר מהתבנית בשרת, ואי-התאמה בלתי אפשרית. */}
-      <label className="field-label md:col-span-2">
-        מה שולחים
-        <select
-          name="template_id"
-          className="input"
-          required
-          value={templateId}
-          onChange={(e) => setTemplateId(e.target.value)}
-        >
-          <option value="" disabled>
-            בחרו תבנית
-          </option>
-          {whatsappTemplates.length > 0 && (
-            <optgroup label="וואטסאפ">
-              {whatsappTemplates.map((t) => (
-                <option key={t.id} value={t.id}>
+      {/*
+        התבניות הן כרטיסי בחירה, לא בורר נפתח: השם, הערוץ ומצב האישור ב-Meta
+        גלויים עוד לפני הבחירה, והכרטיס הנבחר נפתח ומציג את ההודעה במלואה.
+        אין שדה ערוץ — הוא נגזר מהתבנית בשרת, ואי-התאמה בלתי אפשרית.
+      */}
+      <div className="flex flex-col gap-2 md:col-span-3">
+        <p className="text-sm font-medium">מה שולחים</p>
+        {templates.map((t) => {
+          const active = t.id === templateId;
+          return (
+            <div
+              key={t.id}
+              onClick={() => setTemplateId(t.id)}
+              className={`cursor-pointer rounded-xl border-2 px-4 py-3 ${
+                active
+                  ? "border-[var(--primary)] bg-white"
+                  : "border-[var(--border)] bg-[var(--background)]"
+              }`}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="radio"
+                  name="template_id"
+                  value={t.id}
+                  required
+                  checked={active}
+                  onChange={() => setTemplateId(t.id)}
+                />
+                <span className={`text-sm font-medium ${active ? "" : "text-[var(--muted)]"}`}>
                   {t.name}
-                  {!t.metaTemplateName ? " (בלי אישור ב-Meta)" : ""}
-                </option>
-              ))}
-            </optgroup>
-          )}
-          {emailTemplates.length > 0 && (
-            <optgroup label="מייל">
-              {emailTemplates.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </optgroup>
-          )}
-        </select>
-      </label>
-
-      {/* ── מה הלקוח יקבל בפועל, ברגע הבחירה ולא אחרי השמירה ── */}
-      <div className="md:col-span-3">
-        {chosen ? (
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4">
-            <p className="mb-2 text-xs text-[var(--muted)]">
-              {chosen.channel === "email" ? "יישלח במייל" : "יישלח בוואטסאפ"}
-              {chosen.metaTemplateName && (
-                <span className="mr-2 text-[var(--subtle)]" dir="ltr">
-                  · {chosen.metaTemplateName}
-                  {chosen.metaStatus ? ` (${chosen.metaStatus})` : ""}
                 </span>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[11px] ${
+                    t.channel === "email"
+                      ? "bg-sky-100 text-sky-800"
+                      : "bg-emerald-100 text-emerald-800"
+                  }`}
+                >
+                  {t.channel === "email" ? "מייל" : "וואטסאפ"}
+                </span>
+                {t.channel === "whatsapp" && <MetaBadge template={t} />}
+              </div>
+
+              {active && (
+                <div className="mt-2">
+                  <p
+                    className={`rounded-xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+                      t.channel === "email" ? "bg-sky-50" : "bg-emerald-50"
+                    }`}
+                  >
+                    {t.body}
+                  </p>
+                  {t.metaTemplateName && (
+                    <p className="mt-1.5 text-xs text-[var(--subtle)]" dir="ltr">
+                      Meta: {t.metaTemplateName}
+                      {t.metaStatus ? ` (${t.metaStatus})` : ""}
+                    </p>
+                  )}
+                  {t.channel === "whatsapp" && !t.metaTemplateName && (
+                    <p className="mt-1.5 text-xs text-[var(--danger)]">
+                      אין לתבנית הזו אישור ב-Meta — ללקוח שלא כתב לכם ב-24 השעות
+                      האחרונות השליחה תיכשל.
+                    </p>
+                  )}
+                </div>
               )}
-            </p>
-            <p className="rounded-xl bg-white px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ring-1 ring-[var(--border)] ring-inset">
-              {chosen.body}
-            </p>
-            {chosen.channel === "whatsapp" && !chosen.metaTemplateName && (
-              <p className="mt-2 text-xs text-[var(--danger)]">
-                לתבנית הזו אין תבנית מאושרת ב-Meta. ללקוח שלא כתב לכם ב-24 השעות
-                האחרונות — השליחה תיכשל.
-              </p>
-            )}
-          </div>
-        ) : (
-          <p className="rounded-xl border border-dashed border-[var(--border)] px-4 py-3 text-sm text-[var(--subtle)]">
-            בחרו תבנית כדי לראות כאן את ההודעה שתישלח ללקוח.
+            </div>
+          );
+        })}
+        {!templateId && (
+          <p className="px-1 text-xs text-[var(--subtle)]">
+            בחרו תבנית — ההודעה שתישלח ללקוח תוצג במלואה בתוך הכרטיס.
           </p>
         )}
       </div>
@@ -287,7 +294,7 @@ export function StepForm({
           </>
         )}
 
-        <p className="rounded-xl bg-[var(--background)] px-4 py-2.5 text-sm text-[var(--muted)]">
+        <p className="rounded-xl bg-sky-50 px-4 py-2.5 text-sm text-sky-900">
           {timingExample(timing, waitDays, offsetMinutes, dayOffset, dayAtMinutes)}
         </p>
       </div>
@@ -299,6 +306,29 @@ export function StepForm({
         {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
       </div>
     </form>
+  );
+}
+
+/** מצב האישור של תבנית וואטסאפ ב-Meta, כתג צבעוני שרואים לפני הבחירה. */
+function MetaBadge({ template }: { template: CanvasTemplate }) {
+  if (!template.metaTemplateName) {
+    return (
+      <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] text-red-700">
+        בלי אישור ב-Meta
+      </span>
+    );
+  }
+  if (template.metaStatus && template.metaStatus.toUpperCase() !== "APPROVED") {
+    return (
+      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700">
+        ממתינה לאישור ב-Meta
+      </span>
+    );
+  }
+  return (
+    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-700">
+      מאושרת ב-Meta
+    </span>
   );
 }
 
