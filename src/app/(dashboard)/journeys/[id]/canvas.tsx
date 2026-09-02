@@ -4,6 +4,9 @@ import { useRef, useState, useTransition } from "react";
 import {
   JOURNEY_CONDITIONS,
   JOURNEY_CONDITION_LABELS,
+  STEP_TIMINGS,
+  STEP_TIMING_LABELS,
+  MESSAGE_CHANNELS,
   type JourneyCondition,
   type StepTiming,
 } from "@/lib/supabase/database.types";
@@ -13,6 +16,7 @@ import {
   deleteEdgeAction,
   deleteNodeAction,
   setEdgeConditionAction,
+  updateNodeAction,
 } from "./graph-actions";
 
 /**
@@ -36,6 +40,7 @@ export interface CanvasNode {
   x: number;
   y: number;
   label: string | null;
+  templateId: string;
   templateName: string;
   channel: "whatsapp" | "email";
   waitDays: number;
@@ -43,6 +48,16 @@ export interface CanvasNode {
   timing: StepTiming;
   dayOffset: number;
   dayAtMinutes: number;
+}
+
+/** התבניות הזמינות לבחירה בפאנל, עם התוכן להצגה. */
+export interface CanvasTemplate {
+  id: string;
+  name: string;
+  channel: string;
+  body: string;
+  metaTemplateName: string | null;
+  metaStatus: string | null;
 }
 
 export interface CanvasEdge {
@@ -61,17 +76,26 @@ export function JourneyCanvas({
   entryLabel,
   nodes,
   edges,
+  templates,
 }: {
   journeyId: string;
   entryLabel: string;
   nodes: CanvasNode[];
   edges: CanvasEdge[];
+  templates: CanvasTemplate[];
 }) {
   const surface = useRef<HTMLDivElement>(null);
   const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [drag, setDrag] = useState<{ id: string; dx: number; dy: number } | null>(null);
   const [connectFrom, setConnectFrom] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+
+  // נקודת ההתחלה של הגרירה, כדי להבחין בין לחיצה לגרירה. בלי הסף הזה כל
+  // ניסיון להזיז כרטיסייה היה גם פותח את הפאנל, וכל לחיצה הייתה נחשבת גרירה
+  // ושומרת מיקום זהה.
+  const pressStart = useRef<{ x: number; y: number } | null>(null);
+  const CLICK_SLOP = 4;
 
   // המיקום המקומי גובר בזמן גרירה; אחריה השרת מרענן ומחזיר את האמת.
   const posOf = (n: CanvasNode) => positions[n.id] ?? { x: n.x, y: n.y };
@@ -91,6 +115,7 @@ export function JourneyCanvas({
     const p = posOf(node);
     const rect = surface.current?.getBoundingClientRect();
     if (!rect) return;
+    pressStart.current = { x: e.clientX, y: e.clientY };
     setDrag({ id: node.id, dx: e.clientX - rect.left - p.x, dy: e.clientY - rect.top - p.y });
     (e.target as Element).setPointerCapture?.(e.pointerId);
   }
@@ -108,11 +133,31 @@ export function JourneyCanvas({
     }));
   }
 
-  function onPointerUp() {
+  function onPointerUp(e: React.PointerEvent) {
     if (!drag) return;
-    const p = positions[drag.id];
     const id = drag.id;
+    const start = pressStart.current;
+    pressStart.current = null;
+
+    const moved =
+      !start ||
+      Math.abs(e.clientX - start.x) > CLICK_SLOP ||
+      Math.abs(e.clientY - start.y) > CLICK_SLOP;
+
     setDrag(null);
+
+    // כמעט לא זז = לחיצה. פותחים את הפאנל ולא שומרים מיקום.
+    if (!moved) {
+      setPositions((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      setSelectedId((cur) => (cur === id ? null : id));
+      return;
+    }
+
+    const p = positions[id];
     if (!p) return;
 
     startTransition(async () => {
@@ -141,6 +186,15 @@ export function JourneyCanvas({
       await addEdgeAction(data);
     });
   }
+
+  const selected = selectedId ? (nodes.find((n) => n.id === selectedId) ?? null) : null;
+  const selectedTemplate = selected ? templates.find((t) => t.id === selected.templateId) : null;
+  const incoming = selected ? edges.filter((e) => e.toId === selected.id) : [];
+  const outgoing = selected ? edges.filter((e) => e.fromId === selected.id) : [];
+  const nameOf = (id: string) => {
+    const n = nodes.find((x) => x.id === id);
+    return n ? n.label || n.templateName : "—";
+  };
 
   // גובה המשטח נגזר מהכרטיסייה הנמוכה ביותר, עם מרווח לגרירה כלפי מטה.
   const maxY = Math.max(entryPos.y, ...nodes.map((n) => posOf(n).y)) + CARD_H;
@@ -243,6 +297,8 @@ export function JourneyCanvas({
               className={`absolute flex flex-col justify-center rounded-2xl border-2 px-4 shadow-sm select-none ${
                 drag?.id === node.id ? "cursor-grabbing" : "cursor-grab"
               } ${isTarget ? "ring-2 ring-amber-400" : ""} ${
+                selectedId === node.id ? "ring-2 ring-[var(--primary)]" : ""
+              } ${
                 node.channel === "email"
                   ? "border-sky-300 bg-sky-50"
                   : "border-emerald-300 bg-emerald-50"
@@ -288,6 +344,175 @@ export function JourneyCanvas({
           );
         })}
       </div>
+
+      {/* ── פאנל הכרטיסייה הנבחרת ── */}
+      {selected && (
+        <div className="rounded-2xl border-2 border-[var(--primary)] bg-white p-5">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="font-medium">{selected.label || selected.templateName}</h3>
+            <button
+              onClick={() => setSelectedId(null)}
+              className="text-sm text-[var(--muted)] hover:underline"
+            >
+              סגור
+            </button>
+          </div>
+
+          {/* ── התוכן שיישלח ── */}
+          <div className="mb-5">
+            <p className="mb-1.5 text-xs font-medium text-[var(--muted)]">
+              התוכן שיישלח
+              {selectedTemplate?.metaTemplateName && (
+                <span className="mr-2 font-normal text-[var(--subtle)]" dir="ltr">
+                  · {selectedTemplate.metaTemplateName}
+                  {selectedTemplate.metaStatus ? ` (${selectedTemplate.metaStatus})` : ""}
+                </span>
+              )}
+            </p>
+            <p className="rounded-xl bg-[var(--background)] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap">
+              {selectedTemplate?.body ?? "התבנית לא נמצאה"}
+            </p>
+            {selected.channel === "whatsapp" && !selectedTemplate?.metaTemplateName && (
+              <p className="mt-1.5 text-xs text-[var(--danger)]">
+                אין לתבנית קישור לתבנית מאושרת ב-Meta. שליחה מחוץ לחלון 24 השעות תיכשל.
+              </p>
+            )}
+          </div>
+
+          {/* ── מי מגיע לכאן, ולאן ממשיכים ── */}
+          <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <p className="mb-1 text-xs font-medium text-[var(--muted)]">מי מגיע לכאן</p>
+              {incoming.length ? (
+                <ul className="flex flex-col gap-1 text-sm">
+                  {incoming.map((e) => (
+                    <li key={e.id}>
+                      {e.fromId ? nameOf(e.fromId) : "כניסה"}
+                      {e.condition !== "always" && (
+                        <span className="mr-2 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700">
+                          {JOURNEY_CONDITION_LABELS[e.condition]}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-[var(--danger)]">אף אחד — הכרטיסייה מנותקת</p>
+              )}
+            </div>
+
+            <div>
+              <p className="mb-1 text-xs font-medium text-[var(--muted)]">ולאן ממשיכים</p>
+              {outgoing.length ? (
+                <ul className="flex flex-col gap-1 text-sm">
+                  {outgoing.map((e) => (
+                    <li key={e.id}>
+                      {nameOf(e.toId)}
+                      {e.condition !== "always" && (
+                        <span className="mr-2 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700">
+                          {JOURNEY_CONDITION_LABELS[e.condition]}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-[var(--subtle)]">סוף מסלול</p>
+              )}
+            </div>
+          </div>
+
+          {/* ── עריכה ── */}
+          <form action={updateNodeAction} className="grid grid-cols-1 gap-4 border-t border-[var(--border)] pt-4 md:grid-cols-3">
+            <input type="hidden" name="id" value={selected.id} />
+            <input type="hidden" name="journey_id" value={journeyId} />
+
+            <label className="field-label">
+              שם על הכרטיסייה
+              <input name="label" defaultValue={selected.label ?? ""} className="input" maxLength={60} />
+            </label>
+
+            <label className="field-label">
+              ערוץ
+              <select name="channel" className="input" defaultValue={selected.channel}>
+                {MESSAGE_CHANNELS.map((c) => (
+                  <option key={c} value={c}>
+                    {c === "email" ? "מייל" : "וואטסאפ"}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="field-label">
+              תבנית
+              <select name="template_id" className="input" defaultValue={selected.templateId}>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="field-label md:col-span-3">
+              מתי לשלוח
+              <select name="timing" className="input" defaultValue={selected.timing}>
+                {STEP_TIMINGS.map((t) => (
+                  <option key={t} value={t}>
+                    {STEP_TIMING_LABELS[t]}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="field-label">
+              אחרי הקודמת — ימים
+              <input
+                name="wait_days"
+                type="number"
+                min={0}
+                max={365}
+                defaultValue={selected.waitDays}
+                className="input"
+              />
+            </label>
+
+            <label className="field-label">
+              מרחק מהפגישה
+              <select name="offset_minutes" className="input" defaultValue={String(selected.offsetMinutes)}>
+                {OFFSETS.map((o) => (
+                  <option key={o.m} value={o.m}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="field-label">
+              שעה ביום, סביב הפגישה
+              <div className="flex gap-2">
+                <select name="day_offset" className="input" defaultValue={String(selected.dayOffset)}>
+                  <option value="0">ביום הפגישה</option>
+                  <option value="-1">יום לפני</option>
+                  <option value="-2">יומיים לפני</option>
+                  <option value="-7">שבוע לפני</option>
+                </select>
+                <select name="day_at_minutes" className="input" defaultValue={String(selected.dayAtMinutes)}>
+                  {HOURS.map((h) => (
+                    <option key={h.m} value={h.m}>
+                      {h.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <button type="submit" className="btn-primary self-start md:col-span-3">
+              שמור שינויים
+            </button>
+          </form>
+        </div>
+      )}
 
       {/* ── רשימת החצים ── */}
       {edges.length > 0 && (
@@ -374,3 +599,18 @@ function timingLabel(n: {
     n.dayOffset === 0 ? "ביום הפגישה" : n.dayOffset === -1 ? "ערב לפני" : `${-n.dayOffset} ימים לפני`;
   return `${day} ב-${hh}:${mm}`;
 }
+
+const OFFSETS = [
+  { m: -60, label: "שעה לפני" },
+  { m: -120, label: "שעתיים לפני" },
+  { m: -180, label: "שלוש שעות לפני" },
+  { m: -1440, label: "יום לפני" },
+  { m: 0, label: "במועד הפגישה" },
+  { m: 60, label: "שעה אחרי" },
+  { m: 1440, label: "יום אחרי" },
+];
+
+const HOURS = Array.from({ length: 15 }, (_, i) => ({
+  m: (i + 6) * 60,
+  label: `${String(i + 6).padStart(2, "0")}:00`,
+}));

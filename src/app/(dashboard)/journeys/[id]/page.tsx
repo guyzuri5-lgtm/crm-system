@@ -161,6 +161,7 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
             x: s.pos_x,
             y: s.pos_y,
             label: s.label,
+            templateId: s.template_id,
             templateName: templateById.get(s.template_id)?.name ?? "תבנית חסרה",
             channel: s.channel,
             waitDays: s.wait_days,
@@ -168,6 +169,14 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
             timing: s.timing,
             dayOffset: s.day_offset,
             dayAtMinutes: s.day_at_minutes,
+          }))}
+          templates={templates.map((t) => ({
+            id: t.id,
+            name: t.name,
+            channel: t.channel,
+            body: t.body,
+            metaTemplateName: t.meta_template_name,
+            metaStatus: t.meta_status,
           }))}
           edges={edges.map((e) => ({
             id: e.id,

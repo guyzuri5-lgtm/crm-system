@@ -81,6 +81,42 @@ export async function addNodeAction(formData: FormData) {
   revalidatePath(`/journeys/${parsed.data.journey_id}`);
 }
 
+/**
+ * עדכון כרטיסייה קיימת מתוך המשטח.
+ *
+ * אותה סכימה של ההוספה, בלי המיקום: המיקום מתעדכן בגרירה ולא בטופס, ושליחתו
+ * כאן הייתה מחזירה את הכרטיסייה למקום שהיה בה כשהפאנל נפתח.
+ */
+const updateStepSchema = addStepSchema.omit({ journey_id: true, pos_x: true, pos_y: true });
+
+export async function updateNodeAction(formData: FormData) {
+  await verifyTeamMember();
+
+  const id = String(formData.get("id") ?? "");
+  const journeyId = String(formData.get("journey_id") ?? "");
+  if (!id) return;
+
+  const parsed = updateStepSchema.safeParse({
+    channel: formData.get("channel"),
+    template_id: formData.get("template_id"),
+    wait_days: formData.get("wait_days") || 0,
+    offset_minutes: formData.get("offset_minutes") || 0,
+    timing: formData.get("timing") || "relative",
+    day_offset: formData.get("day_offset") || 0,
+    day_at_minutes: formData.get("day_at_minutes") || 540,
+    label: formData.get("label") || undefined,
+  });
+  if (!parsed.success) throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
+
+  const { error } = await supabaseAdmin()
+    .from("journey_steps")
+    .update({ ...parsed.data, label: parsed.data.label ?? null })
+    .eq("id", id);
+  if (error) throw error;
+
+  revalidatePath(`/journeys/${journeyId}`);
+}
+
 export async function deleteNodeAction(formData: FormData) {
   await verifyTeamMember();
 
