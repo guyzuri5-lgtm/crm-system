@@ -1,3 +1,4 @@
+import { formatDateTime } from "@/lib/dates";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { verifyTeamMember } from "@/lib/dal";
 import {
@@ -91,12 +92,12 @@ export default async function TemplatesPage({
           <p className="mt-1 text-sm text-[var(--muted)]">
             תבנית שנדחתה או נמחקה אצל Meta ממשיכה להיראות תקינה כאן עד שמסנכרנים.
             {templates?.some((t) => t.meta_synced_at) && (
-              <> סונכרן לאחרונה: {new Date(
+              <> סונכרן לאחרונה: {formatDateTime(
                 templates.reduce(
                   (max, t) => (t.meta_synced_at && t.meta_synced_at > max ? t.meta_synced_at : max),
                   ""
                 )
-              ).toLocaleString("he-IL")}.</>
+              )}.</>
             )}
           </p>
         </div>

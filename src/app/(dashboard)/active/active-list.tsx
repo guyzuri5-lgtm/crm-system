@@ -2,6 +2,7 @@ import Link from "next/link";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { statusMap } from "@/lib/statuses";
 import { statusColorClasses, statusLabel } from "@/lib/status-colors";
+import { formatDate } from "@/lib/dates";
 import { isWithin24HourWindow, windowRemainingMs } from "@/lib/whatsapp-cloud";
 import type { Contact, InteractionType } from "@/lib/supabase/database.types";
 import { ContactRow, type ActiveRowData } from "./contact-row";
@@ -53,7 +54,7 @@ function relativeTime(iso: string | null): string {
   if (hours < 24) return `לפני ${hours} שע׳`;
   const days = Math.floor(hours / 24);
   if (days < 30) return `לפני ${days} ימים`;
-  return new Date(iso).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" });
+  return formatDate(iso);
 }
 
 export type ActiveMode = "inbound" | "sent";

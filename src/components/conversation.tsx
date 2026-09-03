@@ -1,4 +1,5 @@
 import type { InteractionType } from "@/lib/supabase/database.types";
+import { APP_TIME_ZONE } from "@/lib/dates";
 
 /**
  * השיחה עם איש קשר, בפריסה של תוכנת מסרים מיידיים.
@@ -50,24 +51,17 @@ const SYSTEM_LABELS: Partial<Record<InteractionType, string>> = {
   event_registered: "נרשמה לאירוע",
 };
 
-/**
- * אזור הזמן ננעל במפורש. השרת רץ ב-UTC ב-Vercel, ובלי הנעילה הזו שעת הודעה
- * שנשלחה ב-22:00 הייתה מוצגת כ-19:00 — הפרש שלוש שעות שנראה כמו נתון אמיתי
- * ולכן אף אחד לא מבחין בו.
- */
-const TZ = "Asia/Jerusalem";
-
 const timeFmt = new Intl.DateTimeFormat("he-IL", {
   hour: "2-digit",
   minute: "2-digit",
-  timeZone: TZ,
+  timeZone: APP_TIME_ZONE,
 });
 
 const dayFmt = new Intl.DateTimeFormat("he-IL", {
   weekday: "long",
   day: "numeric",
   month: "long",
-  timeZone: TZ,
+  timeZone: APP_TIME_ZONE,
 });
 
 /** מפתח יציב ליום לפי שעון ישראל (YYYY-MM-DD), לקיבוץ מתחת לחוצץ התאריך. */
@@ -75,7 +69,7 @@ const dayKeyFmt = new Intl.DateTimeFormat("en-CA", {
   year: "numeric",
   month: "2-digit",
   day: "2-digit",
-  timeZone: TZ,
+  timeZone: APP_TIME_ZONE,
 });
 
 function dayLabel(iso: string): string {

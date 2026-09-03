@@ -54,7 +54,11 @@ export default async function ContactsPage(props: PageProps<"/contacts">) {
     cells: columns.map((field) => {
       const value = readFieldValue(contact, field);
       if (value == null) return null;
-      return field.input_type === "date" ? new Date(value).toLocaleDateString("he-IL") : value;
+      // שדה מסוג date הוא "2026-09-04" — יום בלוח שנה שנקרא כחצות UTC, ולא
+      // רגע בזמן. פירוש שלו בשעון אחר מזיז אותו ביום.
+      return field.input_type === "date"
+        ? new Date(value).toLocaleDateString("he-IL", { timeZone: "UTC" })
+        : value;
     }),
   }));
 

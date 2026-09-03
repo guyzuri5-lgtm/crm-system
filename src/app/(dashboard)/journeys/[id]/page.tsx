@@ -1,3 +1,4 @@
+import { formatDate } from "@/lib/dates";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -223,7 +224,7 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
                 {e.state === "active" && (
                   <>
                     <span className="text-xs text-[var(--subtle)]">
-                      הבא: {new Date(e.next_run_at).toLocaleDateString("he-IL")}
+                      הבא: {formatDate(e.next_run_at)}
                     </span>
                     <form action={stopEnrollmentAction}>
                       <input type="hidden" name="id" value={e.id} />

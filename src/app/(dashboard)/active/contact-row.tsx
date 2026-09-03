@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Conversation, type ConversationMessage } from "@/components/conversation";
 import { ReplyBox, type ReplyResult, type ReplyTemplate } from "@/components/reply-box";
 import { ScrollToBottom } from "@/components/scroll-to-bottom";
+import { formatDateTime } from "@/lib/dates";
 
 /**
  * שורה אחת ברשימת "לקוחות פעילים" — דקה כשהיא סגורה, שיחה מלאה כשהיא פתוחה.
@@ -46,13 +47,6 @@ type ThreadState =
   | { status: "loading" }
   | { status: "ready"; messages: ConversationMessage[] }
   | { status: "error"; error: string };
-
-const TZ = "Asia/Jerusalem";
-
-function formatDateTime(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleString("he-IL", { timeZone: TZ });
-}
 
 export function ContactRow({
   row,

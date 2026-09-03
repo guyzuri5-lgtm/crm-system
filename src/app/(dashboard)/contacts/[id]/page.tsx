@@ -1,3 +1,4 @@
+import { formatDateTime } from "@/lib/dates";
 import { ActionForm } from "@/components/action-form";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -147,7 +148,7 @@ export default async function ContactDetailPage(props: PageProps<"/contacts/[id]
             <dt className="text-[var(--muted)]">הודעה נכנסת אחרונה</dt>
             <dd>
               {contact.last_incoming_message_at
-                ? new Date(contact.last_incoming_message_at).toLocaleString("he-IL")
+                ? formatDateTime(contact.last_incoming_message_at)
                 : "—"}
             </dd>
             <dt className="text-[var(--muted)]">מזהה וואטסאפ</dt>
@@ -155,7 +156,7 @@ export default async function ContactDetailPage(props: PageProps<"/contacts/[id]
               {contact.whatsapp_id ?? "—"}
             </dd>
             <dt className="text-[var(--muted)]">נוצר</dt>
-            <dd>{new Date(contact.created_at).toLocaleString("he-IL")}</dd>
+            <dd>{formatDateTime(contact.created_at)}</dd>
           </dl>
 
           <ActionForm

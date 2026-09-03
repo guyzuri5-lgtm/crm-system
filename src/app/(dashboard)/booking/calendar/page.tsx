@@ -31,7 +31,12 @@ function pad(value: number) {
 }
 
 function monthLabel(year: number, month: number) {
-  return new Intl.DateTimeFormat("he-IL", { month: "long", year: "numeric" }).format(
+  // התאריך נבנה ב-Date.UTC והוא סמן לוח-שנה, לא רגע בזמן — ולכן UTC.
+  return new Intl.DateTimeFormat("he-IL", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(
     new Date(Date.UTC(year, month - 1, 1))
   );
 }

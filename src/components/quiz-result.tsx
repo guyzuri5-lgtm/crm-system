@@ -4,6 +4,7 @@
 //
 // רכיב שרת בלבד — אין כאן שום אינטראקטיביות, רק SVG ו-HTML.
 
+import { formatDateTime } from "@/lib/dates";
 import {
   CHAKRA_KEYS,
   CHAKRAS,
@@ -110,7 +111,7 @@ export function QuizResult({ submission }: { submission: QuizSubmissionView }) {
         <div>
           <h2 className="font-medium">תוצאת שאלון הצ&apos;אקרות</h2>
           <p className="text-xs text-gray-500">
-            {new Date(s.submitted_at).toLocaleString("he-IL")} · {QUIZ_KIND_LABELS[s.kind]}
+            {formatDateTime(s.submitted_at)} · {QUIZ_KIND_LABELS[s.kind]}
             {s.booking_clicked_at && " · יצא ליומן"}
           </p>
         </div>
