@@ -2,27 +2,36 @@ import "server-only";
 
 import { supabaseAdmin } from "./supabase/admin";
 import { sendMessageToContact } from "./send";
-import { formatTime } from "./booking/timezone";
-import { EVENT_TIMEZONE } from "./events";
-import type { Contact, EventReminderKind, EventRow } from "./supabase/database.types";
+import { renderTemplate } from "./templates";
+import type {
+  Contact,
+  EventReminder,
+  EventRow,
+  MessageTemplate,
+} from "./supabase/database.types";
 
 /**
- * תזכורות לפני אירוע. נקרא מהקרון, באותו דפוס של המנועים הקיימים: עוצר
- * מרצון כשנגמר התקציב, ומדווח מה נשאר.
+ * תזכורות לפני אירוע ואחרי רכישה. נקרא מהקרון, באותו דפוס של המנועים
+ * הקיימים: עוצר מרצון כשנגמר התקציב, ומדווח מה נשאר.
+ *
+ * ── מה נשלח בפועל ──
+ * תבנית מאושרת ב-Meta, ולא טקסט שנכתב כאן. זה לא היה שיקול עיצובי אלא
+ * הכרח: מחוץ לחלון 24 השעות מטא מקבלת אך ורק תבנית מאושרת, ויום לפני
+ * האירוע כמעט כל הנרשמות כבר מחוצה לו. הגרסה הראשונה של הקובץ הזה שלחה
+ * טקסט חופשי — ולכן פשוט נכשלה בכל פנייה אמיתית.
  *
  * ── מה הופך עצירה באמצע לבטוחה ──
- * שורה ב-event_reminders_sent נכתבת *לפני* השליחה ולא אחריה, בדיוק כמו
- * תפיסת הזכות לשלוח את דוח השאלון (webhooks/quiz/route.ts). המפתח הראשי
- * (registration_id, kind) הוא שהופך את התפיסה לאטומית: שתי ריצות מקבילות,
- * רק אחת תצליח להכניס, ורק היא תשלח. אם השליחה נכשלת השורה נמחקת, כך
- * שהריצה הבאה תנסה שוב כל עוד החלון פתוח.
+ * שורה ב-event_reminders_sent נכתבת *לפני* השליחה ונמחקת אם היא נכשלה,
+ * בדיוק כמו תפיסת הזכות לשלוח את דוח השאלון. המפתח הראשי
+ * (registration_id, reminder_id) הוא שהופך את התפיסה לאטומית: שתי ריצות
+ * מקבילות, רק אחת תצליח להכניס, ורק היא תשלח.
  */
 
 export interface EventReminderSummary {
   sent: number;
   failed: number;
   stopped: "run_limit" | "time_budget" | null;
-  errors: { eventId: string; contactId: string; kind: EventReminderKind; error: string }[];
+  errors: { eventId: string; contactId: string; reminderId: string; error: string }[];
 }
 
 /** תקרת שליחות לריצה אחת — בלימת קצב, באותו נימוק כמו בניוזלטר. */
@@ -31,21 +40,23 @@ const MAX_SENDS_PER_RUN = 40;
 /** הערכה פסימית למשך שליחה אחת, כדי לא להיקטע באמצע. */
 const SEND_ALLOWANCE_MS = 3_000;
 
-const HOUR_MS = 60 * 60 * 1000;
+const MINUTE_MS = 60_000;
 
 /**
- * החלונות שבהם כל תזכורת רלוונטית.
+ * כמה זמן אחרי המועד עוד מותר לשלוח.
  *
- * הם רחבים ולא נקודתיים כי הקרון רץ כל רבע שעה: חלון של "בדיוק 24 שעות"
- * היה מוחמץ בכל פעם שהריצה נופלת דקה אחרי. הרוחב לא מסכן בכפילות — על כך
- * אחראית שורת ה-event_reminders_sent, לא דיוק החלון.
+ * חלון ולא נקודה, כי הקרון רץ כל רבע שעה ויכול לפספס. אבל גם לא בלי גבול:
+ * תזכורת "מחר" שיוצאת שלושה ימים באיחור, אחרי שהקרון היה מושבת, גרועה
+ * מתזכורת שלא יצאה. שש שעות מכסות תקלה סבירה ולא יותר מזה.
  */
-const WINDOWS: Record<EventReminderKind, { fromMs: number; toMs: number }> = {
-  day_before: { fromMs: 20 * HOUR_MS, toMs: 28 * HOUR_MS },
-  hour_before: { fromMs: 50 * 60_000, toMs: 70 * 60_000 },
-};
+const GRACE_MS = 6 * 60 * MINUTE_MS;
 
-type PaidRow = { id: string; contact_id: string; contacts: Contact | null };
+type PaidRow = {
+  id: string;
+  contact_id: string;
+  paid_at: string | null;
+  contacts: Contact | null;
+};
 
 export async function runEventReminders(
   now: Date = new Date(),
@@ -56,94 +67,111 @@ export async function runEventReminders(
 
   const summary: EventReminderSummary = { sent: 0, failed: 0, stopped: null, errors: [] };
 
-  // החלון הרחב ביותר שיכול להיות רלוונטי, בשאילתה אחת. הסינון המדויק לכל
-  // סוג תזכורת נעשה אחריה בזיכרון.
-  const { data: events, error } = await db
-    .from("events")
+  // כל ההגדרות הפעילות, עם האירוע והתבנית שלהן. שאילתה אחת ולא אחת לכל
+  // אירוע: מספר ההגדרות קטן מטבעו, וזה חוסך סיבוב לכל אירוע פעיל.
+  const { data: reminders, error } = await db
+    .from("event_reminders")
     .select("*")
-    .eq("active", true)
-    .gte("starts_at", new Date(now.getTime() + WINDOWS.hour_before.fromMs).toISOString())
-    .lte("starts_at", new Date(now.getTime() + WINDOWS.day_before.toMs).toISOString())
-    .order("starts_at");
+    .eq("active", true);
 
-  // טבלה חסרה = 0024 עוד לא רץ. הקרון לא אמור ליפול בגלל זה — שאר המנועים
+  // טבלה חסרה = 0027 עוד לא רץ. הקרון לא אמור ליפול בגלל זה — שאר המנועים
   // באותה ריצה חייבים להמשיך.
   if (error) {
     if (["42P01", "PGRST205"].includes(error.code ?? "")) return summary;
     throw error;
   }
+  if (!reminders?.length) return summary;
 
-  for (const event of (events ?? []) as EventRow[]) {
+  const eventIds = Array.from(new Set(reminders.map((r) => r.event_id)));
+  const templateIds = Array.from(new Set(reminders.map((r) => r.template_id)));
+
+  const [{ data: eventsRaw }, { data: templatesRaw }] = await Promise.all([
+    db.from("events").select("*").in("id", eventIds).eq("active", true),
+    db.from("message_templates").select("*").in("id", templateIds),
+  ]);
+
+  const events = new Map((eventsRaw ?? []).map((e) => [e.id, e as EventRow]));
+  const templates = new Map((templatesRaw ?? []).map((t) => [t.id, t as MessageTemplate]));
+
+  for (const reminder of reminders as EventReminder[]) {
     if (summary.stopped) break;
 
-    const untilStart = new Date(event.starts_at).getTime() - now.getTime();
+    const event = events.get(reminder.event_id);
+    const template = templates.get(reminder.template_id);
+    // אירוע שכובה, או תבנית שנמחקה: מדלגים בשקט. ה-restrict על המפתח הזר
+    // אמור למנוע את השני, וזו חגורה נוספת.
+    if (!event || !template) continue;
 
-    for (const kind of ["day_before", "hour_before"] as const) {
-      if (summary.stopped) break;
+    // רק מי ששילמה. מתעניינת שלא סגרה לא אמורה לקבל "נתראה מחר", ובבסיס
+    // purchase ממילא אין לה paid_at לספור ממנו.
+    const { data: paid, error: paidError } = await db
+      .from("event_registrations")
+      .select("id, contact_id, paid_at, contacts(*)")
+      .eq("event_id", event.id)
+      .eq("stage", "paid")
+      .returns<PaidRow[]>();
+    if (paidError) throw paidError;
 
-      const enabled = kind === "day_before" ? event.remind_day_before : event.remind_hour_before;
-      if (!enabled) continue;
+    for (const row of paid ?? []) {
+      if (summary.sent + summary.failed >= MAX_SENDS_PER_RUN) {
+        summary.stopped ??= "run_limit";
+        break;
+      }
+      if (Date.now() + SEND_ALLOWANCE_MS > deadline) {
+        summary.stopped ??= "time_budget";
+        break;
+      }
 
-      const window = WINDOWS[kind];
-      if (untilStart < window.fromMs || untilStart > window.toMs) continue;
+      const contact = row.contacts;
+      if (!contact) continue; // איש הקשר נמחק בין השאילתות
 
-      // רק מי ששילמה. מתעניינת שלא סגרה לא אמורה לקבל "נתראה מחר".
-      const { data: paid, error: paidError } = await db
-        .from("event_registrations")
-        .select("id, contact_id, contacts(*)")
-        .eq("event_id", event.id)
-        .eq("stage", "paid")
-        .returns<PaidRow[]>();
-      if (paidError) throw paidError;
+      const dueAt = reminderDueAt(reminder, event, row.paid_at);
+      if (!dueAt) continue;
 
-      for (const row of paid ?? []) {
-        if (summary.sent + summary.failed >= MAX_SENDS_PER_RUN) {
-          summary.stopped ??= "run_limit";
-          break;
-        }
-        if (Date.now() + SEND_ALLOWANCE_MS > deadline) {
-          summary.stopped ??= "time_budget";
-          break;
-        }
+      const lateBy = now.getTime() - dueAt.getTime();
+      if (lateBy < 0 || lateBy > GRACE_MS) continue;
 
-        const contact = row.contacts;
-        if (!contact) continue; // איש הקשר נמחק בין השאילתות
+      // ── תפיסת הזכות לשלוח ──
+      const { error: claimError } = await db
+        .from("event_reminders_sent")
+        .insert({ registration_id: row.id, reminder_id: reminder.id });
+      // 23505 = כבר נשלחה, או שריצה מקבילה הקדימה. שתיהן "לא שלנו", ולכן
+      // המשך שקט ולא שגיאה.
+      if (claimError) {
+        if (claimError.code === "23505") continue;
+        throw claimError;
+      }
 
-        // ── תפיסת הזכות לשלוח ──
-        const { error: claimError } = await db
+      const result = await sendMessageToContact({
+        contact,
+        channel: template.channel,
+        subject: template.subject
+          ? renderTemplate(template.subject, contact, null, event)
+          : undefined,
+        // הגוף מרונדר גם כשתישלח תבנית מאושרת: מחוץ לחלון הוא מה שנרשם
+        // ביומן, כדי שמי שקוראת אותו תראה מה הלקוחה קיבלה בפועל.
+        body: renderTemplate(template.body, contact, null, event),
+        template,
+        event,
+        logPrefix: `[תזכורת: ${template.name}]`,
+      });
+
+      if (result.ok) {
+        summary.sent += 1;
+      } else {
+        // שחרור התפיסה, כדי שהריצה הבאה תנסה שוב כל עוד החלון פתוח.
+        await db
           .from("event_reminders_sent")
-          .insert({ registration_id: row.id, kind });
-        // 23505 = כבר נשלחה, או שריצה מקבילה הקדימה. שתיהן "לא שלנו", ולכן
-        // המשך שקט ולא שגיאה.
-        if (claimError) {
-          if (claimError.code === "23505") continue;
-          throw claimError;
-        }
-
-        const result = await sendMessageToContact({
-          contact,
-          channel: "whatsapp",
-          body: reminderText(event, kind),
-          logPrefix: kind === "day_before" ? "[תזכורת יום לפני]" : "[תזכורת שעה לפני]",
+          .delete()
+          .eq("registration_id", row.id)
+          .eq("reminder_id", reminder.id);
+        summary.failed += 1;
+        summary.errors.push({
+          eventId: event.id,
+          contactId: contact.id,
+          reminderId: reminder.id,
+          error: result.error,
         });
-
-        if (result.ok) {
-          summary.sent += 1;
-        } else {
-          // שחרור התפיסה, כדי שהריצה הבאה תנסה שוב כל עוד החלון פתוח.
-          await db
-            .from("event_reminders_sent")
-            .delete()
-            .eq("registration_id", row.id)
-            .eq("kind", kind);
-          summary.failed += 1;
-          summary.errors.push({
-            eventId: event.id,
-            contactId: contact.id,
-            kind,
-            error: result.error,
-          });
-        }
       }
     }
   }
@@ -151,10 +179,23 @@ export async function runEventReminders(
   return summary;
 }
 
-/** "תזכורת: ערב ריפוי בצלילים מחר ב-19:00, סטודיו הרצל 5. נתראה!" */
-function reminderText(event: EventRow, kind: EventReminderKind): string {
-  const when = kind === "day_before" ? "מחר" : "בעוד שעה";
-  const time = formatTime(new Date(event.starts_at), EVENT_TIMEZONE);
-  const place = event.location ? `, ${event.location}` : "";
-  return `תזכורת: ${event.name} ${when} ב-${time}${place}. נתראה!`;
+/**
+ * מתי התזכורת הזו אמורה לצאת לנרשמת הזו.
+ *
+ * בבסיס event זה אותו רגע לכולן; בבסיס purchase לכל אחת שעון משלה, שמתחיל
+ * ברגע התשלום. רשומה שסומנה כשילמה ידנית לפני שהעמודה מולאה מחזירה null —
+ * אין ממה לספור, ועדיף לא לשלוח מאשר לשלוח במועד שהומצא.
+ */
+export function reminderDueAt(
+  reminder: Pick<EventReminder, "basis" | "offset_minutes">,
+  event: Pick<EventRow, "starts_at">,
+  paidAt: string | null
+): Date | null {
+  const anchor = reminder.basis === "event" ? event.starts_at : paidAt;
+  if (!anchor) return null;
+
+  const base = new Date(anchor).getTime();
+  if (Number.isNaN(base)) return null;
+
+  return new Date(base + reminder.offset_minutes * MINUTE_MS);
 }

@@ -68,8 +68,6 @@ const createSchema = z.object({
   location: optionalText,
   capacity: capacityField,
   grow_link: optionalText,
-  remind_day_before: z.coerce.boolean(),
-  remind_hour_before: z.coerce.boolean(),
 });
 
 /**
@@ -92,8 +90,6 @@ export async function createEventAction(
     location: formData.get("location") ?? "",
     capacity: formData.get("capacity") ?? "",
     grow_link: formData.get("grow_link") ?? "",
-    remind_day_before: formData.get("remind_day_before") === "on",
-    remind_hour_before: formData.get("remind_hour_before") === "on",
   });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "הטופס אינו תקין" };
@@ -111,8 +107,6 @@ export async function createEventAction(
       location: parsed.data.location,
       capacity: parsed.data.capacity,
       grow_link: parsed.data.grow_link,
-      remind_day_before: parsed.data.remind_day_before,
-      remind_hour_before: parsed.data.remind_hour_before,
     })
     .select("id")
     .single();
@@ -160,8 +154,6 @@ const designSchema = z.object({
   location: optionalText,
   capacity: capacityField,
   grow_link: optionalText,
-  remind_day_before: z.boolean(),
-  remind_hour_before: z.boolean(),
 });
 
 export type EventDesignInput = z.input<typeof designSchema>;
@@ -205,8 +197,6 @@ export async function saveEventDesignAction(
       location: d.location,
       capacity: d.capacity,
       grow_link: d.grow_link,
-      remind_day_before: d.remind_day_before,
-      remind_hour_before: d.remind_hour_before,
     })
     .eq("id", id);
 
@@ -239,6 +229,79 @@ export async function uploadEventImageAction(formData: FormData): Promise<Upload
  * העסק רואה תשלום בגרואו ומסמנת כאן. paid_at נכתב רק בפעם הראשונה, כדי
  * שסימון חוזר לא ידחוף את התאריך קדימה.
  */
+// ── תזכורות ────────────────────────────────────────────────────────────────
+
+const reminderSchema = z.object({
+  event_id: z.string().uuid(),
+  template_id: z.string().uuid("צריך לבחור תבנית"),
+  basis: z.enum(["event", "purchase"]),
+  /**
+   * הטופס מבקש מספר חיובי ויחידה, כי "מינוס 1440 דקות" אינו איך שבן אדם
+   * חושב על "יום לפני". הסימן נגזר מהבסיס: לפני האירוע, אחרי הרכישה.
+   */
+  amount: z.coerce.number().int().min(0).max(1000),
+  unit: z.enum(["minutes", "hours", "days"]),
+});
+
+const UNIT_MINUTES = { minutes: 1, hours: 60, days: 1440 } as const;
+
+export async function addEventReminderAction(formData: FormData): Promise<EventResult> {
+  await verifyTeamMember();
+
+  const parsed = reminderSchema.safeParse({
+    event_id: formData.get("event_id"),
+    template_id: formData.get("template_id"),
+    basis: formData.get("basis"),
+    amount: formData.get("amount"),
+    unit: formData.get("unit"),
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "הטופס אינו תקין" };
+  }
+
+  const magnitude = parsed.data.amount * UNIT_MINUTES[parsed.data.unit];
+  const offset = parsed.data.basis === "event" ? -magnitude : magnitude;
+
+  const { error } = await supabaseAdmin().from("event_reminders").insert({
+    event_id: parsed.data.event_id,
+    template_id: parsed.data.template_id,
+    basis: parsed.data.basis,
+    offset_minutes: offset,
+  });
+
+  if (error) return { ok: false, error: explain(error) };
+
+  revalidatePath(`/events/${parsed.data.event_id}`);
+  return { ok: true };
+}
+
+export async function deleteEventReminderAction(formData: FormData): Promise<void> {
+  await verifyTeamMember();
+
+  const id = String(formData.get("id") ?? "");
+  const eventId = String(formData.get("event_id") ?? "");
+  if (!id) return;
+
+  // cascade מוריד גם את רישומי השליחה. זו מחיקה של הגדרה, לא של היסטוריה
+  // שמישהו יצטרך — ומי שכבר קיבלה את התזכורת כבר קיבלה אותה.
+  await supabaseAdmin().from("event_reminders").delete().eq("id", id);
+
+  if (eventId) revalidatePath(`/events/${eventId}`);
+}
+
+export async function toggleEventReminderAction(formData: FormData): Promise<void> {
+  await verifyTeamMember();
+
+  const id = String(formData.get("id") ?? "");
+  const eventId = String(formData.get("event_id") ?? "");
+  const active = formData.get("active") === "true";
+  if (!id) return;
+
+  await supabaseAdmin().from("event_reminders").update({ active }).eq("id", id);
+
+  if (eventId) revalidatePath(`/events/${eventId}`);
+}
+
 export async function markPaidAction(formData: FormData): Promise<void> {
   await verifyTeamMember();
 

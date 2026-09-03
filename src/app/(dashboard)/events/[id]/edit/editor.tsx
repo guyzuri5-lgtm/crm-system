@@ -38,8 +38,6 @@ type Draft = {
   location: string;
   capacity: string;
   grow_link: string;
-  remind_day_before: boolean;
-  remind_hour_before: boolean;
 };
 
 type TabKey = "landing" | "thanks" | "fields";
@@ -98,8 +96,6 @@ export function EventDesignEditor({
     location: event.location ?? "",
     capacity: event.capacity === null ? "" : String(event.capacity),
     grow_link: event.grow_link ?? "",
-    remind_day_before: event.remind_day_before,
-    remind_hour_before: event.remind_hour_before,
   });
 
   const [tab, setTab] = useState<TabKey>("landing");
@@ -516,16 +512,9 @@ function FieldsTab({
         />
       </label>
 
-      <Toggle
-        label="תזכורת יום לפני"
-        checked={draft.remind_day_before}
-        onChange={(v) => set("remind_day_before", v)}
-      />
-      <Toggle
-        label="תזכורת שעה לפני"
-        checked={draft.remind_hour_before}
-        onChange={(v) => set("remind_hour_before", v)}
-      />
+      {/* התזכורות ירדו מכאן ל-0027: הן כבר אינן שני מתגים אלא בחירה של
+          תבנית מאושרת ומועד, והמקום שלהן הוא מסך האירוע — לצד הנרשמות
+          שיקבלו אותן, ולא לצד ההגדרות של איך הדף נראה. */}
     </>
   );
 }

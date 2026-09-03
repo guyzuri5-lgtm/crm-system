@@ -23,10 +23,14 @@ export default async function EventThanksPage({ params }: PageProps<"/event/[slu
   if (!event) notFound();
 
   return (
-    <EventThanks
-      design={event}
-      googleUrl={googleCalendarUrl(event)}
-      icsUrl={`/api/events/${event.id}/ics`}
-    />
+    <div className="flex min-h-screen flex-col items-center justify-center px-4 py-10">
+      <div className="w-full max-w-2xl">
+        <EventThanks
+          design={event}
+          googleUrl={googleCalendarUrl(event)}
+          icsUrl={`/api/events/${event.id}/ics`}
+        />
+      </div>
+    </div>
   );
 }

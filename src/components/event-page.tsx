@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { formatLongDate, formatTime } from "@/lib/booking/timezone";
 import type { EventCustomField } from "@/lib/supabase/database.types";
 
@@ -41,7 +41,16 @@ export interface EventThanksDesign {
   header_image_url: string | null;
 }
 
-export type RegisterState = { error: string | null };
+/**
+ * done ו-redirectTo ממולאים רק בהטמעה: שם ההרשמה לא מסתיימת בהפניה מהשרת,
+ * אלא מחזירה ללקוח לאן ללכת. בדף העצמאי נשארת השגיאה בלבד.
+ */
+export type RegisterState = {
+  error: string | null;
+  done?: boolean;
+  /** ריק = להציג תודה במקום; כתובת = לשלוח את כל החלון לתשלום */
+  redirectTo?: string | null;
+};
 
 interface LandingProps {
   design: EventLandingDesign;
@@ -92,29 +101,56 @@ export function EventLanding({ design, spotsLeft, action }: LandingProps) {
         )}
 
         <div className="mx-auto mt-6 max-w-md">
-          {isFull ? (
-            <div className="mb-5 rounded-xl bg-[var(--nav-amber-soft)] px-4 py-3 text-center">
-              <p className="text-sm font-semibold text-[var(--nav-amber)]">האירוע מלא</p>
-              <p className="mt-1 text-xs text-[var(--muted)]">
-                אפשר להשאיר פרטים ונעדכן אותך אם יתפנה מקום, או לקראת המפגש הבא.
-              </p>
-            </div>
-          ) : (
-            design.form_description && (
-              <p className="mb-5 text-center text-sm leading-relaxed text-[var(--muted)]">
-                {design.form_description}
-              </p>
-            )
-          )}
-
-          <RegistrationForm
-            fields={design.custom_fields}
-            buttonText={isFull ? "עדכנו אותי אם יתפנה מקום" : design.button_text}
-            action={action}
-          />
+          <FormCard design={design} isFull={isFull} action={action} />
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * כרטיס הטופס בלבד — ההודעה על אירוע מלא, התיאור הקצר, והשדות.
+ *
+ * חולץ לכאן כדי שההטמעה תשתמש בו כמו שהוא. זו אותה סיבה שבגללה הדף הציבורי
+ * והתצוגה החיה בעורך חולקים רכיב: הרגע שבו יש שני עותקים של טופס ההרשמה הוא
+ * הרגע שבו שדה חדש נוסף לאחד ולא לשני.
+ */
+function FormCard({
+  design,
+  isFull,
+  action,
+  onResult,
+}: {
+  design: Pick<EventLandingDesign, "form_description" | "button_text" | "custom_fields">;
+  isFull: boolean;
+  action?: LandingProps["action"];
+  /** ההטמעה בלבד: מה לעשות כשההרשמה חזרה בהצלחה. */
+  onResult?: (state: RegisterState) => void;
+}) {
+  return (
+    <>
+      {isFull ? (
+        <div className="mb-5 rounded-xl bg-[var(--nav-amber-soft)] px-4 py-3 text-center">
+          <p className="text-sm font-semibold text-[var(--nav-amber)]">האירוע מלא</p>
+          <p className="mt-1 text-xs text-[var(--muted)]">
+            אפשר להשאיר פרטים ונעדכן אותך אם יתפנה מקום, או לקראת המפגש הבא.
+          </p>
+        </div>
+      ) : (
+        design.form_description && (
+          <p className="mb-5 text-center text-sm leading-relaxed text-[var(--muted)]">
+            {design.form_description}
+          </p>
+        )
+      )}
+
+      <RegistrationForm
+        fields={design.custom_fields}
+        buttonText={isFull ? "עדכנו אותי אם יתפנה מקום" : design.button_text}
+        action={action}
+        onResult={onResult}
+      />
+    </>
   );
 }
 
@@ -152,10 +188,12 @@ function RegistrationForm({
   fields,
   buttonText,
   action,
+  onResult,
 }: {
   fields: EventCustomField[];
   buttonText: string;
   action?: LandingProps["action"];
+  onResult?: (state: RegisterState) => void;
 }) {
   // ה-hook נקרא תמיד, גם בלי פעולה — כללי ה-hooks אינם מרשים לדלג עליו,
   // ופעולת החלף שלא נקראת לעולם עולה כלום.
@@ -163,6 +201,12 @@ function RegistrationForm({
     action ?? (async () => ({ error: null })),
     { error: null }
   );
+
+  // ההודעה על הצלחה מגיעה כ-state מהפעולה, וההטמעה צריכה להגיב עליה בניווט.
+  // ב-effect ולא תוך כדי רינדור: ניווט הוא תופעת לוואי, ורינדור חייב להישאר טהור.
+  useEffect(() => {
+    if (state.done) onResult?.(state);
+  }, [state, onResult]);
 
   const preview = !action;
 
@@ -231,6 +275,170 @@ function RegistrationForm({
         </p>
       )}
     </form>
+  );
+}
+
+// ── גרסת ההטמעה ────────────────────────────────────────────────────────────
+
+/**
+ * מדווח לדף המארח כמה גובה המסגרת צריכה, בכל פעם שהתוכן משתנה.
+ *
+ * ── למה זה קיים ──
+ * ל-iframe אין גובה אוטומטי: הדף המארח קובע לו מספר קבוע, ואם הטופס גדל
+ * (נוסף שדה, הופיעה הודעת שגיאה, האירוע התמלא) הכפתור נחתך — בשקט, בלי
+ * שום סימן. מי שהדביקה את הקוד לא תדע, והטופס פשוט יפסיק להיות שליח.
+ *
+ * ResizeObserver ולא מדידה חד-פעמית: הגובה משתנה גם *אחרי* הטעינה — הודעת
+ * שגיאה מתחת לכפתור, ומעבר למסך התודה שמקצר את התוכן דרמטית.
+ *
+ * ── למה מודדים את body ולא את documentElement ──
+ * בתוך iframe, תיבת ה-‎<html>‎ ננעלת לגובה החלון ולא לגובה התוכן. נמדד בפועל:
+ * מסגרת של 449 פיקסלים שהתוכן שלה דורש 471 — ‎documentElement‎ דיווח 449
+ * ו-ResizeObserver עליו לא נורה כלל, בזמן ש-‎body‎ דיווח 471.5 נכונה. כלומר
+ * האזנה ל-‎documentElement‎ הייתה משאירה בדיוק את הבאג שהמנגנון הזה נועד
+ * למנוע: כפתור שנחתך בשקט.
+ *
+ * targetOrigin הוא "*" כי אנחנו לא יודעים באיזה דומיין הטופס מוטמע. זה בטוח
+ * כאן: ההודעה מכילה מספר אחד ותו לא. הצד המקבל, לעומת זאת, כן מאמת את המקור
+ * — ראו את קוד ההטמעה ב-copy-embed.tsx.
+ */
+function useReportHeight(embedId: string) {
+  // מה שכבר דווח, כדי לא להציף את הדף המארח בהודעות זהות. ref ולא state:
+  // זה אינו נתון שמרנדרים אותו, ועדכון שלו לא אמור לגרור רינדור נוסף.
+  const lastSent = useRef(0);
+
+  // בלי מערך תלויות: רץ אחרי *כל* רינדור. זה מה שתופס את השינויים שבאמת
+  // משנים גובה — הודעת שגיאה שנוספה מתחת לכפתור, והמעבר למסך התודה. הבדיקה
+  // מול lastSent הופכת את זה לזול: הודעה נשלחת רק כשהמספר באמת השתנה.
+  useEffect(() => {
+    if (window.parent === window) return; // לא בתוך מסגרת — אין למי לדווח
+
+    const report = () => {
+      // הגדול מבין השניים: body מפספס שוליים שיושבים על html, ו-html
+      // מפספס תוכן שגלש מעבר לחלון. המקסימום נכון בשני המקרים.
+      const height = Math.ceil(
+        Math.max(document.body.scrollHeight, document.documentElement.scrollHeight)
+      );
+      if (height === lastSent.current) return;
+      lastSent.current = height;
+      window.parent.postMessage({ type: "crm-event-height", id: embedId, height }, "*");
+    };
+
+    report();
+
+    // ── שלוש רשתות ביטחון, כי אף אחת מהן לבדה אינה מספיקה ──
+    //
+    // ResizeObserver הוא המנגנון הנכון, אבל הוא לבדו מסוכן: לא הצלחתי לאמת
+    // אותו בסביבת הבדיקה (הוא לא נורה שם כלל, גם לא על אלמנט רגיל), ובאג
+    // שקט כאן פירושו כפתור שליחה חתוך אצל לקוחה אמיתית. לכן הוא ראשון —
+    // ולא יחיד.
+    const observer = new ResizeObserver(report);
+    observer.observe(document.body);
+
+    // שינוי רוחב החלון מזרים מחדש את הטופס ומשנה את גובהו.
+    window.addEventListener("resize", report);
+
+    // הגובה בטעינה אינו סופי: גופנים נטענים אחרי הרינדור הראשון ומזיזים
+    // את הכל בכמה פיקסלים. שלוש מדידות דחויות מכסות את ההתייצבות בלי
+    // להסתמך על אירוע שאולי לא יגיע.
+    const timers = [120, 600, 1800].map((ms) => window.setTimeout(report, ms));
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", report);
+      timers.forEach(window.clearTimeout);
+    };
+  });
+}
+
+/**
+ * הטופס בלבד, להטמעה ב-iframe בתוך דף נחיתה קיים.
+ *
+ * בלי תמונת רקע, בלי כותרות ובלי מסגרת: הדף המארח מביא את העיצוב שלו, וכרטיס
+ * לבן צף בתוכו היה נראה כמו טלאי. מה שכן נשאר — כל היכולות: השדות המותאמים,
+ * זיהוי אירוע מלא, ומעבר לתשלום.
+ *
+ * ── הסיום, ולמה הוא לא redirect ──
+ * הפניה רגילה מנווטת את ה-iframe, כלומר דף התשלום של גרואו היה נטען בתוך
+ * מסגרת של 420 פיקסלים. לכן התשלום לוקח את *כל* החלון (window.top), ואילו
+ * הודעת התודה מוצגת דווקא במקום — אין סיבה לגרור מישהי מדף הנחיתה שלך רק
+ * כדי להגיד לה תודה.
+ */
+export function EventEmbed({
+  design,
+  spotsLeft,
+  action,
+  thanksTitle,
+  thanksText,
+  embedId,
+}: {
+  design: Pick<EventLandingDesign, "form_description" | "button_text" | "custom_fields">;
+  spotsLeft: number | null;
+  action: NonNullable<LandingProps["action"]>;
+  thanksTitle: string;
+  thanksText: string | null;
+  /** מזהה ההודעה לדף המארח — ה-slug. מבדיל בין כמה טפסים באותו עמוד. */
+  embedId: string;
+}) {
+  const isFull = spotsLeft !== null && spotsLeft === 0;
+  const [done, setDone] = useState(false);
+
+  useReportHeight(embedId);
+
+  // הניווט קורה כאן ולא בתוך הפעולה, כי רק הלקוח יכול לגעת ב-window.top.
+  const handleResult = (state: RegisterState) => {
+    if (!state.done) return;
+    if (!state.redirectTo) {
+      setDone(true);
+      return;
+    }
+    try {
+      // דפדפנים מרשים ל-iframe חוצה-מקור לנווט את החלון העליון רק בעקבות
+      // פעולה של המשתמשת — וזו בדיוק לחיצה על כפתור השליחה.
+      window.top!.location.href = state.redirectTo;
+    } catch {
+      // חסימת sandbox: עדיף לשבור לכרטיסייה חדשה מאשר לטעון דף תשלום
+      // בתוך מסגרת צרה, או לא להגיע אליו בכלל.
+      window.open(state.redirectTo, "_blank", "noopener");
+    }
+  };
+
+  if (done) {
+    return (
+      <div className="px-1 py-6 text-center">
+        <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-[var(--primary-soft)]">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="var(--primary)"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="size-6"
+            aria-hidden="true"
+          >
+            <path d="M20 6 9 17l-5-5" />
+          </svg>
+        </div>
+        <p className="mt-4 text-lg font-bold">{thanksTitle}</p>
+        {thanksText && (
+          <p className="mt-2 text-sm leading-relaxed whitespace-pre-line text-[var(--muted)]">
+            {thanksText}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-1 py-1">
+      {spotsLeft !== null && !isFull && (
+        <p className="mb-3 text-center text-sm font-semibold text-[var(--nav-amber)]">
+          נותרו {spotsLeft} מקומות
+        </p>
+      )}
+      <FormCard design={design} isFull={isFull} action={action} onResult={handleResult} />
+    </div>
   );
 }
 

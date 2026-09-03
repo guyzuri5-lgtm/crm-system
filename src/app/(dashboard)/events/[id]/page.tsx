@@ -10,8 +10,12 @@ import {
   type Contact,
   type EventStage,
   type EventSource,
+  type EventReminder,
+  type MessageTemplate,
 } from "@/lib/supabase/database.types";
 import { CopyLink } from "../../booking/copy-link";
+import { CopyEmbed } from "./copy-embed";
+import { EventReminders } from "./reminders";
 import { markPaidAction } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +28,8 @@ type RegistrationRow = {
   paid_at: string | null;
   contacts: Contact | null;
 };
+
+type ReminderRow = EventReminder & { template: MessageTemplate | null };
 
 /** תג צבעוני לכל שלב, באותה שפה ויזואלית של תגי הסטטוס במערכת. */
 const STAGE_TONE: Record<EventStage, { bg: string; text: string }> = {
@@ -39,15 +45,25 @@ export default async function EventPage({ params }: PageProps<"/events/[id]">) {
   const event = await getEventById(id);
   if (!event) notFound();
 
-  const [counts, { data, error }] = await Promise.all([
-    countStages(event.id),
-    supabaseAdmin()
-      .from("event_registrations")
-      .select("id, stage, source, created_at, paid_at, contacts(*)")
-      .eq("event_id", event.id)
-      .order("created_at", { ascending: false })
-      .returns<RegistrationRow[]>(),
-  ]);
+  const [counts, { data, error }, { data: remindersRaw }, { data: templatesRaw }] =
+    await Promise.all([
+      countStages(event.id),
+      supabaseAdmin()
+        .from("event_registrations")
+        .select("id, stage, source, created_at, paid_at, contacts(*)")
+        .eq("event_id", event.id)
+        .order("created_at", { ascending: false })
+        .returns<RegistrationRow[]>(),
+      // התזכורות והתבניות. שגיאה כאן (0027 שטרם רץ) לא מפילה את המסך —
+      // כרטיס התזכורות פשוט יוצג ריק.
+      supabaseAdmin()
+        .from("event_reminders")
+        .select("*, template:message_templates(*)")
+        .eq("event_id", event.id)
+        .order("created_at")
+        .returns<ReminderRow[]>(),
+      supabaseAdmin().from("message_templates").select("*").eq("channel", "whatsapp"),
+    ]);
 
   assertEventsMigrated(error);
   if (error) throw error;
@@ -69,6 +85,7 @@ export default async function EventPage({ params }: PageProps<"/events/[id]">) {
 
         <div className="flex flex-wrap gap-2">
           <CopyLink path={`/event/${event.slug}`} label="העתקת לינק ההרשמה" />
+          <CopyEmbed slug={event.slug} fieldCount={event.custom_fields.length} />
           <Link href={`/events/${event.id}/edit`} className="btn-secondary">
             עיצוב הדף
           </Link>
@@ -84,6 +101,12 @@ export default async function EventPage({ params }: PageProps<"/events/[id]">) {
         <Metric label="נרשמו ולא שילמו" value={counts.registered} tone="var(--nav-pink)" />
         <Metric label="מתעניינות" value={counts.interested} tone="var(--nav-amber)" />
       </div>
+
+      <EventReminders
+        eventId={event.id}
+        reminders={remindersRaw ?? []}
+        templates={(templatesRaw ?? []) as MessageTemplate[]}
+      />
 
       {registrations.length === 0 ? (
         <div className="card text-center text-sm text-[var(--muted)]">

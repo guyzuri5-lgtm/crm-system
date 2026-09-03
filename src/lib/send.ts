@@ -9,7 +9,13 @@ import {
 } from "./whatsapp-cloud";
 import { renderTemplate } from "./templates";
 import { sendEmail, type MessageStream } from "./email";
-import type { Contact, MessageChannel, MessageTemplate, Booking } from "./supabase/database.types";
+import type {
+  Contact,
+  MessageChannel,
+  MessageTemplate,
+  Booking,
+  EventRow,
+} from "./supabase/database.types";
 
 // המקום היחיד ששולח בפועל הודעה לאיש קשר ורושם אותה ביומן — משותף למנוע
 // הכללים (src/lib/automation-engine.ts) ולראוטים הידניים של השליחה מהדשבורד.
@@ -51,6 +57,15 @@ export interface SendMessageInput {
    * לחלון 24 השעות עם המציין הגולמי במקום המועד.
    */
   booking?: Booking | null;
+  /**
+   * האירוע שההודעה מדברת עליו, אם יש — נוסף ב-0027 לתזכורות האירועים.
+   *
+   * נדרש כאן מאותה סיבה בדיוק כמו booking: מציין כמו {{event_time}} יכול
+   * לשבת בתוך meta_variables, כלומר להיות אחד מהערכים שממלאים את {{1}}
+   * בתבנית המאושרת. בלי להעביר אותו לכאן, תזכורת שיוצאת מחוץ לחלון 24
+   * השעות הייתה מגיעה עם המציין הגולמי במקום עם המועד.
+   */
+  event?: EventRow | null;
 }
 
 export type SendResult = { ok: true } | { ok: false; error: string };
@@ -111,7 +126,7 @@ export async function sendMessageToContact(input: SendMessageInput): Promise<Sen
       // הפרמטרים נגזרים מאותם מציינים של גוף ההודעה ({{first_name}}), כדי
       // שיהיה מודל מנטלי אחד למי שכותב תבנית ולא שתי שפות מציינים.
       const parameters = template.meta_variables.map((expression) =>
-        renderTemplate(expression, input.contact, input.booking)
+        renderTemplate(expression, input.contact, input.booking, input.event)
       );
 
       messageId = await sendTemplate({

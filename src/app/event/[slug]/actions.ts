@@ -28,11 +28,17 @@ const registrationSchema = z.object({
   email: z.string().trim().min(1, "חסר אימייל").max(160),
 });
 
-export async function registerForEventAction(
+/**
+ * ההרשמה עצמה, בלי להחליט מה קורה אחריה.
+ *
+ * ההפרדה הזו קיימת בגלל ההטמעה: בדף העצמאי הסיום הוא redirect בשרת, ובתוך
+ * iframe הוא חייב לקרות בלקוח — הפניה רגילה הייתה טוענת את דף התשלום *בתוך*
+ * המסגרת הקטנה שבדף הנחיתה. שתי ההתנהגויות, לוגיקת הרשמה אחת.
+ */
+async function register(
   slug: string,
-  _state: RegisterState,
   formData: FormData
-): Promise<RegisterState> {
+): Promise<{ error: string } | { growLink: string | null; slug: string }> {
   const parsed = registrationSchema.safeParse({
     full_name: formData.get("full_name"),
     phone: formData.get("phone"),
@@ -122,8 +128,39 @@ export async function registerForEventAction(
 
   revalidatePath(`/events/${event.id}`);
 
+  // אירוע מלא לא נשלח לתשלום גם אם יש לינק גרואו — היא ברשימת המתנה, לא נרשמת.
+  return { growLink: isFull ? null : event.grow_link, slug: event.slug };
+}
+
+/** הדף העצמאי: מסיים בהפניה מהשרת, כמו כל טופס רגיל. */
+export async function registerForEventAction(
+  slug: string,
+  _state: RegisterState,
+  formData: FormData
+): Promise<RegisterState> {
+  const result = await register(slug, formData);
+  if ("error" in result) return { error: result.error };
+
   // redirect זורק, ולכן הוא מחוץ לכל try — עטיפה שלו הייתה בולעת את הניווט
-  // והופכת אותו לשגיאה. אירוע מלא לא נשלח לתשלום גם אם יש לינק גרואו.
-  if (!isFull && event.grow_link) redirect(event.grow_link);
-  redirect(`/event/${event.slug}/thanks`);
+  // והופכת אותו לשגיאה.
+  if (result.growLink) redirect(result.growLink);
+  redirect(`/event/${result.slug}/thanks`);
+}
+
+/**
+ * גרסת ההטמעה: מחזירה לאן ללכת במקום ללכת לשם.
+ *
+ * הניווט נעשה בלקוח (ראו EventEmbed ב-components/event-page.tsx) כי רק שם
+ * אפשר להבחין בין שני המקרים: תשלום חייב לקחת את *כל* החלון — דף גרואו בתוך
+ * מסגרת של 420 פיקסלים אינו דף תשלום שמישהי תשלים — ואילו הודעת התודה דווקא
+ * נכון שתופיע במקום, בלי לגרור את הגולשת מדף הנחיתה שלך.
+ */
+export async function registerForEventEmbedAction(
+  slug: string,
+  _state: RegisterState,
+  formData: FormData
+): Promise<RegisterState> {
+  const result = await register(slug, formData);
+  if ("error" in result) return { error: result.error };
+  return { error: null, done: true, redirectTo: result.growLink };
 }

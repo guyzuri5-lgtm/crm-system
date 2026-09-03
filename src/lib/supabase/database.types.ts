@@ -186,9 +186,19 @@ export const EVENT_SOURCE_LABELS: Record<EventSource, string> = {
   manual: "ידני",
 };
 
-/** שתי התזכורות שיוצאות לפני האירוע. השם הוא גם המפתח ב-event_reminders_sent. */
-export const EVENT_REMINDER_KINDS = ["day_before", "hour_before"] as const;
-export type EventReminderKind = (typeof EVENT_REMINDER_KINDS)[number];
+/**
+ * ממה נספר מועד התזכורת (0027).
+ *
+ * event מתזמן את כל הנרשמות לאותו רגע ("יום לפני"); purchase נותן לכל אחת
+ * שעון משלה, שמתחיל ברגע שהיא שילמה ("שעה אחרי הרכישה").
+ */
+export const EVENT_REMINDER_BASES = ["event", "purchase"] as const;
+export type EventReminderBasis = (typeof EVENT_REMINDER_BASES)[number];
+
+export const EVENT_REMINDER_BASIS_LABELS: Record<EventReminderBasis, string> = {
+  event: "לפני האירוע",
+  purchase: "אחרי הרכישה",
+};
 
 /**
  * שדה מותאם אחד בטופס ההרשמה.
@@ -770,8 +780,6 @@ export type Database = {
           thankyou_text: string | null;
           thankyou_show_calendar: boolean;
           thankyou_show_image: boolean;
-          remind_day_before: boolean;
-          remind_hour_before: boolean;
           active: boolean;
           created_at: string;
         };
@@ -803,20 +811,48 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["event_registrations"]["Row"]>;
         Relationships: Relationships;
       };
+      // ── נוספה ב-0027_event_reminders.sql ───────────────────────────────
+      /**
+       * הגדרת תזכורת אחת: איזו תבנית מאושרת, ומתי לשלוח אותה.
+       *
+       * התוכן עצמו אינו כאן אלא ב-message_templates, ובפועל אצל מטא — מחוץ
+       * לחלון 24 השעות נשלח הטקסט *שאושר*, ולא מה שנכתב אצלנו. לכן מה
+       * שנשלט מהמערכת הוא הבחירה והתזמון, לא הניסוח.
+       */
+      event_reminders: {
+        Row: {
+          id: string;
+          event_id: string;
+          template_id: string;
+          basis: EventReminderBasis;
+          /** דקות עם סימן. שלילי = לפני נקודת הייחוס, חיובי = אחריה. */
+          offset_minutes: number;
+          active: boolean;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["event_reminders"]["Row"]> & {
+          event_id: string;
+          template_id: string;
+          basis: EventReminderBasis;
+          offset_minutes: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["event_reminders"]["Row"]>;
+        Relationships: Relationships;
+      };
       /**
        * המנעול שמונע תזכורת כפולה. הקרון רץ כל רבע שעה וחלון התזכורת פתוח
-       * לכמה ריצות — המפתח הראשי (registration_id, kind) הוא מה שמבטיח
-       * שהנרשמת תקבל אותה פעם אחת.
+       * לכמה ריצות — המפתח הראשי (registration_id, reminder_id) הוא מה
+       * שמבטיח שהנרשמת תקבל כל תזכורת פעם אחת.
        */
       event_reminders_sent: {
         Row: {
           registration_id: string;
-          kind: EventReminderKind;
+          reminder_id: string;
           sent_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["event_reminders_sent"]["Row"]> & {
           registration_id: string;
-          kind: EventReminderKind;
+          reminder_id: string;
         };
         Update: Partial<Database["public"]["Tables"]["event_reminders_sent"]["Row"]>;
         Relationships: Relationships;
@@ -872,3 +908,4 @@ export type NewsletterRecipient = Database["public"]["Tables"]["newsletter_recip
  */
 export type EventRow = Database["public"]["Tables"]["events"]["Row"];
 export type EventRegistration = Database["public"]["Tables"]["event_registrations"]["Row"];
+export type EventReminder = Database["public"]["Tables"]["event_reminders"]["Row"];

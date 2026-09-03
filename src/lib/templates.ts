@@ -1,4 +1,4 @@
-import type { Contact, Booking } from "./supabase/database.types";
+import type { Contact, Booking, EventRow } from "./supabase/database.types";
 
 // Renders {{full_name}}-style placeholders in a message_templates.body/subject, per
 // spec section 3. Deliberately an allow-list of contact fields rather than a generic
@@ -40,14 +40,43 @@ function formatBooking(booking: Booking, options: Intl.DateTimeFormatOptions): s
 }
 
 /**
+ * שדות האירוע (0027), שנפתרים רק כשיש אירוע בהקשר.
+ *
+ * ── למה שעון ישראל ולא של הנמענת ──
+ * להבדיל מפגישה, לאירוע יש מקום פיזי אחד ושעה אחת. "19:00" הוא השעה שבה
+ * הדלת נפתחת בתל אביב, וזו השעה הנכונה לכל מי שמגיעה — גם אם היא קוראת
+ * את ההודעה מחו"ל.
+ */
+const EVENT_FIELDS: Record<string, (event: EventRow) => string> = {
+  event_name: (e) => e.name,
+  event_date: (e) => formatEvent(e, { day: "numeric", month: "long" }),
+  event_day: (e) => formatEvent(e, { weekday: "long" }),
+  event_time: (e) => formatEvent(e, { hour: "2-digit", minute: "2-digit" }),
+  event_datetime: (e) =>
+    `${formatEvent(e, { weekday: "long", day: "numeric", month: "long" })}, ${formatEvent(e, {
+      hour: "2-digit",
+      minute: "2-digit",
+    })}`,
+  event_location: (e) => e.location ?? "",
+};
+
+function formatEvent(event: EventRow, options: Intl.DateTimeFormatOptions): string {
+  return new Date(event.starts_at).toLocaleString("he-IL", {
+    ...options,
+    timeZone: "Asia/Jerusalem",
+  });
+}
+
+/**
  * מציין של פגישה בתבנית שנשלחת בלי פגישה בהקשר היה מתרוקן בשקט, והלקוח היה
  * מקבל "תזכורת לפגישה ב־". עדיף להשאיר את המציין כפי שהוא: הודעה שנראית
- * שבורה נתפסת מיד, וריק לא נתפס בכלל.
+ * שבורה נתפסת מיד, וריק לא נתפס בכלל. אותו כלל חל על מציין של אירוע.
  */
 export function renderTemplate(
   text: string,
   contact: Contact,
-  booking?: Booking | null
+  booking?: Booking | null,
+  event?: EventRow | null
 ): string {
   return text.replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (match, key: string) => {
     const contactField = TEMPLATE_FIELDS[key];
@@ -56,6 +85,9 @@ export function renderTemplate(
     const bookingField = BOOKING_FIELDS[key];
     if (bookingField) return booking ? bookingField(booking) : match;
 
+    const eventField = EVENT_FIELDS[key];
+    if (eventField) return event ? eventField(event) : match;
+
     return match;
   });
 }
@@ -63,6 +95,7 @@ export function renderTemplate(
 /** המציינים הזמינים, לתצוגה בממשק. */
 export const CONTACT_PLACEHOLDERS = Object.keys(TEMPLATE_FIELDS);
 export const BOOKING_PLACEHOLDERS = Object.keys(BOOKING_FIELDS);
+export const EVENT_PLACEHOLDERS = Object.keys(EVENT_FIELDS);
 
 /**
  * ערך לדוגמה לכל מציין — למה שהמאשר האנושי ב-Meta רואה.
@@ -86,6 +119,12 @@ const PLACEHOLDER_EXAMPLES: Record<string, string> = {
   booking_day: "יום חמישי",
   booking_datetime: "יום חמישי, 12 במרץ, 11:15",
   booking_link: "https://meet.google.com/abc-defg-hij",
+  event_name: "ערב ריפוי בצלילים",
+  event_date: "20 בספטמבר",
+  event_day: "יום שישי",
+  event_time: "19:00",
+  event_datetime: "יום שישי, 20 בספטמבר, 19:00",
+  event_location: "סטודיו, הרצל 5, תל אביב",
 };
 
 /**
