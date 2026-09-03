@@ -1,3 +1,4 @@
+import { ActionForm } from "@/components/action-form";
 import Link from "next/link";
 import { verifyTeamMember } from "@/lib/dal";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -90,12 +91,12 @@ export default async function UpcomingPage() {
                         Meet
                       </a>
                     )}
-                    <form action={cancelBookingAction}>
+                    <ActionForm action={cancelBookingAction}>
                       <input type="hidden" name="id" value={booking.id} />
                       <button type="submit" className="btn-danger">
                         ביטול
                       </button>
-                    </form>
+                    </ActionForm>
                   </div>
                 </td>
               </tr>

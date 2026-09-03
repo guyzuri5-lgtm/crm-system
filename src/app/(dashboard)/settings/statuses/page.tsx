@@ -1,3 +1,4 @@
+import { ActionForm } from "@/components/action-form";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { verifyTeamMember } from "@/lib/dal";
 import { listStatuses } from "@/lib/statuses";
@@ -44,7 +45,7 @@ export default async function StatusesPage() {
 
       <section className="card">
         <h2 className="mb-4 font-medium">סטטוס חדש</h2>
-        <form action={createStatusAction} className="flex flex-wrap items-end gap-3 text-sm">
+        <ActionForm action={createStatusAction} resetOnSuccess className="flex flex-wrap items-end gap-3 text-sm">
           <label className="field-label flex-1 min-w-[12rem]">
             שם
             <input name="name" required maxLength={40} className="input" placeholder="לדוגמה: ממתין לתשלום" />
@@ -62,7 +63,7 @@ export default async function StatusesPage() {
           <button type="submit" className="btn-primary">
             הוסף סטטוס
           </button>
-        </form>
+        </ActionForm>
       </section>
 
       <section className="flex flex-col gap-3">
@@ -84,7 +85,7 @@ export default async function StatusesPage() {
                   </span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <form action={moveStatusAction}>
+                  <ActionForm action={moveStatusAction}>
                     <input type="hidden" name="id" value={status.id} />
                     <input type="hidden" name="direction" value="up" />
                     <button
@@ -95,8 +96,8 @@ export default async function StatusesPage() {
                     >
                       ↑
                     </button>
-                  </form>
-                  <form action={moveStatusAction}>
+                  </ActionForm>
+                  <ActionForm action={moveStatusAction}>
                     <input type="hidden" name="id" value={status.id} />
                     <input type="hidden" name="direction" value="down" />
                     <button
@@ -107,12 +108,12 @@ export default async function StatusesPage() {
                     >
                       ↓
                     </button>
-                  </form>
+                  </ActionForm>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 gap-4 border-t border-[var(--border)] pt-4 lg:grid-cols-2">
-                <form action={updateStatusAction} className="flex flex-wrap items-end gap-2 text-sm">
+                <ActionForm action={updateStatusAction} className="flex flex-wrap items-end gap-2 text-sm">
                   <input type="hidden" name="id" value={status.id} />
                   <label className="field-label flex-1 min-w-[9rem]">
                     שם
@@ -137,9 +138,9 @@ export default async function StatusesPage() {
                   <button type="submit" className="btn-secondary">
                     שמור
                   </button>
-                </form>
+                </ActionForm>
 
-                <form action={deleteStatusAction} className="flex flex-wrap items-end gap-2 text-sm">
+                <ActionForm action={deleteStatusAction} className="flex flex-wrap items-end gap-2 text-sm">
                   <input type="hidden" name="id" value={status.id} />
                   {inUse > 0 && (
                     <label className="field-label flex-1 min-w-[9rem]">
@@ -160,7 +161,7 @@ export default async function StatusesPage() {
                   >
                     מחיקת הסטטוס
                   </button>
-                </form>
+                </ActionForm>
               </div>
             </div>
           );

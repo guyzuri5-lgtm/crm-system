@@ -1,3 +1,4 @@
+import { ActionForm } from "@/components/action-form";
 import { verifyTeamMember } from "@/lib/dal";
 import { listStatuses } from "@/lib/statuses";
 import { listEventTypes } from "@/lib/booking/data";
@@ -75,12 +76,12 @@ export default async function EventTypesPage() {
               >
                 תצוגה מקדימה
               </a>
-              <form action={deleteEventTypeAction}>
+              <ActionForm action={deleteEventTypeAction}>
                 <input type="hidden" name="id" value={eventType.id} />
                 <button type="submit" className="btn-danger">
                   מחיקה
                 </button>
-              </form>
+              </ActionForm>
             </div>
           </div>
 

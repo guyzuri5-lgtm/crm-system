@@ -1,3 +1,4 @@
+import { ActionForm } from "@/components/action-form";
 import Image from "next/image";
 import { verifyTeamMember } from "@/lib/dal";
 import { getBookingSettings, listBlackouts } from "@/lib/booking/data";
@@ -49,12 +50,12 @@ export default async function BookingSettingsPage() {
                   <span className="block text-xs text-[var(--subtle)]">{blackout.reason}</span>
                 )}
               </span>
-              <form action={deleteBlackoutAction}>
+              <ActionForm action={deleteBlackoutAction}>
                 <input type="hidden" name="id" value={blackout.id} />
                 <button type="submit" className="btn-danger">
                   מחיקה
                 </button>
-              </form>
+              </ActionForm>
             </div>
           ))}
           {!blackouts.length && (
@@ -62,8 +63,9 @@ export default async function BookingSettingsPage() {
           )}
         </div>
 
-        <form
+        <ActionForm
           action={addBlackoutAction}
+          resetOnSuccess
           className="mt-5 flex flex-wrap items-end gap-3 border-t border-[var(--border)] pt-5"
         >
           <label className="field-label">
@@ -81,7 +83,7 @@ export default async function BookingSettingsPage() {
           <button type="submit" className="btn-primary">
             הוספת חסימה
           </button>
-        </form>
+        </ActionForm>
       </section>
 
       {/* ── כרטיס המארח בדף ההזמנה ────────────────────────────────── */}
@@ -109,7 +111,7 @@ export default async function BookingSettingsPage() {
             </div>
           )}
 
-          <form action={uploadHostPhotoAction} className="flex flex-wrap items-end gap-3">
+          <ActionForm action={uploadHostPhotoAction} className="flex flex-wrap items-end gap-3">
             <label className="field-label">
               העלאת תמונה
               <input
@@ -126,14 +128,14 @@ export default async function BookingSettingsPage() {
             <button type="submit" className="btn-primary">
               שמירת התמונה
             </button>
-          </form>
+          </ActionForm>
 
           {settings.host_photo_url && (
-            <form action={removeHostPhotoAction}>
+            <ActionForm action={removeHostPhotoAction}>
               <button type="submit" className="btn-danger">
                 הסרת התמונה
               </button>
-            </form>
+            </ActionForm>
           )}
         </div>
       </section>
@@ -141,7 +143,7 @@ export default async function BookingSettingsPage() {
       {/* ── הגדרות כלליות ─────────────────────────────────────────── */}
       <section className="card">
         <h2 className="mb-4 font-medium">הגדרות כלליות</h2>
-        <form action={saveSettingsAction} className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <ActionForm action={saveSettingsAction} className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <label className="field-label">
             שם שיוצג ללקוח
             <input name="brand_name" defaultValue={settings.brand_name} required className="input" />
@@ -228,7 +230,7 @@ export default async function BookingSettingsPage() {
           <button type="submit" className="btn-primary self-start md:col-span-2">
             שמירת הגדרות
           </button>
-        </form>
+        </ActionForm>
       </section>
     </div>
   );

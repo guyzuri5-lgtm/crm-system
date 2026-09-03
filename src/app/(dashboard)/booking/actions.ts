@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { toResult, type ActionResult } from "@/lib/action-result";
 import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { verifyTeamMember } from "@/lib/dal";
@@ -82,116 +83,128 @@ function assertBookingColumns(error: { code?: string; message: string } | null):
   }
 }
 
-export async function createEventTypeAction(formData: FormData) {
-  await verifyTeamMember();
+export async function createEventTypeAction(formData: FormData): Promise<ActionResult> {
+  return toResult(async () => {
+    await verifyTeamMember();
 
-  const parsed = z.object(eventTypeFields).safeParse(readEventTypeForm(formData));
-  if (!parsed.success) fail(parsed.error);
+    const parsed = z.object(eventTypeFields).safeParse(readEventTypeForm(formData));
+    if (!parsed.success) fail(parsed.error);
 
-  const { error } = await supabaseAdmin().from("booking_event_types").insert(parsed.data);
-  if (error) {
-    throw new Error(
-      error.code === "23505" ? "כבר קיים סוג פגישה עם אותה כתובת קישור" : error.message
-    );
-  }
+    const { error } = await supabaseAdmin().from("booking_event_types").insert(parsed.data);
+    if (error) {
+      throw new Error(
+        error.code === "23505" ? "כבר קיים סוג פגישה עם אותה כתובת קישור" : error.message
+      );
+    }
 
-  revalidatePath("/booking");
+    revalidatePath("/booking");
+  });
 }
 
-export async function updateEventTypeAction(formData: FormData) {
-  await verifyTeamMember();
+export async function updateEventTypeAction(formData: FormData): Promise<ActionResult> {
+  return toResult(async () => {
+    await verifyTeamMember();
 
-  const id = String(formData.get("id") ?? "");
-  if (!id) throw new Error("חסר מזהה");
+    const id = String(formData.get("id") ?? "");
+    if (!id) throw new Error("חסר מזהה");
 
-  const parsed = z.object(eventTypeFields).safeParse(readEventTypeForm(formData));
-  if (!parsed.success) fail(parsed.error);
+    const parsed = z.object(eventTypeFields).safeParse(readEventTypeForm(formData));
+    if (!parsed.success) fail(parsed.error);
 
-  const { error } = await supabaseAdmin()
-    .from("booking_event_types")
-    .update(parsed.data)
-    .eq("id", id);
-  if (error) {
-    throw new Error(
-      error.code === "23505" ? "כבר קיים סוג פגישה עם אותה כתובת קישור" : error.message
-    );
-  }
+    const { error } = await supabaseAdmin()
+      .from("booking_event_types")
+      .update(parsed.data)
+      .eq("id", id);
+    if (error) {
+      throw new Error(
+        error.code === "23505" ? "כבר קיים סוג פגישה עם אותה כתובת קישור" : error.message
+      );
+    }
 
-  revalidatePath("/booking");
+    revalidatePath("/booking");
+  });
 }
 
-export async function deleteEventTypeAction(formData: FormData) {
-  await verifyTeamMember();
+export async function deleteEventTypeAction(formData: FormData): Promise<ActionResult> {
+  return toResult(async () => {
+    await verifyTeamMember();
 
-  const id = String(formData.get("id") ?? "");
-  const { error } = await supabaseAdmin().from("booking_event_types").delete().eq("id", id);
-  if (error) {
-    // bookings.event_type_id הוא ON DELETE RESTRICT בכוונה — היסטוריית הפגישות
-    // לא נמחקת בטעות יחד עם סוג הפגישה.
-    throw new Error(
-      error.code === "23503"
-        ? "אי אפשר למחוק סוג פגישה שכבר נקבעו בו פגישות. כבו אותו במקום זאת — הקישור יפסיק לעבוד וההיסטוריה תישמר."
-        : error.message
-    );
-  }
+    const id = String(formData.get("id") ?? "");
+    const { error } = await supabaseAdmin().from("booking_event_types").delete().eq("id", id);
+    if (error) {
+      // bookings.event_type_id הוא ON DELETE RESTRICT בכוונה — היסטוריית הפגישות
+      // לא נמחקת בטעות יחד עם סוג הפגישה.
+      throw new Error(
+        error.code === "23503"
+          ? "אי אפשר למחוק סוג פגישה שכבר נקבעו בו פגישות. כבו אותו במקום זאת — הקישור יפסיק לעבוד וההיסטוריה תישמר."
+          : error.message
+      );
+    }
 
-  revalidatePath("/booking/upcoming");
+    revalidatePath("/booking/upcoming");
+  });
 }
 
-export async function cancelBookingAction(formData: FormData) {
-  await verifyTeamMember();
+export async function cancelBookingAction(formData: FormData): Promise<ActionResult> {
+  return toResult(async () => {
+    await verifyTeamMember();
 
-  const id = String(formData.get("id") ?? "");
-  const { data: booking, error } = await supabaseAdmin()
-    .from("bookings")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
-  if (error) throw error;
-  if (!booking) throw new Error("הפגישה לא נמצאה");
+    const id = String(formData.get("id") ?? "");
+    const { data: booking, error } = await supabaseAdmin()
+      .from("bookings")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) throw error;
+    if (!booking) throw new Error("הפגישה לא נמצאה");
 
-  const result = await cancelBooking(booking, "team");
-  if (!result.ok) throw new Error(result.error ?? "ביטול הפגישה נכשל");
+    const result = await cancelBooking(booking, "team");
+    if (!result.ok) throw new Error(result.error ?? "ביטול הפגישה נכשל");
 
-  revalidatePath("/booking");
+    revalidatePath("/booking");
+  });
 }
 
 // ── שעות זמינות ─────────────────────────────────────────────────────────
 
-export async function addAvailabilityAction(formData: FormData) {
-  await verifyTeamMember();
+export async function addAvailabilityAction(formData: FormData): Promise<ActionResult> {
+  return toResult(async () => {
+    await verifyTeamMember();
 
-  const weekday = Number(formData.get("weekday"));
-  const start = clockToMinutes(String(formData.get("start_time") ?? ""));
-  const end = clockToMinutes(String(formData.get("end_time") ?? ""));
-  // מחרוזת ריקה = ברירת המחדל הגלובלית, שחלה על כל סוג פגישה בלי שעות משלו.
-  const eventTypeId = String(formData.get("event_type_id") ?? "") || null;
+    const weekday = Number(formData.get("weekday"));
+    const start = clockToMinutes(String(formData.get("start_time") ?? ""));
+    const end = clockToMinutes(String(formData.get("end_time") ?? ""));
+    // מחרוזת ריקה = ברירת המחדל הגלובלית, שחלה על כל סוג פגישה בלי שעות משלו.
+    const eventTypeId = String(formData.get("event_type_id") ?? "") || null;
 
-  if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) {
-    throw new Error("יום לא תקין");
-  }
-  if (start === null || end === null) throw new Error("שעה לא תקינה");
-  if (end <= start) throw new Error("שעת הסיום חייבת להיות אחרי שעת ההתחלה");
+    if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) {
+      throw new Error("יום לא תקין");
+    }
+    if (start === null || end === null) throw new Error("שעה לא תקינה");
+    if (end <= start) throw new Error("שעת הסיום חייבת להיות אחרי שעת ההתחלה");
 
-  const { error } = await supabaseAdmin().from("booking_availability").insert({
-    event_type_id: eventTypeId,
-    weekday,
-    start_minute: start,
-    end_minute: end,
+    const { error } = await supabaseAdmin().from("booking_availability").insert({
+      event_type_id: eventTypeId,
+      weekday,
+      start_minute: start,
+      end_minute: end,
+    });
+    if (error) throw error;
+
+    revalidatePath("/booking/calendar");
   });
-  if (error) throw error;
-
-  revalidatePath("/booking/calendar");
 }
 
-export async function deleteAvailabilityAction(formData: FormData) {
-  await verifyTeamMember();
+export async function deleteAvailabilityAction(formData: FormData): Promise<ActionResult> {
+  return toResult(async () => {
+    await verifyTeamMember();
 
-  const id = String(formData.get("id") ?? "");
-  const { error } = await supabaseAdmin().from("booking_availability").delete().eq("id", id);
-  if (error) throw error;
+    const id = String(formData.get("id") ?? "");
+    const { error } = await supabaseAdmin().from("booking_availability").delete().eq("id", id);
+    if (error) throw error;
 
-  revalidatePath("/booking/calendar");
+    revalidatePath("/booking/calendar");
+  });
 }
 
 // ── חריגות זמינות לתאריך (היומן הידני) ─────────────────────────────────
@@ -205,76 +218,84 @@ function readDate(formData: FormData): string {
 }
 
 /** הוספת חלון שעות לתאריך מסוים. */
-export async function addDateWindowAction(formData: FormData) {
-  await verifyTeamMember();
+export async function addDateWindowAction(formData: FormData): Promise<ActionResult> {
+  return toResult(async () => {
+    await verifyTeamMember();
 
-  const date = readDate(formData);
-  const start = clockToMinutes(String(formData.get("start_time") ?? ""));
-  const end = clockToMinutes(String(formData.get("end_time") ?? ""));
-  if (start === null || end === null) throw new Error("שעה לא תקינה");
-  if (end <= start) throw new Error("שעת הסיום חייבת להיות אחרי שעת ההתחלה");
+    const date = readDate(formData);
+    const start = clockToMinutes(String(formData.get("start_time") ?? ""));
+    const end = clockToMinutes(String(formData.get("end_time") ?? ""));
+    if (start === null || end === null) throw new Error("שעה לא תקינה");
+    if (end <= start) throw new Error("שעת הסיום חייבת להיות אחרי שעת ההתחלה");
 
-  const db = supabaseAdmin();
-  // "לא זמין" ו"חלון שעות" הם מצבים סותרים על אותו תאריך. הוספת שעות
-  // מבטלת את סימון אי-הזמינות, אחרת האינדקס היחיד היה נופל על ההוספה הבאה.
-  await db
-    .from("booking_date_overrides")
-    .delete()
-    .eq("override_date", date)
-    .is("event_type_id", null)
-    .is("start_minute", null);
+    const db = supabaseAdmin();
+    // "לא זמין" ו"חלון שעות" הם מצבים סותרים על אותו תאריך. הוספת שעות
+    // מבטלת את סימון אי-הזמינות, אחרת האינדקס היחיד היה נופל על ההוספה הבאה.
+    await db
+      .from("booking_date_overrides")
+      .delete()
+      .eq("override_date", date)
+      .is("event_type_id", null)
+      .is("start_minute", null);
 
-  const { error } = await db.from("booking_date_overrides").insert({
-    override_date: date,
-    start_minute: start,
-    end_minute: end,
+    const { error } = await db.from("booking_date_overrides").insert({
+      override_date: date,
+      start_minute: start,
+      end_minute: end,
+    });
+    if (error) throw error;
+
+    revalidatePath("/booking/calendar");
   });
-  if (error) throw error;
-
-  revalidatePath("/booking/calendar");
 }
 
 /** סימון יום שלם כלא זמין, גם אם הוא יום עבודה רגיל. */
-export async function setDateUnavailableAction(formData: FormData) {
-  await verifyTeamMember();
+export async function setDateUnavailableAction(formData: FormData): Promise<ActionResult> {
+  return toResult(async () => {
+    await verifyTeamMember();
 
-  const date = readDate(formData);
-  const db = supabaseAdmin();
+    const date = readDate(formData);
+    const db = supabaseAdmin();
 
-  await db.from("booking_date_overrides").delete().eq("override_date", date).is("event_type_id", null);
-  const { error } = await db.from("booking_date_overrides").insert({
-    override_date: date,
-    start_minute: null,
-    end_minute: null,
+    await db.from("booking_date_overrides").delete().eq("override_date", date).is("event_type_id", null);
+    const { error } = await db.from("booking_date_overrides").insert({
+      override_date: date,
+      start_minute: null,
+      end_minute: null,
+    });
+    if (error) throw error;
+
+    revalidatePath("/booking/calendar");
   });
-  if (error) throw error;
-
-  revalidatePath("/booking/calendar");
 }
 
 /** החזרת תאריך לברירת המחדל השבועית — מחיקת כל החריגות שלו. */
-export async function clearDateOverridesAction(formData: FormData) {
-  await verifyTeamMember();
+export async function clearDateOverridesAction(formData: FormData): Promise<ActionResult> {
+  return toResult(async () => {
+    await verifyTeamMember();
 
-  const date = readDate(formData);
-  const { error } = await supabaseAdmin()
-    .from("booking_date_overrides")
-    .delete()
-    .eq("override_date", date)
-    .is("event_type_id", null);
-  if (error) throw error;
+    const date = readDate(formData);
+    const { error } = await supabaseAdmin()
+      .from("booking_date_overrides")
+      .delete()
+      .eq("override_date", date)
+      .is("event_type_id", null);
+    if (error) throw error;
 
-  revalidatePath("/booking/calendar");
+    revalidatePath("/booking/calendar");
+  });
 }
 
-export async function deleteDateWindowAction(formData: FormData) {
-  await verifyTeamMember();
+export async function deleteDateWindowAction(formData: FormData): Promise<ActionResult> {
+  return toResult(async () => {
+    await verifyTeamMember();
 
-  const id = String(formData.get("id") ?? "");
-  const { error } = await supabaseAdmin().from("booking_date_overrides").delete().eq("id", id);
-  if (error) throw error;
+    const id = String(formData.get("id") ?? "");
+    const { error } = await supabaseAdmin().from("booking_date_overrides").delete().eq("id", id);
+    if (error) throw error;
 
-  revalidatePath("/booking/calendar");
+    revalidatePath("/booking/calendar");
+  });
 }
 
 // ── חסימות ידניות ───────────────────────────────────────────────────────
@@ -285,50 +306,54 @@ export async function deleteDateWindowAction(formData: FormData) {
  * דרך zonedTimeToUtc ולא ב-new Date(value) — שהיה מפרש לפי אזור הזמן של השרת
  * (ב-Vercel: UTC), ומזיז כל חסימה בשעתיים.
  */
-export async function addBlackoutAction(formData: FormData) {
-  await verifyTeamMember();
+export async function addBlackoutAction(formData: FormData): Promise<ActionResult> {
+  return toResult(async () => {
+    await verifyTeamMember();
 
-  const { getBookingSettings } = await import("@/lib/booking/data");
-  const { zonedTimeToUtc } = await import("@/lib/booking/timezone");
-  const settings = await getBookingSettings();
+    const { getBookingSettings } = await import("@/lib/booking/data");
+    const { zonedTimeToUtc } = await import("@/lib/booking/timezone");
+    const settings = await getBookingSettings();
 
-  function toInstant(value: string): Date | null {
-    const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value.trim());
-    if (!match) return null;
-    return zonedTimeToUtc(
-      Number(match[1]),
-      Number(match[2]),
-      Number(match[3]),
-      Number(match[4]) * 60 + Number(match[5]),
-      settings.timezone
-    );
-  }
+    function toInstant(value: string): Date | null {
+      const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value.trim());
+      if (!match) return null;
+      return zonedTimeToUtc(
+        Number(match[1]),
+        Number(match[2]),
+        Number(match[3]),
+        Number(match[4]) * 60 + Number(match[5]),
+        settings.timezone
+      );
+    }
 
-  const start = toInstant(String(formData.get("starts_at") ?? ""));
-  const end = toInstant(String(formData.get("ends_at") ?? ""));
-  const reason = String(formData.get("reason") ?? "").trim() || null;
+    const start = toInstant(String(formData.get("starts_at") ?? ""));
+    const end = toInstant(String(formData.get("ends_at") ?? ""));
+    const reason = String(formData.get("reason") ?? "").trim() || null;
 
-  if (!start || !end) throw new Error("תאריך או שעה לא תקינים");
-  if (end.getTime() <= start.getTime()) throw new Error("הסיום חייב להיות אחרי ההתחלה");
+    if (!start || !end) throw new Error("תאריך או שעה לא תקינים");
+    if (end.getTime() <= start.getTime()) throw new Error("הסיום חייב להיות אחרי ההתחלה");
 
-  const { error } = await supabaseAdmin().from("booking_blackouts").insert({
-    starts_at: start.toISOString(),
-    ends_at: end.toISOString(),
-    reason,
+    const { error } = await supabaseAdmin().from("booking_blackouts").insert({
+      starts_at: start.toISOString(),
+      ends_at: end.toISOString(),
+      reason,
+    });
+    if (error) throw error;
+
+    revalidatePath("/booking/calendar");
   });
-  if (error) throw error;
-
-  revalidatePath("/booking/calendar");
 }
 
-export async function deleteBlackoutAction(formData: FormData) {
-  await verifyTeamMember();
+export async function deleteBlackoutAction(formData: FormData): Promise<ActionResult> {
+  return toResult(async () => {
+    await verifyTeamMember();
 
-  const id = String(formData.get("id") ?? "");
-  const { error } = await supabaseAdmin().from("booking_blackouts").delete().eq("id", id);
-  if (error) throw error;
+    const id = String(formData.get("id") ?? "");
+    const { error } = await supabaseAdmin().from("booking_blackouts").delete().eq("id", id);
+    if (error) throw error;
 
-  revalidatePath("/booking/calendar");
+    revalidatePath("/booking/calendar");
+  });
 }
 
 // ── הגדרות כלליות ───────────────────────────────────────────────────────
@@ -343,45 +368,47 @@ const settingsSchema = z.object({
   host_title: z.string().trim().max(160).nullable(),
 });
 
-export async function saveSettingsAction(formData: FormData) {
-  await verifyTeamMember();
+export async function saveSettingsAction(formData: FormData): Promise<ActionResult> {
+  return toResult(async () => {
+    await verifyTeamMember();
 
-  const raw = String(formData.get("busy_calendar_ids") ?? "");
-  const parsed = settingsSchema.safeParse({
-    timezone: formData.get("timezone"),
-    calendar_id: formData.get("calendar_id"),
-    brand_name: formData.get("brand_name"),
-    // שורה לכל יומן בתיבת טקסט — סינון שורות ריקות כדי ש-freeBusy לא יקבל "".
-    busy_calendar_ids: raw
-      .split(/[\n,]/)
-      .map((value) => value.trim())
-      .filter(Boolean),
-    block_all_day_events: formData.get("block_all_day_events") === "on",
-    // שדה ריק הוא "אין", ולא מחרוזת ריקה — דף ההזמנה בודק null כדי להחליט
-    // אם להציג את כרטיס המארח בכלל.
-    host_name: String(formData.get("host_name") ?? "").trim() || null,
-    host_title: String(formData.get("host_title") ?? "").trim() || null,
+    const raw = String(formData.get("busy_calendar_ids") ?? "");
+    const parsed = settingsSchema.safeParse({
+      timezone: formData.get("timezone"),
+      calendar_id: formData.get("calendar_id"),
+      brand_name: formData.get("brand_name"),
+      // שורה לכל יומן בתיבת טקסט — סינון שורות ריקות כדי ש-freeBusy לא יקבל "".
+      busy_calendar_ids: raw
+        .split(/[\n,]/)
+        .map((value) => value.trim())
+        .filter(Boolean),
+      block_all_day_events: formData.get("block_all_day_events") === "on",
+      // שדה ריק הוא "אין", ולא מחרוזת ריקה — דף ההזמנה בודק null כדי להחליט
+      // אם להציג את כרטיס המארח בכלל.
+      host_name: String(formData.get("host_name") ?? "").trim() || null,
+      host_title: String(formData.get("host_title") ?? "").trim() || null,
+    });
+    if (!parsed.success) fail(parsed.error);
+
+    // ולידציה של אזור הזמן מול Intl: ערך שגוי כאן היה מפיל כל חישוב סלוטים
+    // בכל הדפים, כולל הציבורי.
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone: parsed.data.timezone });
+    } catch {
+      throw new Error(`אזור זמן לא מוכר: ${parsed.data.timezone}`);
+    }
+
+    const { error } = await supabaseAdmin()
+      .from("booking_settings")
+      .update({ ...parsed.data, updated_at: new Date().toISOString() })
+      .eq("id", true);
+    assertBookingColumns(error);
+    if (error) throw error;
+
+    revalidatePath("/booking/settings");
+    revalidatePath("/booking");
+    revalidatePath("/book", "layout");
   });
-  if (!parsed.success) fail(parsed.error);
-
-  // ולידציה של אזור הזמן מול Intl: ערך שגוי כאן היה מפיל כל חישוב סלוטים
-  // בכל הדפים, כולל הציבורי.
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: parsed.data.timezone });
-  } catch {
-    throw new Error(`אזור זמן לא מוכר: ${parsed.data.timezone}`);
-  }
-
-  const { error } = await supabaseAdmin()
-    .from("booking_settings")
-    .update({ ...parsed.data, updated_at: new Date().toISOString() })
-    .eq("id", true);
-  assertBookingColumns(error);
-  if (error) throw error;
-
-  revalidatePath("/booking/settings");
-  revalidatePath("/booking");
-  revalidatePath("/book", "layout");
 }
 
 // ── תמונת המארח ─────────────────────────────────────────────────────────
@@ -403,71 +430,75 @@ const PHOTO_TYPES: Record<string, string> = {
  * שנדרסת באותה כתובת תמשיך להיות מוגשת מהמטמון גם אחרי ההחלפה. שם חדש
  * בכל העלאה הוא מה שמבטיח שהלקוח יראה את התמונה החדשה מיד.
  */
-export async function uploadHostPhotoAction(formData: FormData) {
-  await verifyTeamMember();
+export async function uploadHostPhotoAction(formData: FormData): Promise<ActionResult> {
+  return toResult(async () => {
+    await verifyTeamMember();
 
-  const file = formData.get("photo");
-  if (!(file instanceof File) || file.size === 0) throw new Error("לא נבחר קובץ");
+    const file = formData.get("photo");
+    if (!(file instanceof File) || file.size === 0) throw new Error("לא נבחר קובץ");
 
-  const extension = PHOTO_TYPES[file.type];
-  if (!extension) throw new Error("אפשר להעלות JPG, PNG או WEBP בלבד");
-  if (file.size > MAX_PHOTO_BYTES) {
-    throw new Error(`התמונה גדולה מדי (${Math.round(file.size / 1024)}KB). המקסימום הוא 2MB.`);
-  }
+    const extension = PHOTO_TYPES[file.type];
+    if (!extension) throw new Error("אפשר להעלות JPG, PNG או WEBP בלבד");
+    if (file.size > MAX_PHOTO_BYTES) {
+      throw new Error(`התמונה גדולה מדי (${Math.round(file.size / 1024)}KB). המקסימום הוא 2MB.`);
+    }
 
-  const db = supabaseAdmin();
-  const path = `host/${crypto.randomUUID()}.${extension}`;
+    const db = supabaseAdmin();
+    const path = `host/${crypto.randomUUID()}.${extension}`;
 
-  const { error: uploadError } = await db.storage
-    .from(HOST_PHOTO_BUCKET)
-    .upload(path, await file.arrayBuffer(), { contentType: file.type });
-  if (uploadError) {
-    // הבאקט נוצר ב-0008_booking_host_and_calendar.sql. ההודעה הגולמית
-    // ("Bucket not found") לא אומרת למי שנתקל בה מה חסר.
-    throw new Error(
-      /bucket/i.test(uploadError.message)
-        ? "אחסון התמונות לא הוגדר. יש להריץ את supabase/migrations/0008_booking_host_and_calendar.sql."
-        : uploadError.message
-    );
-  }
+    const { error: uploadError } = await db.storage
+      .from(HOST_PHOTO_BUCKET)
+      .upload(path, await file.arrayBuffer(), { contentType: file.type });
+    if (uploadError) {
+      // הבאקט נוצר ב-0008_booking_host_and_calendar.sql. ההודעה הגולמית
+      // ("Bucket not found") לא אומרת למי שנתקל בה מה חסר.
+      throw new Error(
+        /bucket/i.test(uploadError.message)
+          ? "אחסון התמונות לא הוגדר. יש להריץ את supabase/migrations/0008_booking_host_and_calendar.sql."
+          : uploadError.message
+      );
+    }
 
-  const {
-    data: { publicUrl },
-  } = db.storage.from(HOST_PHOTO_BUCKET).getPublicUrl(path);
+    const {
+      data: { publicUrl },
+    } = db.storage.from(HOST_PHOTO_BUCKET).getPublicUrl(path);
 
-  const previous = await currentHostPhotoPath();
+    const previous = await currentHostPhotoPath();
 
-  const { error } = await db
-    .from("booking_settings")
-    .update({ host_photo_url: publicUrl, updated_at: new Date().toISOString() })
-    .eq("id", true);
-  assertBookingColumns(error);
-  if (error) throw error;
+    const { error } = await db
+      .from("booking_settings")
+      .update({ host_photo_url: publicUrl, updated_at: new Date().toISOString() })
+      .eq("id", true);
+    assertBookingColumns(error);
+    if (error) throw error;
 
-  // המחיקה אחרי העדכון ולא לפניו: אם השמירה נכשלה, עדיף להשאיר קובץ יתום
-  // בבאקט מאשר להישאר עם כתובת בהגדרות שמצביעה על קובץ שכבר נמחק.
-  if (previous) await db.storage.from(HOST_PHOTO_BUCKET).remove([previous]);
+    // המחיקה אחרי העדכון ולא לפניו: אם השמירה נכשלה, עדיף להשאיר קובץ יתום
+    // בבאקט מאשר להישאר עם כתובת בהגדרות שמצביעה על קובץ שכבר נמחק.
+    if (previous) await db.storage.from(HOST_PHOTO_BUCKET).remove([previous]);
 
-  revalidatePath("/booking/settings");
-  revalidatePath("/book", "layout");
+    revalidatePath("/booking/settings");
+    revalidatePath("/book", "layout");
+  });
 }
 
-export async function removeHostPhotoAction() {
-  await verifyTeamMember();
+export async function removeHostPhotoAction(): Promise<ActionResult> {
+  return toResult(async () => {
+    await verifyTeamMember();
 
-  const db = supabaseAdmin();
-  const previous = await currentHostPhotoPath();
+    const db = supabaseAdmin();
+    const previous = await currentHostPhotoPath();
 
-  const { error } = await db
-    .from("booking_settings")
-    .update({ host_photo_url: null, updated_at: new Date().toISOString() })
-    .eq("id", true);
-  if (error) throw error;
+    const { error } = await db
+      .from("booking_settings")
+      .update({ host_photo_url: null, updated_at: new Date().toISOString() })
+      .eq("id", true);
+    if (error) throw error;
 
-  if (previous) await db.storage.from(HOST_PHOTO_BUCKET).remove([previous]);
+    if (previous) await db.storage.from(HOST_PHOTO_BUCKET).remove([previous]);
 
-  revalidatePath("/booking/settings");
-  revalidatePath("/book", "layout");
+    revalidatePath("/booking/settings");
+    revalidatePath("/book", "layout");
+  });
 }
 
 /** הנתיב בתוך הבאקט של התמונה השמורה כרגע, אם היא בכלל שלנו. */

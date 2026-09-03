@@ -1,3 +1,4 @@
+import { ActionForm } from "@/components/action-form";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -104,7 +105,7 @@ export default async function ContactDetailPage(props: PageProps<"/contacts/[id]
 
           {/* השדות והסדר שלהם מגיעים מ-contact_fields (עמוד /fields), כולל
               שדות מותאמים. סטטוס והערות לא כאן — יש להם פקדים משלהם. */}
-          <form action={updateContactFieldsAction} className="flex flex-col gap-3 text-sm">
+          <ActionForm action={updateContactFieldsAction} className="flex flex-col gap-3 text-sm">
             <input type="hidden" name="contact_id" value={contact.id} />
             {editableDetailFields.map((field) => (
               <label key={field.key} className="field-label">
@@ -140,7 +141,7 @@ export default async function ContactDetailPage(props: PageProps<"/contacts/[id]
             <button type="submit" className="btn-secondary self-start">
               שמור פרטים
             </button>
-          </form>
+          </ActionForm>
 
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2.5 border-t border-[var(--border)] pt-4 text-sm">
             <dt className="text-[var(--muted)]">הודעה נכנסת אחרונה</dt>
@@ -157,7 +158,7 @@ export default async function ContactDetailPage(props: PageProps<"/contacts/[id]
             <dd>{new Date(contact.created_at).toLocaleString("he-IL")}</dd>
           </dl>
 
-          <form
+          <ActionForm
             action={changeStatusAction}
             className="flex items-end gap-2 border-t border-[var(--border)] pt-4"
           >
@@ -175,12 +176,12 @@ export default async function ContactDetailPage(props: PageProps<"/contacts/[id]
             <button type="submit" className="btn-secondary">
               עדכן
             </button>
-          </form>
+          </ActionForm>
         </div>
 
         <div className="card flex flex-col gap-2">
           <h2 className="font-medium">הערות</h2>
-          <form action={updateNotesAction} className="flex flex-col gap-3">
+          <ActionForm action={updateNotesAction} className="flex flex-col gap-3">
             <input type="hidden" name="contact_id" value={contact.id} />
             <textarea
               name="notes"
@@ -192,7 +193,7 @@ export default async function ContactDetailPage(props: PageProps<"/contacts/[id]
             <button type="submit" className="btn-secondary self-start">
               שמור הערות
             </button>
-          </form>
+          </ActionForm>
         </div>
       </section>
 
@@ -221,7 +222,7 @@ export default async function ContactDetailPage(props: PageProps<"/contacts/[id]
           הערה ידנית נרשמת כאינטראקציה ולכן היא מופיעה בשיחה עצמה, כשורת
           מערכת באמצע ולא כבועה — היא לא נשלחה לאף אחד.
         */}
-        <form action={addManualNoteAction} className="flex gap-2">
+        <ActionForm action={addManualNoteAction} resetOnSuccess className="flex gap-2">
           <input type="hidden" name="contact_id" value={contact.id} />
           <input
             name="content"
@@ -231,7 +232,7 @@ export default async function ContactDetailPage(props: PageProps<"/contacts/[id]
           <button type="submit" className="btn-secondary shrink-0">
             הוסף הערה
           </button>
-        </form>
+        </ActionForm>
       </section>
     </div>
   );

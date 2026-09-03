@@ -1,3 +1,4 @@
+import { ActionForm } from "@/components/action-form";
 import Link from "next/link";
 import { verifyTeamMember } from "@/lib/dal";
 import {
@@ -238,12 +239,12 @@ export default async function AvailabilityCalendarPage({
                         {minutesToClock(w.start_minute!)}–{minutesToClock(w.end_minute!)}
                       </span>
                       {selected!.source === "override" ? (
-                        <form action={deleteDateWindowAction}>
+                        <ActionForm action={deleteDateWindowAction}>
                           <input type="hidden" name="id" value={w.id} />
                           <button type="submit" className="btn-danger">
                             הסרה
                           </button>
-                        </form>
+                        </ActionForm>
                       ) : (
                         <span className="text-xs text-[var(--subtle)]">שבועי</span>
                       )}
@@ -252,7 +253,7 @@ export default async function AvailabilityCalendarPage({
                 )}
               </div>
 
-              <form action={addDateWindowAction} className="mt-4 border-t border-[var(--border)] pt-4">
+              <ActionForm action={addDateWindowAction} resetOnSuccess className="mt-4 border-t border-[var(--border)] pt-4">
                 <input type="hidden" name="override_date" value={selectedDate} />
                 <div className="flex gap-2">
                   <label className="field-label flex-1">
@@ -273,24 +274,24 @@ export default async function AvailabilityCalendarPage({
                     תתווסף אליהן.
                   </p>
                 )}
-              </form>
+              </ActionForm>
 
               <div className="mt-3 flex flex-col gap-2">
                 {!selected!.unavailable && (
-                  <form action={setDateUnavailableAction}>
+                  <ActionForm action={setDateUnavailableAction}>
                     <input type="hidden" name="override_date" value={selectedDate} />
                     <button type="submit" className="btn-secondary w-full">
                       סימון היום כלא זמין
                     </button>
-                  </form>
+                  </ActionForm>
                 )}
                 {selected!.source === "override" && (
-                  <form action={clearDateOverridesAction}>
+                  <ActionForm action={clearDateOverridesAction}>
                     <input type="hidden" name="override_date" value={selectedDate} />
                     <button type="submit" className="btn-ghost w-full">
                       חזרה לשעות השבועיות
                     </button>
-                  </form>
+                  </ActionForm>
                 )}
               </div>
             </>
@@ -325,7 +326,7 @@ export default async function AvailabilityCalendarPage({
                       <span dir="ltr">
                         {minutesToClock(row.start_minute)}–{minutesToClock(row.end_minute)}
                       </span>
-                      <form action={deleteAvailabilityAction}>
+                      <ActionForm action={deleteAvailabilityAction}>
                         <input type="hidden" name="id" value={row.id} />
                         <button
                           type="submit"
@@ -334,7 +335,7 @@ export default async function AvailabilityCalendarPage({
                         >
                           ×
                         </button>
-                      </form>
+                      </ActionForm>
                     </span>
                   ))
                 )}
@@ -343,8 +344,8 @@ export default async function AvailabilityCalendarPage({
           })}
         </div>
 
-        <form
-          action={addAvailabilityAction}
+        <ActionForm
+          action={addAvailabilityAction} resetOnSuccess
           className="mt-5 flex flex-wrap items-end gap-3 border-t border-[var(--border)] pt-5"
         >
           <label className="field-label">
@@ -368,7 +369,7 @@ export default async function AvailabilityCalendarPage({
           <button type="submit" className="btn-primary">
             הוספת חלון שבועי
           </button>
-        </form>
+        </ActionForm>
       </section>
     </div>
   );

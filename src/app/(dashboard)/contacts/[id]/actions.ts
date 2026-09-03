@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { toResult, type ActionResult } from "@/lib/action-result";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { updateContactStatus } from "@/lib/automation-engine";
 import { verifyTeamMember } from "@/lib/dal";
@@ -14,21 +15,23 @@ import type { Database } from "@/lib/supabase/database.types";
 // Server Actions are directly callable endpoints, not just page plumbing — verified
 // per the Next.js auth guide's guidance, same as any /api route.
 
-export async function changeStatusAction(formData: FormData) {
-  await verifyTeamMember();
+export async function changeStatusAction(formData: FormData): Promise<ActionResult> {
+  return toResult(async () => {
+    await verifyTeamMember();
 
-  const contactId = String(formData.get("contact_id") ?? "");
-  // רשימת הסטטוסים היא נתונים מאז 0003_statuses.sql — הבדיקה היא מול ה-DB
-  const status = await resolveStatus(formData.get("status"));
-  if (!contactId || !status) {
-    throw new Error("סטטוס לא תקין");
-  }
+    const contactId = String(formData.get("contact_id") ?? "");
+    // רשימת הסטטוסים היא נתונים מאז 0003_statuses.sql — הבדיקה היא מול ה-DB
+    const status = await resolveStatus(formData.get("status"));
+    if (!contactId || !status) {
+      throw new Error("סטטוס לא תקין");
+    }
 
-  await updateContactStatus(contactId, status);
-  revalidatePath(`/contacts/${contactId}`);
-  // אותן פעולות משרתות גם את תיבת הדואר ב-/active.
-  revalidatePath("/active");
-  revalidatePath("/contacts");
+    await updateContactStatus(contactId, status);
+    revalidatePath(`/contacts/${contactId}`);
+    // אותן פעולות משרתות גם את תיבת הדואר ב-/active.
+    revalidatePath("/active");
+    revalidatePath("/contacts");
+  });
 }
 
 /**
@@ -36,129 +39,135 @@ export async function changeStatusAction(formData: FormData) {
  * הפעולה לא יכולה להיות רשימה קשיחה — היא עוברת על מה שמוגדר כרגע וקוראת
  * ‎field_<key>‎ לכל אחד. שדות מותאמים נאספים לאובייקט אחד ונכתבים ל-custom.
  */
-export async function updateContactFieldsAction(formData: FormData) {
-  await verifyTeamMember();
+export async function updateContactFieldsAction(formData: FormData): Promise<ActionResult> {
+  return toResult(async () => {
+    await verifyTeamMember();
 
-  const contactId = String(formData.get("contact_id") ?? "");
-  if (!contactId) throw new Error("חסר מזהה איש קשר");
+    const contactId = String(formData.get("contact_id") ?? "");
+    if (!contactId) throw new Error("חסר מזהה איש קשר");
 
-  const db = supabaseAdmin();
-  const { data: contact, error: fetchError } = await db
-    .from("contacts")
-    .select("*")
-    .eq("id", contactId)
-    .single();
-  if (fetchError) throw fetchError;
+    const db = supabaseAdmin();
+    const { data: contact, error: fetchError } = await db
+      .from("contacts")
+      .select("*")
+      .eq("id", contactId)
+      .single();
+    if (fetchError) throw fetchError;
 
-  const fields = await editableFields();
-  const patch: Database["public"]["Tables"]["contacts"]["Update"] = {};
-  const custom: Record<string, string> = { ...(contact.custom ?? {}) };
+    const fields = await editableFields();
+    const patch: Database["public"]["Tables"]["contacts"]["Update"] = {};
+    const custom: Record<string, string> = { ...(contact.custom ?? {}) };
 
-  for (const field of fields) {
-    if (field.key === "status" || field.key === "notes") continue;
+    for (const field of fields) {
+      if (field.key === "status" || field.key === "notes") continue;
 
-    const raw = formData.get(`field_${field.key}`);
-    // שדה שלא נשלח בטופס בכלל לא אמור להימחק — רק שדה שנשלח ריק.
-    if (raw == null) continue;
-    const value = String(raw).trim();
+      const raw = formData.get(`field_${field.key}`);
+      // שדה שלא נשלח בטופס בכלל לא אמור להימחק — רק שדה שנשלח ריק.
+      if (raw == null) continue;
+      const value = String(raw).trim();
 
-    if (field.kind === "custom") {
-      if (value) custom[field.key] = value;
-      else delete custom[field.key];
-      continue;
-    }
+      if (field.kind === "custom") {
+        if (value) custom[field.key] = value;
+        else delete custom[field.key];
+        continue;
+      }
 
-    switch (field.key) {
-      case "full_name":
-        patch.full_name = value || null;
-        break;
-      case "phone": {
-        if (!value) {
-          patch.phone = null;
+      switch (field.key) {
+        case "full_name":
+          patch.full_name = value || null;
+          break;
+        case "phone": {
+          if (!value) {
+            patch.phone = null;
+            break;
+          }
+          // מספר קיים בפורמט ‎+972‎ נשאר כמו שהוא אם לא נגעו בו, כדי שפתיחת
+          // הטופס ושמירה לא ישנו מספר שהוואטסאפ כבר מזוהה לפיו.
+          if (value === contact.phone) break;
+          const normalized = normalizePhone(value);
+          if (!normalized) throw new Error(`מספר טלפון לא תקין: ${value}`);
+          patch.phone = normalized;
           break;
         }
-        // מספר קיים בפורמט ‎+972‎ נשאר כמו שהוא אם לא נגעו בו, כדי שפתיחת
-        // הטופס ושמירה לא ישנו מספר שהוואטסאפ כבר מזוהה לפיו.
-        if (value === contact.phone) break;
-        const normalized = normalizePhone(value);
-        if (!normalized) throw new Error(`מספר טלפון לא תקין: ${value}`);
-        patch.phone = normalized;
-        break;
-      }
-      case "email": {
-        if (!value) {
-          patch.email = null;
+        case "email": {
+          if (!value) {
+            patch.email = null;
+            break;
+          }
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+            throw new Error(`כתובת מייל לא תקינה: ${value}`);
+          }
+          patch.email = value.toLowerCase();
           break;
         }
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-          throw new Error(`כתובת מייל לא תקינה: ${value}`);
-        }
-        patch.email = value.toLowerCase();
-        break;
+        case "source":
+          patch.source = value || "ידני";
+          break;
+        case "tags":
+          patch.tags = value
+            .split(",")
+            .map((t) => t.trim())
+            .filter(Boolean);
+          break;
+        default:
+          // שדה מובנה שהוגדר ב-DB בלי טיפול כאן — מתעלמים במקום לכתוב עמודה
+          // לא ידועה ולקבל שגיאת PostgREST סתומה.
+          break;
       }
-      case "source":
-        patch.source = value || "ידני";
-        break;
-      case "tags":
-        patch.tags = value
-          .split(",")
-          .map((t) => t.trim())
-          .filter(Boolean);
-        break;
-      default:
-        // שדה מובנה שהוגדר ב-DB בלי טיפול כאן — מתעלמים במקום לכתוב עמודה
-        // לא ידועה ולקבל שגיאת PostgREST סתומה.
-        break;
     }
-  }
 
-  patch.custom = custom;
+    patch.custom = custom;
 
-  const { error } = await db.from("contacts").update(patch).eq("id", contactId);
-  if (error) {
-    throw new Error(
-      error.code === "23505" ? "כבר קיים איש קשר אחר עם הטלפון הזה" : error.message
-    );
-  }
+    const { error } = await db.from("contacts").update(patch).eq("id", contactId);
+    if (error) {
+      throw new Error(
+        error.code === "23505" ? "כבר קיים איש קשר אחר עם הטלפון הזה" : error.message
+      );
+    }
 
-  revalidatePath(`/contacts/${contactId}`);
-  // אותן פעולות משרתות גם את תיבת הדואר ב-/active.
-  revalidatePath("/active");
-  revalidatePath("/contacts");
-}
-
-export async function updateNotesAction(formData: FormData) {
-  await verifyTeamMember();
-
-  const contactId = String(formData.get("contact_id") ?? "");
-  const notes = String(formData.get("notes") ?? "");
-  if (!contactId) throw new Error("חסר מזהה איש קשר");
-
-  const { error } = await supabaseAdmin().from("contacts").update({ notes }).eq("id", contactId);
-  if (error) throw error;
-
-  revalidatePath(`/contacts/${contactId}`);
-  // אותן פעולות משרתות גם את תיבת הדואר ב-/active.
-  revalidatePath("/active");
-}
-
-export async function addManualNoteAction(formData: FormData) {
-  await verifyTeamMember();
-
-  const contactId = String(formData.get("contact_id") ?? "");
-  const content = String(formData.get("content") ?? "").trim();
-  if (!contactId || !content) return;
-
-  const { error } = await supabaseAdmin().from("interactions").insert({
-    contact_id: contactId,
-    type: "manual_note",
-    content,
+    revalidatePath(`/contacts/${contactId}`);
+    // אותן פעולות משרתות גם את תיבת הדואר ב-/active.
+    revalidatePath("/active");
+    revalidatePath("/contacts");
   });
-  if (error) throw error;
+}
 
-  revalidatePath(`/contacts/${contactId}`);
-  // אותן פעולות משרתות גם את תיבת הדואר ב-/active.
-  revalidatePath("/active");
+export async function updateNotesAction(formData: FormData): Promise<ActionResult> {
+  return toResult(async () => {
+    await verifyTeamMember();
+
+    const contactId = String(formData.get("contact_id") ?? "");
+    const notes = String(formData.get("notes") ?? "");
+    if (!contactId) throw new Error("חסר מזהה איש קשר");
+
+    const { error } = await supabaseAdmin().from("contacts").update({ notes }).eq("id", contactId);
+    if (error) throw error;
+
+    revalidatePath(`/contacts/${contactId}`);
+    // אותן פעולות משרתות גם את תיבת הדואר ב-/active.
+    revalidatePath("/active");
+  });
+}
+
+export async function addManualNoteAction(formData: FormData): Promise<ActionResult> {
+  return toResult(async () => {
+    await verifyTeamMember();
+
+    const contactId = String(formData.get("contact_id") ?? "");
+    const content = String(formData.get("content") ?? "").trim();
+    if (!contactId || !content) return;
+
+    const { error } = await supabaseAdmin().from("interactions").insert({
+      contact_id: contactId,
+      type: "manual_note",
+      content,
+    });
+    if (error) throw error;
+
+    revalidatePath(`/contacts/${contactId}`);
+    // אותן פעולות משרתות גם את תיבת הדואר ב-/active.
+    revalidatePath("/active");
+  });
 }
 
 /**

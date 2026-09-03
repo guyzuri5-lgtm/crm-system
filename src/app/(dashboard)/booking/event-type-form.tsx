@@ -1,3 +1,4 @@
+import { ActionForm } from "@/components/action-form";
 import { BOOKING_LOCATIONS, BOOKING_LOCATION_LABELS, type BookingEventType } from "@/lib/supabase/database.types";
 import { STATUS_COLORS, STATUS_COLOR_LABELS, statusLabel } from "@/lib/status-colors";
 import { createEventTypeAction, updateEventTypeAction } from "./actions";
@@ -16,7 +17,7 @@ export function EventTypeForm({
   const isEdit = Boolean(eventType);
 
   return (
-    <form
+    <ActionForm
       action={isEdit ? updateEventTypeAction : createEventTypeAction}
       className="grid grid-cols-1 gap-4 md:grid-cols-2"
     >
@@ -196,6 +197,6 @@ export function EventTypeForm({
       <button type="submit" className="btn-primary self-start md:col-span-2">
         {isEdit ? "שמירת שינויים" : "יצירת סוג פגישה"}
       </button>
-    </form>
+    </ActionForm>
   );
 }
