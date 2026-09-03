@@ -63,3 +63,38 @@ export function renderTemplate(
 /** המציינים הזמינים, לתצוגה בממשק. */
 export const CONTACT_PLACEHOLDERS = Object.keys(TEMPLATE_FIELDS);
 export const BOOKING_PLACEHOLDERS = Object.keys(BOOKING_FIELDS);
+
+/**
+ * ערך לדוגמה לכל מציין — למה שהמאשר האנושי ב-Meta רואה.
+ *
+ * Meta דורשת דוגמה לכל משתנה בתבנית, אחרת היא דוחה אותה. הערכים לא מגיעים
+ * לאף לקוח: הם רק ההמחשה שעל פיה נבדק אם ההודעה הגיונית. לכן דוגמה שאינה
+ * מהסוג הנכון — שם של אדם במקום שבו הטקסט מבטיח מועד — היא בדיוק מה שמושך
+ * דחייה, ותיקון דחייה מחייב תבנית חדשה כי Meta אינה מאפשרת לערוך שנדחתה.
+ *
+ * נשמר כאן ולא במסך שיוצר את התבנית, כדי שמציין חדש ייווסף במקום אחד עם
+ * הדוגמה שלו. מציין בלי ערך כאן עדיין עובד — ראו exampleForPlaceholder.
+ */
+const PLACEHOLDER_EXAMPLES: Record<string, string> = {
+  full_name: "ישראל ישראלי",
+  first_name: "ישראל",
+  phone: "0501234567",
+  email: "israel@example.com",
+  status: "ליד חדש",
+  booking_date: "12 במרץ 2026",
+  booking_time: "11:15",
+  booking_day: "יום חמישי",
+  booking_datetime: "יום חמישי, 12 במרץ, 11:15",
+  booking_link: "https://meet.google.com/abc-defg-hij",
+};
+
+/**
+ * הדוגמה עבור ביטוי מציין שלם ("{{booking_time}}").
+ *
+ * הנפילה חזרה היא "דוגמה" ולא שם של אדם: מציין שנוסף בלי ערך כאן ייראה
+ * לבודק כמשהו שלא מולא, וזה בדיוק הרושם הנכון.
+ */
+export function exampleForPlaceholder(expression: string): string {
+  const key = expression.replace(/[{}\s]/g, "");
+  return PLACEHOLDER_EXAMPLES[key] ?? "דוגמה";
+}

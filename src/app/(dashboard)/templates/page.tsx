@@ -4,6 +4,7 @@ import {
   META_TEMPLATE_CATEGORIES,
   isTemplateManagementConfigured,
 } from "@/lib/whatsapp-cloud";
+import { CONTACT_PLACEHOLDERS, BOOKING_PLACEHOLDERS } from "@/lib/templates";
 import { listTemplateBlockers, blockedExplanation } from "./blockers";
 import {
   createTemplateAction,
@@ -46,6 +47,13 @@ const META_STATUS = {
     hint: "הרשומה מצביעה על שם שלא קיים. כל שליחה מחוץ לחלון שתשתמש בה תיכשל.",
   },
 };
+
+// נגזר מ-templates.ts ולא נכתב ביד: מציין שנוסף למנוע ולא לתווית הוא מציין
+// שאיש לא ידע להשתמש בו.
+const braced = (names: string[]) => names.map((n) => `{{${n}}}`).join(" ");
+const PLACEHOLDER_HINT = `תוכן — נתמכים: ${braced(CONTACT_PLACEHOLDERS)} · ופגישה: ${braced(
+  BOOKING_PLACEHOLDERS
+)}`;
 
 const TONE_CLASSES = {
   ok: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
@@ -179,7 +187,7 @@ export default async function TemplatesPage({
             </label>
 
             <label className="field-label md:col-span-2">
-              {"תוכן — נתמכים: {{first_name}} {{full_name}} {{phone}} {{email}} {{status}}"}
+              {PLACEHOLDER_HINT}
               <textarea
                 name="body"
                 required
@@ -188,7 +196,9 @@ export default async function TemplatesPage({
                 placeholder={"היי {{first_name}}, תזכורת לגבי הפגישה שקבענו."}
               />
               <span className="text-xs font-normal text-[var(--subtle)]">
-                כל מציין יהפוך אצל Meta למשתנה ממוספר, לפי סדר הופעתו כאן.
+                כל מציין יהפוך אצל Meta למשתנה ממוספר, לפי סדר הופעתו כאן. מציני
+                פגישה מתמלאים כששולחים ממסע או בכפתור הידני בכרטיס איש הקשר —
+                בכלל אוטומציה אין פגישה בהקשר, והמציין ייצא ללקוח כפי שהוא.
               </span>
             </label>
 
@@ -216,7 +226,7 @@ export default async function TemplatesPage({
             <input name="subject" className="input" />
           </label>
           <label className="field-label md:col-span-2">
-            {"תוכן — נתמכים: {{full_name}} {{first_name}} {{phone}} {{email}} {{status}} · ופגישה: {{booking_date}} {{booking_time}} {{booking_day}} {{booking_datetime}} {{booking_link}}"}
+            {PLACEHOLDER_HINT}
             <textarea name="body" required rows={4} className="input" />
           </label>
 

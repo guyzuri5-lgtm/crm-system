@@ -11,6 +11,7 @@ import {
   deleteMetaTemplate,
   META_TEMPLATE_CATEGORIES,
 } from "@/lib/whatsapp-cloud";
+import { exampleForPlaceholder } from "@/lib/templates";
 import { listTemplateBlockers } from "./blockers";
 
 /**
@@ -173,8 +174,9 @@ export async function createMetaTemplateAction(formData: FormData) {
     category: input.category,
     body: metaBody,
     // Meta דורשת דוגמה לכל משתנה, אחרת היא דוחה. הערכים לא מגיעים לאף לקוח —
-    // הם רק מה שהמאשר האנושי רואה כשהוא בודק איך ההודעה נראית.
-    exampleValues: variables.map(() => "ישראל"),
+    // הם רק מה שהמאשר האנושי רואה כשהוא בודק איך ההודעה נראית. הדוגמה נגזרת
+    // מסוג המציין: שם אדם במקום שבו הטקסט מבטיח מועד הוא בדיוק מה שמושך דחייה.
+    exampleValues: variables.map(exampleForPlaceholder),
   });
 
   const { error } = await supabaseAdmin().from("message_templates").insert({
