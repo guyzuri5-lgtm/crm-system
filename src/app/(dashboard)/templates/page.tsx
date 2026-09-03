@@ -1,10 +1,10 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { verifyTeamMember } from "@/lib/dal";
-import { MESSAGE_CHANNELS } from "@/lib/supabase/database.types";
 import {
   META_TEMPLATE_CATEGORIES,
   isTemplateManagementConfigured,
 } from "@/lib/whatsapp-cloud";
+import { listTemplateBlockers, blockedExplanation } from "./blockers";
 import {
   createTemplateAction,
   deleteTemplateAction,
@@ -53,15 +53,27 @@ const TONE_CLASSES = {
   bad: "bg-red-50 text-[var(--danger)] ring-red-600/20",
 };
 
-export default async function TemplatesPage() {
+export default async function TemplatesPage({
+  searchParams,
+}: {
+  // blocked=<id> מגיע מניסיון מחיקה שנחסם. ראו deleteTemplateAction.
+  searchParams: Promise<{ blocked?: string }>;
+}) {
   await verifyTeamMember();
   const canManage = isTemplateManagementConfigured();
 
-  const { data: templates, error } = await supabaseAdmin()
-    .from("message_templates")
-    .select("*")
-    .order("created_at", { ascending: false });
+  const [{ data: templates, error }, blockers, { blocked }] = await Promise.all([
+    supabaseAdmin()
+      .from("message_templates")
+      .select("*")
+      .order("created_at", { ascending: false }),
+    listTemplateBlockers(),
+    searchParams,
+  ]);
   if (error) throw error;
+
+  const blockedTemplate = blocked ? templates?.find((t) => t.id === blocked) : undefined;
+  const blockedHolders = blocked ? blockers.get(blocked) : undefined;
 
   return (
     <div className="flex flex-col gap-8">
@@ -88,6 +100,16 @@ export default async function TemplatesPage() {
           </form>
         )}
       </div>
+
+      {blockedTemplate && blockedHolders && (
+        <div className="card border-red-200 bg-red-50 text-sm leading-relaxed text-red-900">
+          <strong>{blockedExplanation(blockedTemplate.name, blockedHolders)}</strong>
+          <p className="mt-1">
+            מחיקה הייתה משאירה שם שלב בלי תוכן, ותקלה כזו מתגלה רק כשהמערכת מגיעה
+            לשלוח — כלומר על לקוח אמיתי. הסירו את התבנית משם קודם, ואז המחיקה תעבוד.
+          </p>
+        </div>
+      )}
 
       {!canManage && (
         <div className="card border-amber-200 bg-amber-50 text-sm text-amber-900">
@@ -178,83 +200,25 @@ export default async function TemplatesPage() {
       )}
 
       <section className="card">
-        <h2 className="mb-4 font-medium">תבנית חדשה</h2>
+        <h2 className="font-medium">תבנית מייל חדשה</h2>
+        <p className="mt-1 mb-4 text-sm leading-relaxed text-[var(--muted)]">
+          נוסח שמור למייל — לשימוש במסעות, בכללי אוטומציה ובשליחה מכרטיס איש קשר.
+          לוואטסאפ אין כאן תבנית בכוונה: בתוך חלון 24 השעות כותבים לו ישירות בכרטיס
+          איש הקשר, ומחוץ לחלון מותרת רק תבנית שאושרה ב-Meta — זו שנוצרת למעלה.
+        </p>
         <form action={createTemplateAction} className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <label className="field-label">
-            ערוץ
-            <select name="channel" className="input" required>
-              {MESSAGE_CHANNELS.map((c) => (
-                <option key={c} value={c}>
-                  {c === "email" ? "מייל" : "וואטסאפ"}
-                </option>
-              ))}
-            </select>
-          </label>
           <label className="field-label">
             שם התבנית
             <input name="name" required className="input" />
           </label>
-          <label className="field-label md:col-span-2">
-            כותרת (למייל בלבד)
+          <label className="field-label">
+            כותרת המייל
             <input name="subject" className="input" />
           </label>
           <label className="field-label md:col-span-2">
             {"תוכן — נתמכים: {{full_name}} {{first_name}} {{phone}} {{email}} {{status}} · ופגישה: {{booking_date}} {{booking_time}} {{booking_day}} {{booking_datetime}} {{booking_link}}"}
             <textarea name="body" required rows={4} className="input" />
           </label>
-
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4 md:col-span-2">
-            <p className="text-sm font-medium">שליחה מחוץ לחלון 24 השעות (וואטסאפ בלבד)</p>
-            <p className="mt-1 mb-4 text-xs leading-relaxed text-[var(--muted)]">
-              ללקוח שלא כתב לנו ב-24 השעות האחרונות אפשר לשלוח רק תבנית שאושרה מראש
-              אצל Meta. השדות כאן מקשרים את התבנית הזו לתבנית המאושרת שם. משאירים ריק
-              כשהתבנית מיועדת לשימוש בתוך החלון בלבד.
-            </p>
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <label className="field-label">
-                שם התבנית ב-Meta
-                <input
-                  name="meta_template_name"
-                  className="input"
-                  dir="ltr"
-                  placeholder="appointment_reminder"
-                  pattern="[a-z0-9_]+"
-                />
-                <span className="text-xs font-normal text-[var(--subtle)]">
-                  בדיוק כפי שהיא מופיעה ב-Meta: אותיות קטנות, ספרות וקו תחתון.
-                </span>
-              </label>
-
-              <label className="field-label">
-                שפת התבנית
-                <input
-                  name="meta_language_code"
-                  defaultValue="he"
-                  className="input"
-                  dir="ltr"
-                  placeholder="he"
-                />
-                <span className="text-xs font-normal text-[var(--subtle)]">
-                  חייב להתאים לשפה שאיתה אושרה. תבנית שאושרה ב-he ונשלחת כ-en_US נדחית.
-                </span>
-              </label>
-
-              <label className="field-label md:col-span-2">
-                {"מה ממלא את {{1}}, {{2}} ... — שורה לכל אחד, לפי הסדר"}
-                <textarea
-                  name="meta_variables"
-                  rows={3}
-                  className="input"
-                  dir="ltr"
-                  placeholder={"{{first_name}}\n{{status}}"}
-                />
-                <span className="text-xs font-normal text-[var(--subtle)]">
-                  {"אותם מציינים של התוכן למעלה. השורה הראשונה ממלאת את {{1}}, השנייה את {{2}}."}
-                </span>
-              </label>
-            </div>
-          </div>
 
           <button type="submit" className="btn-primary self-start md:col-span-2">
             צור תבנית
@@ -263,93 +227,107 @@ export default async function TemplatesPage() {
       </section>
 
       <section className="flex flex-col gap-3">
-        {templates?.map((t) => (
-          <div key={t.id} className="card">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{t.name}</span>
-                <span className="rounded-full bg-[var(--background)] px-2 py-0.5 text-xs font-medium text-[var(--muted)]">
-                  {t.channel === "email" ? "מייל" : "וואטסאפ"}
-                </span>
+        {templates?.map((t) => {
+          const holders = blockers.get(t.id);
+          return (
+            <div key={t.id} className="card">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">{t.name}</span>
+                  <span className="rounded-full bg-[var(--background)] px-2 py-0.5 text-xs font-medium text-[var(--muted)]">
+                    {t.channel === "email" ? "מייל" : "וואטסאפ"}
+                  </span>
+                </div>
+                {holders ? (
+                  <span className="text-xs font-medium text-[var(--subtle)]">
+                    בשימוש — לא ניתן למחוק
+                  </span>
+                ) : (
+                  <form action={deleteTemplateAction}>
+                    <input type="hidden" name="id" value={t.id} />
+                    <button type="submit" className="btn-danger">
+                      מחיקה
+                    </button>
+                  </form>
+                )}
               </div>
-              <form action={deleteTemplateAction}>
-                <input type="hidden" name="id" value={t.id} />
-                <button type="submit" className="btn-danger">
-                  מחיקה
-                </button>
-              </form>
-            </div>
-            {t.subject && (
-              <p className="mt-2 text-sm text-[var(--muted)]">כותרת: {t.subject}</p>
-            )}
-            <p className="mt-1 text-sm whitespace-pre-wrap">{t.body}</p>
-            {t.channel === "whatsapp" && (
-              <div className="mt-3 flex flex-col gap-2">
-                {t.meta_template_name ? (
-                  <>
-                    <div className="flex flex-wrap items-center gap-2">
+              {holders && (
+                <p className="mt-2 text-xs leading-relaxed text-[var(--muted)]">
+                  בשימוש: {holders.join(", ")}. כדי למחוק אותה, הסירו אותה משם קודם.
+                </p>
+              )}
+              {t.subject && (
+                <p className="mt-2 text-sm text-[var(--muted)]">כותרת: {t.subject}</p>
+              )}
+              <p className="mt-1 text-sm whitespace-pre-wrap">{t.body}</p>
+              {t.channel === "whatsapp" && (
+                <div className="mt-3 flex flex-col gap-2">
+                  {t.meta_template_name ? (
+                    <>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {(() => {
+                          const meta = t.meta_status
+                            ? META_STATUS[t.meta_status as keyof typeof META_STATUS]
+                            : null;
+                          return meta ? (
+                            <span
+                              className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ${TONE_CLASSES[meta.tone]}`}
+                            >
+                              {meta.text}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-2 rounded-full bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-600 ring-1 ring-inset ring-stone-500/15">
+                              טרם סונכרן
+                            </span>
+                          );
+                        })()}
+                        <span dir="ltr" className="text-xs font-medium text-[var(--subtle)]">
+                          {t.meta_template_name} ({t.meta_language_code})
+                        </span>
+                        {t.meta_category && (
+                          <span className="text-xs text-[var(--subtle)]">{t.meta_category}</span>
+                        )}
+                        {t.meta_variables.length > 0 && (
+                          <span className="text-xs text-[var(--subtle)]">
+                            {t.meta_variables.length} משתנים
+                          </span>
+                        )}
+                      </div>
+
                       {(() => {
                         const meta = t.meta_status
                           ? META_STATUS[t.meta_status as keyof typeof META_STATUS]
                           : null;
-                        return meta ? (
-                          <span
-                            className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ${TONE_CLASSES[meta.tone]}`}
-                          >
-                            {meta.text}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-2 rounded-full bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-600 ring-1 ring-inset ring-stone-500/15">
-                            טרם סונכרן
-                          </span>
+                        if (!meta?.hint) return null;
+                        return (
+                          <p className="text-xs leading-relaxed text-[var(--muted)]">
+                            {meta.hint}
+                            {t.meta_rejected_reason && (
+                              <> הסיבה שהחזירה Meta: <code dir="ltr">{t.meta_rejected_reason}</code>.</>
+                            )}
+                          </p>
                         );
                       })()}
-                      <span dir="ltr" className="text-xs font-medium text-[var(--subtle)]">
-                        {t.meta_template_name} ({t.meta_language_code})
-                      </span>
-                      {t.meta_category && (
-                        <span className="text-xs text-[var(--subtle)]">{t.meta_category}</span>
-                      )}
-                      {t.meta_variables.length > 0 && (
-                        <span className="text-xs text-[var(--subtle)]">
-                          {t.meta_variables.length} משתנים
-                        </span>
-                      )}
-                    </div>
 
-                    {(() => {
-                      const meta = t.meta_status
-                        ? META_STATUS[t.meta_status as keyof typeof META_STATUS]
-                        : null;
-                      if (!meta?.hint) return null;
-                      return (
-                        <p className="text-xs leading-relaxed text-[var(--muted)]">
-                          {meta.hint}
-                          {t.meta_rejected_reason && (
-                            <> הסיבה שהחזירה Meta: <code dir="ltr">{t.meta_rejected_reason}</code>.</>
-                          )}
-                        </p>
-                      );
-                    })()}
-
-                    {canManage && (
-                      <form action={deleteFromMetaAction} className="self-start">
-                        <input type="hidden" name="id" value={t.id} />
-                        <button type="submit" className="text-xs text-[var(--danger)] hover:underline">
-                          מחק את התבנית ב-Meta
-                        </button>
-                      </form>
-                    )}
-                  </>
-                ) : (
-                  <p className="text-xs text-[var(--subtle)]">
-                    ללא תבנית מאושרת — שמישה רק בתוך חלון 24 השעות
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
+                      {canManage && (
+                        <form action={deleteFromMetaAction} className="self-start">
+                          <input type="hidden" name="id" value={t.id} />
+                          <button type="submit" className="text-xs text-[var(--danger)] hover:underline">
+                            מחק את התבנית ב-Meta
+                          </button>
+                        </form>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-xs text-[var(--subtle)]">
+                      ללא תבנית מאושרת — שמישה רק בתוך חלון 24 השעות
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
         {!templates?.length && (
           <p className="px-1 text-sm text-[var(--subtle)]">עדיין אין תבניות</p>
         )}
