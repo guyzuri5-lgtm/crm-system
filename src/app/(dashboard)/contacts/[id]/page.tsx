@@ -8,34 +8,16 @@ import { editableFields, readFieldValue } from "@/lib/fields";
 import { statusLabel } from "@/lib/status-colors";
 import { StatusBadge } from "@/components/status-badge";
 import { QuizResult, type QuizSubmissionView } from "@/components/quiz-result";
+import { Conversation } from "@/components/conversation";
+import { ReplyBox } from "@/components/reply-box";
+import { ScrollToBottom } from "@/components/scroll-to-bottom";
 import {
   changeStatusAction,
   updateContactFieldsAction,
   updateNotesAction,
   addManualNoteAction,
-  sendWhatsAppReplyAction,
-  sendWhatsAppTemplateAction,
+  sendReplyAction,
 } from "./actions";
-
-const INTERACTION_LABELS: Record<string, string> = {
-  whatsapp_in: "וואטסאפ ← נכנס",
-  whatsapp_out: "וואטסאפ → יוצא",
-  email_out: "מייל → יוצא",
-  manual_note: "הערה ידנית",
-  quiz_submitted: "שאלון צ'אקרות",
-  booking_created: "נקבעה פגישה",
-  booking_cancelled: "בוטלה פגישה",
-};
-
-const INTERACTION_DOT: Record<string, string> = {
-  whatsapp_in: "bg-emerald-500",
-  whatsapp_out: "bg-[var(--primary)]",
-  email_out: "bg-blue-500",
-  manual_note: "bg-stone-400",
-  quiz_submitted: "bg-violet-500",
-  booking_created: "bg-teal-500",
-  booking_cancelled: "bg-rose-400",
-};
 
 export default async function ContactDetailPage(props: PageProps<"/contacts/[id]">) {
   await verifyTeamMember();
@@ -215,105 +197,41 @@ export default async function ContactDetailPage(props: PageProps<"/contacts/[id]
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-medium">לוג אינטראקציות</h2>
+        <h2 className="font-medium">שיחה</h2>
 
+        <div className="card flex flex-col gap-4">
+          <ScrollToBottom
+            watch={interactions?.length ?? 0}
+            className="max-h-[32rem] overflow-y-auto rounded-xl bg-[var(--background)] p-3"
+          >
+            <Conversation messages={interactions ?? []} />
+          </ScrollToBottom>
+
+          <ReplyBox
+            contactId={contact.id}
+            canSend={canSendWhatsApp}
+            openWindow={openWindow}
+            hoursLeft={hoursLeft}
+            templates={approvedTemplates.map((t) => ({ id: t.id, name: t.name }))}
+            onSend={sendReplyAction}
+          />
+        </div>
+
+        {/*
+          הערה ידנית נרשמת כאינטראקציה ולכן היא מופיעה בשיחה עצמה, כשורת
+          מערכת באמצע ולא כבועה — היא לא נשלחה לאף אחד.
+        */}
         <form action={addManualNoteAction} className="flex gap-2">
           <input type="hidden" name="contact_id" value={contact.id} />
           <input
             name="content"
-            placeholder="הוסיפו הערה ללוג (לדוגמה: 'דיברנו בטלפון')"
+            placeholder="הוסיפו הערה פנימית לשיחה (לדוגמה: 'דיברנו בטלפון')"
             className="input flex-1"
           />
           <button type="submit" className="btn-secondary shrink-0">
-            הוסף ללוג
+            הוסף הערה
           </button>
         </form>
-
-        <ul className="flex flex-col gap-2">
-          {interactions?.map((interaction) => (
-            <li key={interaction.id} className="card py-3">
-              <div className="flex items-center justify-between text-xs text-[var(--muted)]">
-                <span className="flex items-center gap-1.5">
-                  <span
-                    className={`size-1.5 rounded-full ${INTERACTION_DOT[interaction.type] ?? "bg-stone-400"}`}
-                  />
-                  {INTERACTION_LABELS[interaction.type] ?? interaction.type}
-                </span>
-                <span>{new Date(interaction.created_at).toLocaleString("he-IL")}</span>
-              </div>
-              {interaction.content && (
-                <p className="mt-1.5 text-sm whitespace-pre-wrap">{interaction.content}</p>
-              )}
-            </li>
-          ))}
-          {!interactions?.length && (
-            <p className="px-1 text-sm text-[var(--subtle)]">אין עדיין אינטראקציות</p>
-          )}
-        </ul>
-      </section>
-
-      <section className="card">
-        <h2 className="mb-3 font-medium">שליחת הודעת וואטסאפ</h2>
-
-        {!canSendWhatsApp ? (
-          <p className="text-sm text-[var(--muted)]">
-            אין לאיש הקשר מספר טלפון, ולא התקבלה ממנו הודעה בוואטסאפ — אין לאן לשלוח.
-          </p>
-        ) : openWindow ? (
-          <div className="flex flex-col gap-3">
-            <p className="inline-flex w-fit items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
-              <span className="size-1.5 rounded-full bg-emerald-500" />
-              חלון פתוח — נותרו כ-{hoursLeft} שעות
-            </p>
-            <form action={sendWhatsAppReplyAction} className="flex flex-col gap-3">
-              <input type="hidden" name="contact_id" value={contact.id} />
-              <textarea
-                name="body"
-                rows={3}
-                required
-                placeholder="כתבו הודעה לשליחה בוואטסאפ..."
-                className="input"
-              />
-              <button type="submit" className="btn-primary self-start">
-                שלח בוואטסאפ
-              </button>
-            </form>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            <p className="inline-flex w-fit items-center gap-2 rounded-full bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-600 ring-1 ring-inset ring-stone-500/15">
-              <span className="size-1.5 rounded-full bg-stone-400" />
-              חלון סגור — אפשר לשלוח רק תבנית מאושרת
-            </p>
-
-            {approvedTemplates.length ? (
-              <form action={sendWhatsAppTemplateAction} className="flex items-end gap-2">
-                <input type="hidden" name="contact_id" value={contact.id} />
-                <label className="field-label flex-1">
-                  תבנית מאושרת
-                  <select name="template_id" required className="input">
-                    {approvedTemplates.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <button type="submit" className="btn-primary">
-                  שלח תבנית
-                </button>
-              </form>
-            ) : (
-              <p className="text-sm text-[var(--muted)]">
-                אין עדיין תבנית וואטסאפ שאושרה ב-Meta. צרו אחת בעמוד{" "}
-                <Link href="/templates" className="text-[var(--primary)] underline">
-                  תבניות הודעה
-                </Link>{" "}
-                והזינו בה את שם התבנית כפי שאושרה.
-              </p>
-            )}
-          </div>
-        )}
       </section>
     </div>
   );

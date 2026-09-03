@@ -130,7 +130,8 @@ const GROUPS: NavGroup[] = [
     strong: "var(--primary)",
     iconColor: "var(--primary)",
     tabs: [
-      { href: "/active", label: "פעילים" },
+      { href: "/active", label: "יצרו קשר" },
+      { href: "/active/sent", label: "נשלח אליהם" },
       { href: "/contacts", label: "כל אנשי הקשר" },
     ],
   },

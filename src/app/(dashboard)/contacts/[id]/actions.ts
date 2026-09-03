@@ -161,51 +161,33 @@ export async function addManualNoteAction(formData: FormData) {
   revalidatePath("/active");
 }
 
-// Free-form reply, typed by a team member. Green API has no 24-hour window and no
-// approved-template requirement, so this is simply "send this text" — the only way it
-// fails is a contact with no usable phone number, or a disconnected WhatsApp instance,
-// and both surface through the dashboard's error.tsx.
-export async function sendWhatsAppReplyAction(formData: FormData) {
+/**
+ * הליבה של שליחת הודעה ידנית מהדשבורד — טקסט חופשי או תבנית מאושרת.
+ *
+ * מחזירה תוצאה ולא זורקת, וזו לא קפדנות סגנון: ב-Next בפרודקשן טקסט של
+ * throw בתוך Server Action נמחק ומוחלף בשגיאה גנרית של React (#441), כך
+ * שהסבר עברי מוקפד כמו "איש הקשר מחוץ לחלון 24 השעות" פשוט לא מגיע למי
+ * שלחץ. מי שצריך את הנוסח מקבל אותו כערך מוחזר.
+ */
+type ReplyOutcome = { ok: true } | { ok: false; error: string };
+
+async function performReply(formData: FormData): Promise<ReplyOutcome> {
   await verifyTeamMember();
 
   const contactId = String(formData.get("contact_id") ?? "");
   const body = String(formData.get("body") ?? "").trim();
-  if (!contactId || !body) throw new Error("חסר תוכן להודעה");
+  const templateId = String(formData.get("template_id") ?? "").trim();
+
+  if (!contactId) return { ok: false, error: "חסר מזהה איש קשר" };
+  if (!body && !templateId) return { ok: false, error: "אין מה לשלוח — כתבו הודעה או בחרו תבנית" };
 
   const db = supabaseAdmin();
-  const { data: contact, error } = await db
+  const { data: contact, error: contactError } = await db
     .from("contacts")
     .select("*")
     .eq("id", contactId)
     .single();
-  if (error) throw error;
-
-  const result = await sendMessageToContact({ contact, channel: "whatsapp", body });
-  if (!result.ok) throw new Error(result.error);
-
-  revalidatePath(`/contacts/${contactId}`);
-  // אותן פעולות משרתות גם את תיבת הדואר ב-/active.
-  revalidatePath("/active");
-}
-
-// Sends a saved template, rendered against this contact. Identical to the free-form
-// reply above apart from where the text comes from and the log prefix.
-export async function sendWhatsAppTemplateAction(formData: FormData) {
-  await verifyTeamMember();
-
-  const contactId = String(formData.get("contact_id") ?? "");
-  const templateId = String(formData.get("template_id") ?? "");
-  if (!contactId || !templateId) throw new Error("חסרים פרטים לשליחת התבנית");
-
-  const db = supabaseAdmin();
-  const [{ data: contact, error: contactError }, { data: template, error: templateError }] =
-    await Promise.all([
-      db.from("contacts").select("*").eq("id", contactId).single(),
-      db.from("message_templates").select("*").eq("id", templateId).single(),
-    ]);
-  if (contactError) throw contactError;
-  if (templateError) throw templateError;
-  if (template.channel !== "whatsapp") throw new Error("זו לא תבנית וואטסאפ");
+  if (contactError) return { ok: false, error: contactError.message };
 
   // הפגישה העתידית הקרובה, כדי ש-{{booking_time}} ודומיו יתמלאו גם בשליחה
   // ידנית ולא רק ממסע. בלי זה תזכורת שנשלחת בלחיצה הייתה יוצאת עם המציין
@@ -220,17 +202,43 @@ export async function sendWhatsAppTemplateAction(formData: FormData) {
     .limit(1)
     .maybeSingle();
 
-  const result = await sendMessageToContact({
-    contact,
-    channel: "whatsapp",
-    body: renderTemplate(template.body, contact, booking),
-    template,
-    booking,
-    logPrefix: `[${template.name}]`,
-  });
-  if (!result.ok) throw new Error(result.error);
+  let result;
+
+  if (templateId) {
+    const { data: template, error: templateError } = await db
+      .from("message_templates")
+      .select("*")
+      .eq("id", templateId)
+      .single();
+    if (templateError) return { ok: false, error: templateError.message };
+    if (template.channel !== "whatsapp") return { ok: false, error: "זו לא תבנית וואטסאפ" };
+
+    result = await sendMessageToContact({
+      contact,
+      channel: "whatsapp",
+      body: renderTemplate(template.body, contact, booking),
+      template,
+      booking,
+      logPrefix: `[${template.name}]`,
+    });
+  } else {
+    result = await sendMessageToContact({ contact, channel: "whatsapp", body });
+  }
+
+  if (!result.ok) return { ok: false, error: result.error };
 
   revalidatePath(`/contacts/${contactId}`);
-  // אותן פעולות משרתות גם את תיבת הדואר ב-/active.
+  // אותן פעולות משרתות גם את שתי הלשוניות של "לקוחות פעילים".
   revalidatePath("/active");
+  revalidatePath("/active/sent");
+
+  return { ok: true };
+}
+
+/**
+ * הגרסה שרכיבי הלקוח קוראים לה (תיבת המענה בשיחה). מחזירה את התוצאה כדי
+ * שהשגיאה תוצג ליד תיבת הכתיבה, במקום להפיל את העמוד כולו ל-error.tsx.
+ */
+export async function sendReplyAction(formData: FormData): Promise<ReplyOutcome> {
+  return performReply(formData);
 }
