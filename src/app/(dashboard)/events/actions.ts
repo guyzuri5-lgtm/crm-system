@@ -8,6 +8,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { uploadPublicImage } from "@/lib/media";
 import { EVENT_TIMEZONE } from "@/lib/events";
 import { clockToMinutes, parseDateKey, zonedTimeToUtc } from "@/lib/booking/timezone";
+import { toResult, type ActionResult } from "@/lib/action-result";
 import type { EventCustomField } from "@/lib/supabase/database.types";
 
 // כל הפעולות של לשונית "אירועים". verifyTeamMember בראש כל אחת — Server Action
@@ -275,47 +276,67 @@ export async function addEventReminderAction(formData: FormData): Promise<EventR
   return { ok: true };
 }
 
-export async function deleteEventReminderAction(formData: FormData): Promise<void> {
-  await verifyTeamMember();
+/**
+ * שלוש הפעולות הבאות מחזירות ActionResult ולא void.
+ *
+ * קודם הן בלעו את שגיאת המסד בשקט: הכפתור נלחץ, שום דבר לא קרה, ולא הופיע
+ * שום סימן — לא שגיאה ולא הצלחה. זה הווריאנט השקט של אותה תקלה שתוקנה
+ * ב-8dbd26d, והגרוע מבין הווריאנטים: ב-throw לפחות מופיע מסך שגיאה גנרי,
+ * וכאן לא הופיע דבר. הצגתן מטופלת ב-ActionForm.
+ */
+export async function deleteEventReminderAction(formData: FormData): Promise<ActionResult> {
+  return toResult(async () => {
+    await verifyTeamMember();
 
-  const id = String(formData.get("id") ?? "");
-  const eventId = String(formData.get("event_id") ?? "");
-  if (!id) return;
+    const id = String(formData.get("id") ?? "");
+    const eventId = String(formData.get("event_id") ?? "");
+    if (!id) throw new Error("לא נמצאה התזכורת למחיקה");
 
-  // cascade מוריד גם את רישומי השליחה. זו מחיקה של הגדרה, לא של היסטוריה
-  // שמישהו יצטרך — ומי שכבר קיבלה את התזכורת כבר קיבלה אותה.
-  await supabaseAdmin().from("event_reminders").delete().eq("id", id);
+    // cascade מוריד גם את רישומי השליחה. זו מחיקה של הגדרה, לא של היסטוריה
+    // שמישהו יצטרך — ומי שכבר קיבלה את התזכורת כבר קיבלה אותה.
+    const { error } = await supabaseAdmin().from("event_reminders").delete().eq("id", id);
+    if (error) throw new Error(explain(error));
 
-  if (eventId) revalidatePath(`/events/${eventId}`);
+    if (eventId) revalidatePath(`/events/${eventId}`);
+  });
 }
 
-export async function toggleEventReminderAction(formData: FormData): Promise<void> {
-  await verifyTeamMember();
+export async function toggleEventReminderAction(formData: FormData): Promise<ActionResult> {
+  return toResult(async () => {
+    await verifyTeamMember();
 
-  const id = String(formData.get("id") ?? "");
-  const eventId = String(formData.get("event_id") ?? "");
-  const active = formData.get("active") === "true";
-  if (!id) return;
+    const id = String(formData.get("id") ?? "");
+    const eventId = String(formData.get("event_id") ?? "");
+    const active = formData.get("active") === "true";
+    if (!id) throw new Error("לא נמצאה התזכורת");
 
-  await supabaseAdmin().from("event_reminders").update({ active }).eq("id", id);
+    const { error } = await supabaseAdmin()
+      .from("event_reminders")
+      .update({ active })
+      .eq("id", id);
+    if (error) throw new Error(explain(error));
 
-  if (eventId) revalidatePath(`/events/${eventId}`);
+    if (eventId) revalidatePath(`/events/${eventId}`);
+  });
 }
 
-export async function markPaidAction(formData: FormData): Promise<void> {
-  await verifyTeamMember();
+export async function markPaidAction(formData: FormData): Promise<ActionResult> {
+  return toResult(async () => {
+    await verifyTeamMember();
 
-  const registrationId = String(formData.get("registration_id") ?? "");
-  const eventId = String(formData.get("event_id") ?? "");
-  if (!registrationId) return;
+    const registrationId = String(formData.get("registration_id") ?? "");
+    const eventId = String(formData.get("event_id") ?? "");
+    if (!registrationId) throw new Error("לא נמצאה ההרשמה לסימון");
 
-  await supabaseAdmin()
-    .from("event_registrations")
-    .update({ stage: "paid", paid_at: new Date().toISOString() })
-    .eq("id", registrationId)
-    .neq("stage", "paid");
+    const { error } = await supabaseAdmin()
+      .from("event_registrations")
+      .update({ stage: "paid", paid_at: new Date().toISOString() })
+      .eq("id", registrationId)
+      .neq("stage", "paid");
+    if (error) throw new Error(explain(error));
 
-  if (eventId) revalidatePath(`/events/${eventId}`);
-  revalidatePath("/events");
-  revalidatePath("/");
+    if (eventId) revalidatePath(`/events/${eventId}`);
+    revalidatePath("/events");
+    revalidatePath("/");
+  });
 }

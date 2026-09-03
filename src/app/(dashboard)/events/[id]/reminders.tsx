@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { ActionForm } from "@/components/action-form";
 import {
   EVENT_REMINDER_BASIS_LABELS,
   type EventReminder,
@@ -71,21 +72,21 @@ export function EventReminders({
               </div>
 
               <div className="flex shrink-0 items-center gap-1">
-                <form action={toggleEventReminderAction}>
+                <ActionForm action={toggleEventReminderAction}>
                   <input type="hidden" name="id" value={reminder.id} />
                   <input type="hidden" name="event_id" value={eventId} />
                   <input type="hidden" name="active" value={String(!reminder.active)} />
                   <button type="submit" className="btn-ghost">
                     {reminder.active ? "כיבוי" : "הדלקה"}
                   </button>
-                </form>
-                <form action={deleteEventReminderAction}>
+                </ActionForm>
+                <ActionForm action={deleteEventReminderAction}>
                   <input type="hidden" name="id" value={reminder.id} />
                   <input type="hidden" name="event_id" value={eventId} />
                   <button type="submit" className="btn-danger">
                     מחיקה
                   </button>
-                </form>
+                </ActionForm>
               </div>
             </li>
           ))}

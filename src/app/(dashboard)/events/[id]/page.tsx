@@ -13,6 +13,7 @@ import {
   type EventReminder,
   type MessageTemplate,
 } from "@/lib/supabase/database.types";
+import { ActionForm } from "@/components/action-form";
 import { CopyLink } from "../../booking/copy-link";
 import { CopyEmbed } from "./copy-embed";
 import { EventReminders } from "./reminders";
@@ -163,13 +164,13 @@ export default async function EventPage({ params }: PageProps<"/events/[id]">) {
                     {row.stage !== "paid" && (
                       // הגיבוי לגרואו: כל עוד אין webhook, זו הדרך לסגור את
                       // המעגל אחרי שרואים תשלום בפועל.
-                      <form action={markPaidAction}>
+                      <ActionForm action={markPaidAction}>
                         <input type="hidden" name="registration_id" value={row.id} />
                         <input type="hidden" name="event_id" value={event.id} />
                         <button type="submit" className="btn-ghost whitespace-nowrap">
                           סימון כשילמה
                         </button>
-                      </form>
+                      </ActionForm>
                     )}
                   </td>
                 </tr>
