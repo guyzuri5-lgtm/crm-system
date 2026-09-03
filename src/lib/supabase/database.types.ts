@@ -38,7 +38,9 @@ export type InteractionType =
   | "booking_created"
   | "booking_cancelled"
   // נוסף ב-0013_course_leads.sql — השארת פרטים בדף הנחיתה של קורס המדיטציה
-  | "course_lead";
+  | "course_lead"
+  // נוסף ב-0024_events.sql — הרשמה לאירוע דרך דף ההרשמה הציבורי
+  | "event_registered";
 
 /** סוגי רשומה בשאלון, לפי סדר עולה של "חום" הליד */
 export const QUIZ_KINDS = ["anonymous", "lead", "booking_click"] as const;
@@ -60,7 +62,15 @@ export const COURSE_LEAD_KIND_LABELS: Record<CourseLeadKind, string> = {
 };
 
 /** מה מכניס איש קשר למסע. כולם ניתנים לזיהוי בשאילתה מהקרון. */
-export const JOURNEY_ENTRY_TYPES = ["status", "quiz", "booking", "course_lead"] as const;
+export const JOURNEY_ENTRY_TYPES = [
+  "status",
+  "quiz",
+  "booking",
+  "course_lead",
+  // נוסף ב-0024: מתעניינת באירוע מסוים — הראשון שדורש *איזה* אירוע, ולכן
+  // entry_value נושא event_id בדיוק כפי שהוא נושא status לכניסה לפי סטטוס.
+  "event_interest",
+] as const;
 export type JourneyEntryType = (typeof JOURNEY_ENTRY_TYPES)[number];
 
 export const JOURNEY_ENTRY_LABELS: Record<JourneyEntryType, string> = {
@@ -68,6 +78,7 @@ export const JOURNEY_ENTRY_LABELS: Record<JourneyEntryType, string> = {
   quiz: "מילא את השאלון",
   booking: "קבע פגישה",
   course_lead: "השאיר פרטים בדף הקורס",
+  event_interest: "נרשמה כמתעניינת לאירוע",
 };
 
 /**
@@ -146,6 +157,58 @@ export type NewsletterBlockType = (typeof NEWSLETTER_BLOCK_TYPES)[number];
 
 /** מי מקבל. statuses = רק אנשי קשר שנמצאים כרגע באחד מהסטטוסים האלה. */
 export type NewsletterAudience = { type: "all" } | { type: "statuses"; statuses: string[] };
+
+// ── נוספו ב-0024_events.sql ─────────────────────────────────────────────
+
+/**
+ * שלב ההרשמה לאירוע, לפי סדר עולה של מחויבות.
+ *
+ * "מתעניינת" אינה כישלון של "שילמה" אלא שלב לפניה: היא מי שהאירוע מלא עבורה,
+ * או שהשאירה פרטים ולא סיימה תשלום. השלב עולה בדרגה בלבד (ראו stageRank
+ * ב-src/lib/events.ts) — הרשמה חוזרת לא מורידה מי ששילמה בחזרה למתעניינת.
+ */
+export const EVENT_STAGES = ["interested", "registered", "paid"] as const;
+export type EventStage = (typeof EVENT_STAGES)[number];
+
+export const EVENT_STAGE_LABELS: Record<EventStage, string> = {
+  interested: "מתעניינת",
+  registered: "נרשמה, לא שילמה",
+  paid: "שילמה",
+};
+
+/** מאיפה הגיעה ההרשמה. meta שמור לקליטת לידים ממטא (שלב 6). */
+export const EVENT_SOURCES = ["landing", "meta", "manual"] as const;
+export type EventSource = (typeof EVENT_SOURCES)[number];
+
+export const EVENT_SOURCE_LABELS: Record<EventSource, string> = {
+  landing: "דף הרשמה",
+  meta: "מטא",
+  manual: "ידני",
+};
+
+/** שתי התזכורות שיוצאות לפני האירוע. השם הוא גם המפתח ב-event_reminders_sent. */
+export const EVENT_REMINDER_KINDS = ["day_before", "hour_before"] as const;
+export type EventReminderKind = (typeof EVENT_REMINDER_KINDS)[number];
+
+/**
+ * שדה מותאם אחד בטופס ההרשמה.
+ *
+ * ה-key הוא המפתח שתחתיו נשמרת התשובה ב-event_registrations.answers, ולכן
+ * הוא נוצר פעם אחת ואינו משתנה עם התווית: שינוי הניסוח של שאלה לא אמור
+ * לנתק אותה מהתשובות שכבר נאספו.
+ */
+export type EventCustomField = {
+  key: string;
+  label: string;
+  type: "text" | "select";
+  /** רק ל-type=select */
+  options: string[];
+};
+
+export const EVENT_FIELD_TYPE_LABELS: Record<EventCustomField["type"], string> = {
+  text: "טקסט חופשי",
+  select: "בחירה מרשימה",
+};
 
 export const BOOKING_LOCATIONS = ["google_meet", "phone", "in_person"] as const;
 export type BookingLocation = (typeof BOOKING_LOCATIONS)[number];
@@ -539,10 +602,9 @@ export type Database = {
           id: string;
           name: string;
           description: string | null;
-          /** status | quiz | booking | course_lead */
           entry_type: JourneyEntryType;
-          /** {"status": "..."} עבור entry_type=status */
-          entry_value: { status?: string };
+          /** {"status": "..."} לכניסה לפי סטטוס, {"event_id": "..."} לכניסה לפי אירוע */
+          entry_value: { status?: string; event_id?: string };
           active: boolean;
           /** נוסף ב-0017 — תגובה של הלקוח מסיימת את המסע כולו */
           stop_on_reply: boolean;
@@ -682,6 +744,83 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["newsletter_recipients"]["Row"]>;
         Relationships: Relationships;
       };
+
+      // ── נוספו ב-0024_events.sql ────────────────────────────────────────
+      events: {
+        Row: {
+          id: string;
+          /** הכתובת הציבורית: /event/{slug} */
+          slug: string;
+          name: string;
+          subtitle: string | null;
+          description: string | null;
+          starts_at: string;
+          location: string | null;
+          /** null = בלי הגבלת מקומות */
+          capacity: number | null;
+          grow_link: string | null;
+          custom_fields: EventCustomField[];
+          /** תמונת רקע לחלק העליון, מהבאקט media (0023) */
+          header_image_url: string | null;
+          form_description: string | null;
+          button_text: string;
+          show_datetime: boolean;
+          show_capacity: boolean;
+          thankyou_title: string;
+          thankyou_text: string | null;
+          thankyou_show_calendar: boolean;
+          thankyou_show_image: boolean;
+          remind_day_before: boolean;
+          remind_hour_before: boolean;
+          active: boolean;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["events"]["Row"]> & {
+          slug: string;
+          name: string;
+          starts_at: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["events"]["Row"]>;
+        Relationships: Relationships;
+      };
+      event_registrations: {
+        Row: {
+          id: string;
+          event_id: string;
+          contact_id: string;
+          /** interested | registered | paid — עולה בדרגה בלבד */
+          stage: EventStage;
+          source: EventSource;
+          /** התשובות לשדות המותאמים, ממופתחות לפי EventCustomField.key */
+          answers: Record<string, string>;
+          created_at: string;
+          paid_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["event_registrations"]["Row"]> & {
+          event_id: string;
+          contact_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["event_registrations"]["Row"]>;
+        Relationships: Relationships;
+      };
+      /**
+       * המנעול שמונע תזכורת כפולה. הקרון רץ כל רבע שעה וחלון התזכורת פתוח
+       * לכמה ריצות — המפתח הראשי (registration_id, kind) הוא מה שמבטיח
+       * שהנרשמת תקבל אותה פעם אחת.
+       */
+      event_reminders_sent: {
+        Row: {
+          registration_id: string;
+          kind: EventReminderKind;
+          sent_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["event_reminders_sent"]["Row"]> & {
+          registration_id: string;
+          kind: EventReminderKind;
+        };
+        Update: Partial<Database["public"]["Tables"]["event_reminders_sent"]["Row"]>;
+        Relationships: Relationships;
+      };
     };
     Views: {
       /** נוצרת ב-0012_contact_activity.sql — סיכום פעילות לכל איש קשר. */
@@ -725,3 +864,11 @@ export type CourseLead = Database["public"]["Tables"]["course_leads"]["Row"];
 export type BookingDateOverride = Database["public"]["Tables"]["booking_date_overrides"]["Row"];
 export type Newsletter = Database["public"]["Tables"]["newsletters"]["Row"];
 export type NewsletterRecipient = Database["public"]["Tables"]["newsletter_recipients"]["Row"];
+
+/**
+ * EventRow ולא Event, באותו נימוק כמו ContactStatusRow: `Event` הוא טיפוס
+ * גלובלי של הדפדפן, ורכיב לקוח שמייבא אותו לכאן היה מאפיל עליו בשקט —
+ * ‎(e: Event)‎ ב-addEventListener היה מקבל שורת אירוע מהמסד.
+ */
+export type EventRow = Database["public"]["Tables"]["events"]["Row"];
+export type EventRegistration = Database["public"]["Tables"]["event_registrations"]["Row"];

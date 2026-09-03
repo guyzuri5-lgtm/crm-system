@@ -31,7 +31,7 @@ export interface Journey {
   id: string;
   name: string;
   entry_type: JourneyEntryType;
-  entry_value: { status?: string } | null;
+  entry_value: { status?: string; event_id?: string } | null;
   active: boolean;
   stop_on_reply: boolean;
 }
@@ -197,8 +197,17 @@ export function stepDueAt(
   return wallClockToUtc(startsAt, step.day_offset, step.day_at_minutes, tz);
 }
 
-/** האינטראקציה שמסמנת כניסה, לכל סוג מסע שאינו מבוסס סטטוס. */
-const ENTRY_INTERACTION: Record<Exclude<JourneyEntryType, "status">, InteractionType> = {
+/**
+ * האינטראקציה שמסמנת כניסה, לסוגי המסע שנגזרים משורה ביומן.
+ *
+ * status ו-event_interest אינם כאן ומטופלים בנפרד — שניהם שואלים "מי נמצא
+ * כרגע במצב מסוים" ולא "למי קרה אירוע כלשהו אי־פעם". event_registered קיים
+ * ביומן, אבל הוא לא מבחין בין אירוע לאירוע ולא יודע אם מאז כבר שולם.
+ */
+const ENTRY_INTERACTION: Record<
+  Exclude<JourneyEntryType, "status" | "event_interest">,
+  InteractionType
+> = {
   quiz: "quiz_submitted",
   booking: "booking_created",
   course_lead: "course_lead",
@@ -227,6 +236,19 @@ async function enrollForJourney(journey: Journey, now: Date): Promise<number> {
     const { data, error } = await db.from("contacts").select("id").eq("status", status);
     if (error) throw error;
     candidateIds = (data ?? []).map((c) => c.id);
+  } else if (journey.entry_type === "event_interest") {
+    // המועמדות נשלפות מ-event_registrations ולא מהיומן: stage הוא המצב
+    // *הנוכחי*, ולכן מי שבינתיים שילמה כבר לא תיכנס למסע שנועד לשכנע אותה
+    // להירשם. שורת היומן, לעומת זאת, נשארת נכונה לנצח ולא הייתה יודעת זאת.
+    const eventId = journey.entry_value?.event_id;
+    if (!eventId) return 0;
+    const { data, error } = await db
+      .from("event_registrations")
+      .select("contact_id")
+      .eq("event_id", eventId)
+      .eq("stage", "interested");
+    if (error) throw error;
+    candidateIds = Array.from(new Set((data ?? []).map((r) => r.contact_id)));
   } else {
     const type = ENTRY_INTERACTION[journey.entry_type];
     const { data, error } = await db

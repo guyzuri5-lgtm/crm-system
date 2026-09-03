@@ -12,7 +12,20 @@ const journeySchema = z.object({
   description: z.string().trim().optional(),
   entry_type: z.enum(JOURNEY_ENTRY_TYPES),
   status: z.string().trim().optional(),
+  event_id: z.string().uuid().optional(),
 });
+
+/**
+ * מה נשמר ב-entry_value, לפי סוג הכניסה.
+ *
+ * שני סוגים בלבד נושאים ערך: סטטוס ואירוע. השאר נגזרים מהיומן ואין להם מה
+ * לצמצם — ולכן אובייקט ריק ולא null, כדי שהעמודה תישאר בעלת צורה אחת.
+ */
+function entryValueOf(data: z.infer<typeof journeySchema>) {
+  if (data.entry_type === "status") return { status: data.status };
+  if (data.entry_type === "event_interest") return { event_id: data.event_id };
+  return {};
+}
 
 export async function createJourneyAction(formData: FormData) {
   await verifyTeamMember();
@@ -22,11 +35,15 @@ export async function createJourneyAction(formData: FormData) {
     description: formData.get("description") || undefined,
     entry_type: formData.get("entry_type"),
     status: formData.get("status") || undefined,
+    event_id: formData.get("event_id") || undefined,
   });
   if (!parsed.success) throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
 
   if (parsed.data.entry_type === "status" && !parsed.data.status) {
     throw new Error("מסע שנכנסים אליו לפי סטטוס חייב שיוגדר לו סטטוס");
+  }
+  if (parsed.data.entry_type === "event_interest" && !parsed.data.event_id) {
+    throw new Error("מסע למתעניינות באירוע חייב שיוגדר לו אירוע");
   }
 
   const { data, error } = await supabaseAdmin()
@@ -35,7 +52,7 @@ export async function createJourneyAction(formData: FormData) {
       name: parsed.data.name,
       description: parsed.data.description ?? null,
       entry_type: parsed.data.entry_type,
-      entry_value: parsed.data.entry_type === "status" ? { status: parsed.data.status } : {},
+      entry_value: entryValueOf(parsed.data),
     })
     .select("id")
     .single();

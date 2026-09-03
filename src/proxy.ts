@@ -8,7 +8,11 @@ import { createServerClient } from "@supabase/ssr";
 // בלי הרישום כאן הוא היה נתפס בבדיקה שלמטה ומופנה ל-/login, וזו הייתה נראית
 // כמו מערכת שבורה מצד הלקוח. הדף עצמו קורא ל-DB דרך השרת בלבד (service role)
 // ואינו חושף דבר מלבד שעות פנויות.
-const PUBLIC_PATHS = ["/login", "/book", "/oauth2callback"];
+//
+// /event/* הוא אותו סיפור בדיוק לדפי ההרשמה לאירועים (0024): הקישור נשלח
+// לקהל, ועמוד התודה שבתוכו הוא גם כתובת ההפניה של גרואו אחרי תשלום — כלומר
+// כניסה מדומיין אחר, בלי שום סשן.
+const PUBLIC_PATHS = ["/login", "/book", "/event", "/oauth2callback"];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });

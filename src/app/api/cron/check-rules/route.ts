@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { runTimeSinceNoReplyRules } from "@/lib/automation-engine";
 import { runJourneys } from "@/lib/journey-engine";
 import { runNewsletters } from "@/lib/newsletter-engine";
+import { runEventReminders } from "@/lib/event-engine";
 
 // GET /api/cron/check-rules — per spec section 4, runs once a day (see vercel.json).
 // Vercel Cron always calls with GET, and automatically sends
@@ -45,18 +46,24 @@ export async function GET(request: NextRequest) {
   const now = new Date();
   const total = budgetMs();
 
-  // שלושת המנועים חולקים את אותו חלון ריצה. החלוקה כאן היא של *זמן* בלבד —
+  // ארבעת המנועים חולקים את אותו חלון ריצה. החלוקה כאן היא של *זמן* בלבד —
   // כל תקרה נספרת מהמסד, ולכן היא נאכפת נכון בכולם בלי תיאום ביניהם.
   //
   // הכללים רצים ראשונים ומקבלים את רוב החלון: הם המנגנון הוותיק, ומסע או
   // ניוזלטר שמפספסים ריצה ממשיכים מעצמם בבאה בלי לאבד את מקומם — יתרון
   // שלכללים אין.
-  const summary = await runTimeSinceNoReplyRules(now, Math.floor(total * 0.45));
+  //
+  // תזכורות האירועים אחרונות ועם הנתח הקטן ביותר, ולא כי הן פחות חשובות:
+  // הן גם הזולות ביותר (בדרך כלל אפס אירועים בחלון), וכשיש להן עבודה היא
+  // חוזרת ממילא בריצה הבאה — החלון שלהן רחב בשעות, לא בדקות.
+  const summary = await runTimeSinceNoReplyRules(now, Math.floor(total * 0.4));
   const failed = summary.results.filter((r) => !r.ok);
 
-  const journeys = await runJourneys(new Date(), Math.floor(total * 0.3));
+  const journeys = await runJourneys(new Date(), Math.floor(total * 0.25));
 
-  const newsletters = await runNewsletters(new Date(), Math.floor(total * 0.25));
+  const newsletters = await runNewsletters(new Date(), Math.floor(total * 0.2));
+
+  const eventReminders = await runEventReminders(new Date(), Math.floor(total * 0.15));
 
   return NextResponse.json({
     ok: true,
@@ -81,6 +88,12 @@ export async function GET(request: NextRequest) {
       remaining: newsletters.remaining,
       stopped: newsletters.stopped,
       errors: newsletters.errors,
+    },
+    event_reminders: {
+      sent: eventReminders.sent,
+      failed: eventReminders.failed,
+      stopped: eventReminders.stopped,
+      errors: eventReminders.errors,
     },
     // מה שלא נשלח בריצה הזו ייתפס בריצה הבאה — automation_rule_runs מבטיח
     // שמי שכן קיבל לא יקבל שוב.

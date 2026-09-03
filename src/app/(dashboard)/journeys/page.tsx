@@ -11,13 +11,21 @@ import { createJourneyAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function JourneysPage() {
+export default async function JourneysPage({ searchParams }: PageProps<"/journeys">) {
   await verifyTeamMember();
 
+  // ‎?event=<id>‎ מגיע מכפתור "מסע למתעניינות" במסך האירוע, ותפקידו רק לפתוח
+  // את הטופס עם הטריגר הנכון מסומן מראש. הוא אינו יוצר דבר בעצמו.
+  const preselectedEvent = (await searchParams).event;
+  const eventId = typeof preselectedEvent === "string" ? preselectedEvent : null;
+
   const db = supabaseAdmin();
-  const [{ data: journeysRaw, error }, statuses] = await Promise.all([
+  const [{ data: journeysRaw, error }, statuses, { data: eventsRaw }] = await Promise.all([
     db.from("journeys").select("*").order("created_at", { ascending: false }),
     listStatuses(),
+    // maybe: טבלת האירועים נוספה ב-0024, ומסך המסעות חייב להמשיך לעבוד גם אם
+    // המיגרציה עוד לא רצה. שגיאה כאן פשוט מרוקנת את הבורר.
+    db.from("events").select("id, name, starts_at").order("starts_at", { ascending: false }),
   ]);
 
   if (error) {
@@ -30,6 +38,8 @@ export default async function JourneysPage() {
   }
 
   const journeys = (journeysRaw ?? []) as Journey[];
+  const events = (eventsRaw ?? []) as { id: string; name: string; starts_at: string }[];
+  const eventNameById = new Map(events.map((e) => [e.id, e.name]));
 
   // ספירה לכל מסע: כמה במסע עכשיו וכמה סיימו. head:true מחזיר רק count.
   const counts = await Promise.all(
@@ -72,7 +82,12 @@ export default async function JourneysPage() {
 
           <label className="field-label">
             מה מכניס למסע
-            <select name="entry_type" className="input" required defaultValue="status">
+            <select
+              name="entry_type"
+              className="input"
+              required
+              defaultValue={eventId ? "event_interest" : "status"}
+            >
               {JOURNEY_ENTRY_TYPES.map((t) => (
                 <option key={t} value={t}>
                   {JOURNEY_ENTRY_LABELS[t]}
@@ -88,6 +103,18 @@ export default async function JourneysPage() {
               {statuses.map((s) => (
                 <option key={s.id} value={s.name}>
                   {s.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field-label">
+            האירוע (רק כשהכניסה לפי אירוע)
+            <select name="event_id" className="input" defaultValue={eventId ?? ""}>
+              <option value="">—</option>
+              {events.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name}
                 </option>
               ))}
             </select>
@@ -130,6 +157,9 @@ export default async function JourneysPage() {
                   {JOURNEY_ENTRY_LABELS[j.entry_type]}
                   {j.entry_type === "status" && j.entry_value?.status
                     ? `: ${j.entry_value.status}`
+                    : ""}
+                  {j.entry_type === "event_interest" && j.entry_value?.event_id
+                    ? `: ${eventNameById.get(j.entry_value.event_id) ?? "אירוע שנמחק"}`
                     : ""}
                 </span>
               </div>

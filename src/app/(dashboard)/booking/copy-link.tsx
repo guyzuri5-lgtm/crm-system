@@ -4,7 +4,7 @@ import { useState } from "react";
 
 /** כפתור העתקת הקישור הציבורי. הקישור המלא נבנה בלקוח מ-window.location.origin,
  *  כדי שיהיה נכון גם בפיתוח מקומי וגם בפרודקשן בלי להגדיר כתובת בסיס. */
-export function CopyLink({ path }: { path: string }) {
+export function CopyLink({ path, label = "העתקת קישור" }: { path: string; label?: string }) {
   const [copied, setCopied] = useState(false);
 
   return (
@@ -22,7 +22,7 @@ export function CopyLink({ path }: { path: string }) {
         }
       }}
     >
-      {copied ? "הועתק ✓" : "העתקת קישור"}
+      {copied ? "הועתק ✓" : label}
     </button>
   );
 }
