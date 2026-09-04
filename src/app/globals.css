@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* ברירת המחדל של Tailwind ל-`dark:` היא prefers-color-scheme, והמערכת מדליקה
+   מצב כהה דרך data-theme על <html> (ראו ההסבר מתחת). בלי ההגדרה הזו כל
+   `dark:` בקוד היה מקשיב למערכת ההפעלה ומתעלם מהמתג שלנו — כלומר נדלק
+   בדיוק כשהוא לא אמור. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 /* ══════════════════════════════════════════════════════════════════════════
    פטינה — שכבת האסימונים של המערכת
    ──────────────────────────────────────────────────────────────────────────
@@ -244,15 +250,48 @@ body {
     border-color: var(--border);
     box-shadow: var(--shadow-1);
   }
+  /* uppercase ירד: בעברית אין אותיות גדולות, ולכן הוא לא עשה דבר לכותרת
+     עברית — אבל כן עיוות כותרת באנגלית באמצע טבלה. הריווח נשאר, כי הוא מה
+     שמבדיל כותרת מתוכן כשהשתיים באותו גודל. */
   .th {
-    @apply px-4 py-3 text-start text-xs font-semibold tracking-wide uppercase;
+    @apply px-4 py-2.5 text-start text-[11px] font-semibold;
+    letter-spacing: 0.06em;
     color: var(--subtle);
+    background-color: var(--background);
   }
   .td {
     @apply px-4 py-3 text-sm;
   }
   .tr-hover:hover {
     background-color: var(--background);
+  }
+
+  /* ── ריבוע אייקון צבעוני ─────────────────────────────────────────── */
+  /* חוזר בכל כותרת מקטע ובכל שורת מצב. הצבע מגיע מבחוץ דרך --glyph-color
+     ו---glyph-bg, כדי שאותו רכיב ישרת את שש הקבוצות ואת שלושת המצבים. */
+  .glyph {
+    @apply grid shrink-0 place-items-center rounded-[10px];
+    width: 1.75rem;
+    height: 1.75rem;
+    color: var(--glyph-color, var(--primary));
+    background-color: var(--glyph-bg, var(--primary-soft));
+  }
+
+  /* ── תווית מקטע ──────────────────────────────────────────────────── */
+  /* קטנה, מרווחת ודהויה — נקראת כשלט ולא כמשפט. */
+  .sec-label {
+    @apply text-[10.5px] font-medium;
+    letter-spacing: 0.09em;
+    color: var(--subtle);
+  }
+
+  /* ── תווית רכה ───────────────────────────────────────────────────── */
+  /* לספירות ולמצבים שאינם סטטוס של איש קשר — אלה ממשיכים דרך StatusBadge,
+     שהצבעים שלו נשמרים במסד. */
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold whitespace-nowrap;
+    color: var(--pill-color, var(--muted));
+    background-color: var(--pill-bg, var(--surface-sunken));
   }
 }
 

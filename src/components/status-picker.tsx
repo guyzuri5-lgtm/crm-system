@@ -171,7 +171,7 @@ export function StatusPicker({
             visibility: pos ? "visible" : "hidden",
           }}
           className="z-50 flex max-h-72 min-w-[11rem] flex-col gap-0.5 overflow-y-auto rounded-xl border border-[var(--border)]
-            bg-white p-1.5 shadow-[0_8px_24px_rgba(28,26,23,0.12)] outline-none"
+            bg-[var(--surface)] p-1.5 shadow-[var(--shadow-2)] outline-none"
         >
           {options.map((option, index) => (
             <button

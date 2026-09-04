@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRef, useState, useTransition } from "react";
+import { WindowMeter } from "@/components/window-meter";
 
 /**
  * תיבת הכתיבה שיושבת מתחת לשיחה — בדף איש הקשר ובשורה הנפתחת ב"לקוחות
@@ -120,10 +121,13 @@ export function ReplyBox({
         </div>
       )}
 
-      <p className="text-xs text-[var(--subtle)]">
+      {/* המד אומר כמה נשאר, המשפט אומר מה זה אומר. קודם היה רק המשפט, וכדי
+          לדעת אם נשאר זמן צריך היה לקרוא אותו עד הסוף. */}
+      <p className="flex flex-wrap items-center gap-2 text-xs text-[var(--subtle)]">
+        <WindowMeter openWindow={openWindow} hoursLeft={hoursLeft} />
         {openWindow
-          ? `חלון פתוח — נותרו כ-${hoursLeft} שעות לשליחת טקסט חופשי.`
-          : "החלון סגור — מותר לשלוח רק תבנית שאושרה ב-Meta."}
+          ? "טקסט חופשי מותר, ללא עלות."
+          : "מותר לשלוח רק תבנית שאושרה ב-Meta, והיא מחויבת."}
       </p>
 
       {error && (
