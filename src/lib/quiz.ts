@@ -100,7 +100,14 @@ export function usableEmail(value: string): string | null {
 /** נרמול טלפון ישראלי לפורמט אחיד, כדי שההתאמה ל-contacts.phone תעבוד */
 export function normalizePhone(value: string): string | null {
   let d = value.replace(/[^\d+]/g, "");
-  d = d.replace(/^00972/, "0").replace(/^\+972/, "0");
+  // הקידומת הבינלאומית מגיעה בשלוש צורות, לא בשתיים. 972 חשוף — בלי פלוס
+  // ובלי 00 — הוא מה שנשאר אחרי שאקסל פותח יצוא לידים של מטא ובולע את
+  // הפלוס, ובלעדיו שורות שלמות נופלות בשקט. זו בדיוק התקלה שהמיפוי הידני
+  // בייבוא נועד למנוע, רק שכאן היא קורית מתחת לו.
+  d = d
+    .replace(/^00972/, "0")
+    .replace(/^\+972/, "0")
+    .replace(/^972(?=\d{8,9}$)/, "0");
   if (!/^0(5\d{8}|7[2-9]\d{7}|[23489]\d{7})$/.test(d)) return null;
   return d;
 }
