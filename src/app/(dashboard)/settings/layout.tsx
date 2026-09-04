@@ -11,6 +11,7 @@ const TABS = [
   { href: "/settings/statuses", label: "סטטוסים" },
   { href: "/settings/fields", label: "שדות" },
   { href: "/settings/sending", label: "בלמי שליחה" },
+  { href: "/settings/meta-forms", label: "טפסי מטא" },
 ];
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {

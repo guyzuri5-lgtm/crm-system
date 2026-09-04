@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { verifyMetaChallenge, verifyMetaSignature } from "./meta-webhook";
 
 /**
  * לקוח WhatsApp Cloud API — הערוץ הרשמי של Meta.
@@ -417,40 +417,20 @@ export async function deleteMetaTemplate(name: string): Promise<void> {
 // ── Webhooks ────────────────────────────────────────────────────────────
 
 /**
- * אימות ה-webhook בהרשמה: Meta שולחת GET עם hub.challenge, ומצפה לקבל אותו
- * בחזרה כטקסט גולמי. זה קורה פעם אחת, כשמחברים את הכתובת בממשק של Meta.
+ * אימות ה-webhook של וואטסאפ בהרשמה. המנגנון עצמו משותף לכל ה-webhooks של
+ * מטא ויושב ב-meta-webhook.ts; מה שמשלנו כאן הוא רק *איזה* טוקן מצופה.
  */
 export function verifyWebhookChallenge(params: URLSearchParams): string | null {
-  const expected = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
-  if (!expected) return null;
-  if (params.get("hub.mode") !== "subscribe") return null;
-  if (params.get("hub.verify_token") !== expected) return null;
-  return params.get("hub.challenge");
+  return verifyMetaChallenge(params, process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN);
 }
 
 /**
- * אימות החתימה על כל webhook נכנס.
- *
- * Meta חותמת את **גוף הבקשה הגולמי** ב-HMAC-SHA256 עם ה-App Secret, ושולחת
- * את התוצאה ככותרת ‎X-Hub-Signature-256: sha256=<hex>‎. חובה לחשב על הגוף
- * הגולמי בדיוק — JSON.stringify של האובייקט שפורסר מייצר מחרוזת אחרת (סדר
- * מפתחות, רווחים) והחתימה לעולם לא תתאים.
- *
- * ההשוואה ב-timingSafeEqual ולא ב-===: השוואת מחרוזות רגילה נעצרת בתו הראשון
- * שנבדל, וההפרש בזמן מאפשר לנחש חתימה תו אחר תו.
+ * אימות החתימה על ה-webhook של וואטסאפ, ב-App Secret של האפליקציה במטא.
+ * החישוב עצמו — HMAC על הגוף הגולמי, השוואה בזמן קבוע — משותף ומוסבר
+ * ב-meta-webhook.ts.
  */
 export function verifyWebhookSignature(rawBody: string, header: string | null): boolean {
-  const secret = process.env.WHATSAPP_APP_SECRET;
-  // בלי App Secret אין מה לאמת. מוחזר false ולא true: webhook לא חתום הוא
-  // בדיוק מה שתוקף היה שולח, ו"פתוח כברירת מחדל" כאן פירושו שכל אחד יכול
-  // להזריק הודעות ל-CRM.
-  if (!secret) return false;
-  if (!header?.startsWith("sha256=")) return false;
-
-  const expected = createHmac("sha256", secret).update(rawBody, "utf8").digest();
-  const received = Buffer.from(header.slice("sha256=".length), "hex");
-  if (received.length !== expected.length) return false;
-  return timingSafeEqual(expected, received);
+  return verifyMetaSignature(rawBody, header, process.env.WHATSAPP_APP_SECRET);
 }
 
 /**
