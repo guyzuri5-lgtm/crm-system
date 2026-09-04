@@ -31,7 +31,7 @@ export interface Journey {
   id: string;
   name: string;
   entry_type: JourneyEntryType;
-  entry_value: { status?: string; event_id?: string } | null;
+  entry_value: { status?: string; event_id?: string; course_id?: string } | null;
   active: boolean;
   stop_on_reply: boolean;
 }
@@ -200,12 +200,13 @@ export function stepDueAt(
 /**
  * האינטראקציה שמסמנת כניסה, לסוגי המסע שנגזרים משורה ביומן.
  *
- * status ו-event_interest אינם כאן ומטופלים בנפרד — שניהם שואלים "מי נמצא
- * כרגע במצב מסוים" ולא "למי קרה אירוע כלשהו אי־פעם". event_registered קיים
- * ביומן, אבל הוא לא מבחין בין אירוע לאירוע ולא יודע אם מאז כבר שולם.
+ * status, event_interest ו-course_interest אינם כאן ומטופלים בנפרד — שלושתם
+ * שואלים "מי נמצא כרגע במצב מסוים" ולא "למי קרה אירוע כלשהו אי־פעם".
+ * event_registered ו-course_registered קיימים ביומן, אבל הם לא מבחינים בין
+ * אירוע לאירוע ולא יודעים אם מאז כבר שולם.
  */
 const ENTRY_INTERACTION: Record<
-  Exclude<JourneyEntryType, "status" | "event_interest">,
+  Exclude<JourneyEntryType, "status" | "event_interest" | "course_interest">,
   InteractionType
 > = {
   quiz: "quiz_submitted",
@@ -246,6 +247,18 @@ async function enrollForJourney(journey: Journey, now: Date): Promise<number> {
       .from("event_registrations")
       .select("contact_id")
       .eq("event_id", eventId)
+      .eq("stage", "interested");
+    if (error) throw error;
+    candidateIds = Array.from(new Set((data ?? []).map((r) => r.contact_id)));
+  } else if (journey.entry_type === "course_interest") {
+    // אותו נימוק בדיוק כמו באירוע שמעליו: השלב הוא המצב הנוכחי, ולכן מי
+    // שכבר רכשה את הקורס לא תיכנס למסע שנועד לשכנע אותה לרכוש.
+    const courseId = journey.entry_value?.course_id;
+    if (!courseId) return 0;
+    const { data, error } = await db
+      .from("course_registrations")
+      .select("contact_id")
+      .eq("course_id", courseId)
       .eq("stage", "interested");
     if (error) throw error;
     candidateIds = Array.from(new Set((data ?? []).map((r) => r.contact_id)));

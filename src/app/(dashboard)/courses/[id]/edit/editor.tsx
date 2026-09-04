@@ -2,22 +2,26 @@
 
 import { useState, useTransition } from "react";
 import { RegistrationLanding, RegistrationThanks } from "@/components/registration-page";
-import { clockToMinutes, parseDateKey, zonedTimeToUtc } from "@/lib/booking/timezone";
 import {
   EVENT_FIELD_TYPE_LABELS,
-  type EventCustomField,
-  type EventRow,
+  type CourseCustomField,
+  type CourseRow,
 } from "@/lib/supabase/database.types";
-import { saveEventDesignAction, uploadEventImageAction } from "../../actions";
+import { saveCourseDesignAction, uploadCourseImageAction } from "../../actions";
 
 /**
- * עורך העיצוב של דף ההרשמה.
+ * עורך העיצוב של דף ההרשמה לקורס.
  *
  * ── למה state מקומי אחד ושמירה בכפתור ──
  * כל שדה כאן משנה את מה שהתצוגה שמימין מציגה, והתצוגה הזו היא *אותו רכיב*
- * שמרנדר את הדף הציבורי (src/components/registration-page.tsx). שמירה אוטומטית לכל
- * הקלדה הייתה מייצרת עשרות כתיבות למסד תוך כדי ניסוח כותרת, ובעיקר: היא
+ * שמרנדר את הדף הציבורי (src/components/registration-page.tsx). שמירה אוטומטית
+ * לכל הקלדה הייתה מייצרת עשרות כתיבות למסד תוך כדי ניסוח כותרת, ובעיקר: היא
  * הייתה משנה דף חי שכבר נשלח לקהל, באמצע עריכה.
+ *
+ * ── ההבדל מעורך האירועים ──
+ * אין תאריך, שעה, מיקום וקיבולת, ולכן אין גם previewStartsAt ואין מתגי
+ * "הצג תאריך" ו"הצג מקומות". במקומם יש מתג אחד שאין לאירועים: החיבור
+ * ל-webhook הישן.
  */
 
 type Draft = {
@@ -26,18 +30,12 @@ type Draft = {
   form_description: string;
   button_text: string;
   header_image_url: string;
-  show_datetime: boolean;
-  show_capacity: boolean;
   thankyou_title: string;
   thankyou_text: string;
-  thankyou_show_calendar: boolean;
   thankyou_show_image: boolean;
-  custom_fields: EventCustomField[];
-  date: string;
-  time: string;
-  location: string;
-  capacity: string;
+  custom_fields: CourseCustomField[];
   grow_link: string;
+  legacy_webhook: boolean;
 };
 
 type TabKey = "landing" | "thanks" | "fields";
@@ -54,48 +52,19 @@ function newFieldKey(): string {
   return `f${Math.random().toString(36).slice(2, 10)}`;
 }
 
-/**
- * המועד שהתצוגה המקדימה מציגה.
- *
- * דרך zonedTimeToUtc ולא ‎new Date("2026-09-20T19:00")‎, משתי סיבות: הקונסטרקטור
- * קורא את המחרוזת בשעון *הדפדפן*, ולכן מי שפותחת את העורך מחו"ל הייתה רואה
- * שעה אחרת מזו שתופיע בדף הציבורי; ותאריך חסר או שעה לא תקינה מייצרים
- * Invalid Date שזורק ב-toISOString ומפיל את העורך באמצע הקלדה.
- */
-function previewStartsAt(date: string, time: string): string {
-  const parsed = parseDateKey(date);
-  const minutes = clockToMinutes(time);
-  if (!parsed || minutes === null) return "";
-  return zonedTimeToUtc(parsed.year, parsed.month, parsed.day, minutes, "Asia/Jerusalem").toISOString();
-}
-
-export function EventDesignEditor({
-  event,
-  initialDate,
-  initialTime,
-}: {
-  event: EventRow;
-  initialDate: string;
-  initialTime: string;
-}) {
+export function CourseDesignEditor({ course }: { course: CourseRow }) {
   const [draft, setDraft] = useState<Draft>({
-    name: event.name,
-    subtitle: event.subtitle ?? "",
-    form_description: event.form_description ?? "",
-    button_text: event.button_text,
-    header_image_url: event.header_image_url ?? "",
-    show_datetime: event.show_datetime,
-    show_capacity: event.show_capacity,
-    thankyou_title: event.thankyou_title,
-    thankyou_text: event.thankyou_text ?? "",
-    thankyou_show_calendar: event.thankyou_show_calendar,
-    thankyou_show_image: event.thankyou_show_image,
-    custom_fields: event.custom_fields ?? [],
-    date: initialDate,
-    time: initialTime,
-    location: event.location ?? "",
-    capacity: event.capacity === null ? "" : String(event.capacity),
-    grow_link: event.grow_link ?? "",
+    name: course.name,
+    subtitle: course.subtitle ?? "",
+    form_description: course.form_description ?? "",
+    button_text: course.button_text,
+    header_image_url: course.header_image_url ?? "",
+    thankyou_title: course.thankyou_title,
+    thankyou_text: course.thankyou_text ?? "",
+    thankyou_show_image: course.thankyou_show_image,
+    custom_fields: course.custom_fields ?? [],
+    grow_link: course.grow_link ?? "",
+    legacy_webhook: course.legacy_webhook,
   });
 
   const [tab, setTab] = useState<TabKey>("landing");
@@ -109,10 +78,7 @@ export function EventDesignEditor({
 
   function save() {
     startTransition(async () => {
-      const result = await saveEventDesignAction(event.id, {
-        ...draft,
-        capacity: draft.capacity === "" ? "" : Number(draft.capacity),
-      });
+      const result = await saveCourseDesignAction(course.id, draft);
       setMessage(
         result.ok
           ? { ok: true, text: "נשמר. הדף הציבורי מעודכן." }
@@ -155,7 +121,7 @@ export function EventDesignEditor({
           </button>
           <a
             className="btn-secondary"
-            href={`/event/${event.slug}`}
+            href={`/course/${course.slug}`}
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -185,7 +151,6 @@ export function EventDesignEditor({
               design={{
                 thankyou_title: draft.thankyou_title,
                 thankyou_text: draft.thankyou_text || null,
-                thankyou_show_calendar: draft.thankyou_show_calendar,
                 thankyou_show_image: draft.thankyou_show_image,
                 header_image_url: draft.header_image_url || null,
               }}
@@ -195,18 +160,12 @@ export function EventDesignEditor({
               design={{
                 name: draft.name,
                 subtitle: draft.subtitle || null,
-                starts_at: previewStartsAt(draft.date, draft.time),
-                location: draft.location || null,
                 header_image_url: draft.header_image_url || null,
                 form_description: draft.form_description || null,
                 button_text: draft.button_text,
-                show_datetime: draft.show_datetime,
-                show_capacity: draft.show_capacity,
                 custom_fields: draft.custom_fields,
               }}
-              // מספר לדוגמה: התצוגה נועדה להראות איך השורה נראית, לא לדווח
-              // כמה מקומות באמת נשארו — זה נתון חי ששייך למסך האירוע.
-              spotsLeft={draft.capacity === "" ? null : Number(draft.capacity)}
+              spotsLeft={null}
             />
           )}
         </div>
@@ -253,6 +212,9 @@ function LandingTab({ draft, set }: { draft: Draft; set: Setter }) {
           maxLength={2000}
           onChange={(e) => set("form_description", e.target.value)}
         />
+        <span className="text-xs font-normal text-[var(--subtle)]">
+          זה הטקסט היחיד שמופיע גם בגרסת ההטמעה — שם אין כותרת ואין תמונה.
+        </span>
       </label>
 
       <label className="field-label">
@@ -264,17 +226,6 @@ function LandingTab({ draft, set }: { draft: Draft; set: Setter }) {
           onChange={(e) => set("button_text", e.target.value)}
         />
       </label>
-
-      <Toggle
-        label="הצגת תאריך, שעה ומיקום"
-        checked={draft.show_datetime}
-        onChange={(v) => set("show_datetime", v)}
-      />
-      <Toggle
-        label="הצגת מספר המקומות שנותרו"
-        checked={draft.show_capacity}
-        onChange={(v) => set("show_capacity", v)}
-      />
     </>
   );
 }
@@ -306,15 +257,12 @@ function ThanksTab({ draft, set }: { draft: Draft; set: Setter }) {
       </label>
 
       <Toggle
-        label='כפתורי "הוספה ליומן"'
-        checked={draft.thankyou_show_calendar}
-        onChange={(v) => set("thankyou_show_calendar", v)}
-      />
-      <Toggle
         label="הצגת תמונת הרקע גם כאן"
         checked={draft.thankyou_show_image}
         onChange={(v) => set("thankyou_show_image", v)}
       />
+
+      {/* אין כאן מתג "הוספה ליומן": לקורס אין מועד, ולכן אין מה להוסיף. */}
     </>
   );
 }
@@ -330,7 +278,7 @@ function FieldsTab({
   set: Setter;
   setDraft: React.Dispatch<React.SetStateAction<Draft>>;
 }) {
-  function updateField(index: number, patch: Partial<EventCustomField>) {
+  function updateField(index: number, patch: Partial<CourseCustomField>) {
     setDraft((current) => ({
       ...current,
       custom_fields: current.custom_fields.map((field, i) =>
@@ -395,7 +343,7 @@ function FieldsTab({
                   className="input"
                   value={field.type}
                   onChange={(e) =>
-                    updateField(index, { type: e.target.value as EventCustomField["type"] })
+                    updateField(index, { type: e.target.value as CourseCustomField["type"] })
                   }
                 >
                   {Object.entries(EVENT_FIELD_TYPE_LABELS).map(([value, label]) => (
@@ -454,51 +402,7 @@ function FieldsTab({
 
       <hr className="border-[var(--border)]" />
 
-      <span className="text-sm font-medium">פרטי האירוע</span>
-
-      <div className="grid grid-cols-2 gap-3">
-        <label className="field-label">
-          תאריך
-          <input
-            type="date"
-            className="input"
-            value={draft.date}
-            onChange={(e) => set("date", e.target.value)}
-          />
-        </label>
-        <label className="field-label">
-          שעה
-          <input
-            type="time"
-            className="input"
-            value={draft.time}
-            onChange={(e) => set("time", e.target.value)}
-          />
-        </label>
-      </div>
-
-      <label className="field-label">
-        מיקום
-        <input
-          className="input"
-          value={draft.location}
-          maxLength={300}
-          onChange={(e) => set("location", e.target.value)}
-        />
-      </label>
-
-      <label className="field-label">
-        מספר מקומות
-        <input
-          type="number"
-          min={1}
-          max={100000}
-          className="input"
-          value={draft.capacity}
-          onChange={(e) => set("capacity", e.target.value)}
-        />
-        <span className="text-xs font-normal text-[var(--subtle)]">ריק = בלי הגבלה</span>
-      </label>
+      <span className="text-sm font-medium">פרטי הקורס</span>
 
       <label className="field-label">
         לינק התשלום בגרואו
@@ -510,11 +414,22 @@ function FieldsTab({
           maxLength={2000}
           onChange={(e) => set("grow_link", e.target.value)}
         />
+        <span className="text-xs font-normal text-[var(--subtle)]">
+          ריק = הטופס מוביל ישר לעמוד התודה, בלי תשלום.
+        </span>
       </label>
 
-      {/* התזכורות ירדו מכאן ל-0027: הן כבר אינן שני מתגים אלא בחירה של
-          תבנית מאושרת ומועד, והמקום שלהן הוא מסך האירוע — לצד הנרשמות
-          שיקבלו אותן, ולא לצד ההגדרות של איך הדף נראה. */}
+      <Toggle
+        label="לידים מדף הנחיתה הישן נכנסים לקורס הזה"
+        checked={draft.legacy_webhook}
+        onChange={(v) => set("legacy_webhook", v)}
+      />
+      <p className="-mt-2 text-xs leading-relaxed text-[var(--muted)]">
+        דף הנחיתה הישן של קורס המדיטציה ממשיך לעבוד כרגיל וממשיך לרשום לידים.
+        עם המתג הזה כל ליד חדש שנקלט בו יירשם <em>גם</em> כמתעניין בקורס הזה,
+        וכך ייכנס למסעות ולמונים. אפשר לסמן קורס אחד בלבד — סימון כאן מוריד
+        את הסימון מקורס אחר.
+      </p>
     </>
   );
 }
@@ -530,7 +445,7 @@ function ImageField({ url, onChange }: { url: string; onChange: (url: string) =>
     setError(null);
     const formData = new FormData();
     formData.set("image", file);
-    const result = await uploadEventImageAction(formData);
+    const result = await uploadCourseImageAction(formData);
     setUploading(false);
     if (result.ok) onChange(result.url);
     else setError(result.error);

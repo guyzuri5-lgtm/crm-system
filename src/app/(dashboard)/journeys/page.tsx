@@ -7,6 +7,7 @@ import {
   JOURNEY_ENTRY_LABELS,
   type Journey,
 } from "@/lib/supabase/database.types";
+import { ActionForm } from "@/components/action-form";
 import { createJourneyAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -14,19 +15,23 @@ export const dynamic = "force-dynamic";
 export default async function JourneysPage({ searchParams }: PageProps<"/journeys">) {
   await verifyTeamMember();
 
-  // ‎?event=<id>‎ מגיע מכפתור "מסע למתעניינות" במסך האירוע, ותפקידו רק לפתוח
-  // את הטופס עם הטריגר הנכון מסומן מראש. הוא אינו יוצר דבר בעצמו.
-  const preselectedEvent = (await searchParams).event;
-  const eventId = typeof preselectedEvent === "string" ? preselectedEvent : null;
+  // ‎?event=<id>‎ ו-‎?course=<id>‎ מגיעים מכפתור "מסע למתעניינות" במסך האירוע
+  // או הקורס, ותפקידם רק לפתוח את הטופס עם הטריגר הנכון מסומן מראש. הם
+  // אינם יוצרים דבר בעצמם.
+  const query = await searchParams;
+  const eventId = typeof query.event === "string" ? query.event : null;
+  const courseId = typeof query.course === "string" ? query.course : null;
 
   const db = supabaseAdmin();
-  const [{ data: journeysRaw, error }, statuses, { data: eventsRaw }] = await Promise.all([
-    db.from("journeys").select("*").order("created_at", { ascending: false }),
-    listStatuses(),
-    // maybe: טבלת האירועים נוספה ב-0024, ומסך המסעות חייב להמשיך לעבוד גם אם
-    // המיגרציה עוד לא רצה. שגיאה כאן פשוט מרוקנת את הבורר.
-    db.from("events").select("id, name, starts_at").order("starts_at", { ascending: false }),
-  ]);
+  const [{ data: journeysRaw, error }, statuses, { data: eventsRaw }, { data: coursesRaw }] =
+    await Promise.all([
+      db.from("journeys").select("*").order("created_at", { ascending: false }),
+      listStatuses(),
+      // maybe: טבלת האירועים נוספה ב-0024 והקורסים ב-0028, ומסך המסעות חייב
+      // להמשיך לעבוד גם אם מיגרציה עוד לא רצה. שגיאה כאן פשוט מרוקנת את הבורר.
+      db.from("events").select("id, name, starts_at").order("starts_at", { ascending: false }),
+      db.from("courses").select("id, name").order("created_at", { ascending: false }),
+    ]);
 
   if (error) {
     if (error.code === "42P01" || error.code === "PGRST205") {
@@ -40,6 +45,8 @@ export default async function JourneysPage({ searchParams }: PageProps<"/journey
   const journeys = (journeysRaw ?? []) as Journey[];
   const events = (eventsRaw ?? []) as { id: string; name: string; starts_at: string }[];
   const eventNameById = new Map(events.map((e) => [e.id, e.name]));
+  const courses = (coursesRaw ?? []) as { id: string; name: string }[];
+  const courseNameById = new Map(courses.map((c) => [c.id, c.name]));
 
   // ספירה לכל מסע: כמה במסע עכשיו וכמה סיימו. head:true מחזיר רק count.
   const counts = await Promise.all(
@@ -74,7 +81,7 @@ export default async function JourneysPage({ searchParams }: PageProps<"/journey
 
       <section className="card">
         <h2 className="mb-4 font-medium">מסע חדש</h2>
-        <form action={createJourneyAction} className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <ActionForm action={createJourneyAction} className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <label className="field-label">
             שם המסע
             <input name="name" required className="input" placeholder="מעקב אחרי ליד חדש" />
@@ -86,7 +93,9 @@ export default async function JourneysPage({ searchParams }: PageProps<"/journey
               name="entry_type"
               className="input"
               required
-              defaultValue={eventId ? "event_interest" : "status"}
+              defaultValue={
+                courseId ? "course_interest" : eventId ? "event_interest" : "status"
+              }
             >
               {JOURNEY_ENTRY_TYPES.map((t) => (
                 <option key={t} value={t}>
@@ -121,6 +130,18 @@ export default async function JourneysPage({ searchParams }: PageProps<"/journey
           </label>
 
           <label className="field-label">
+            הקורס (רק כשהכניסה לפי קורס)
+            <select name="course_id" className="input" defaultValue={courseId ?? ""}>
+              <option value="">—</option>
+              {courses.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field-label">
             תיאור (לא חובה)
             <input name="description" className="input" />
           </label>
@@ -128,7 +149,7 @@ export default async function JourneysPage({ searchParams }: PageProps<"/journey
           <button type="submit" className="btn-primary self-start md:col-span-2">
             צור מסע
           </button>
-        </form>
+        </ActionForm>
         <p className="mt-3 text-xs leading-relaxed text-[var(--subtle)]">
           המסע נוצר כבוי. מוסיפים לו שלבים ורק אז מדליקים — מסע שנדלק באמצע עריכה
           שולח הודעות אמיתיות, ואי אפשר לבטל אותן.
@@ -157,6 +178,9 @@ export default async function JourneysPage({ searchParams }: PageProps<"/journey
                   {JOURNEY_ENTRY_LABELS[j.entry_type]}
                   {j.entry_type === "status" && j.entry_value?.status
                     ? `: ${j.entry_value.status}`
+                    : ""}
+                  {j.entry_type === "course_interest" && j.entry_value?.course_id
+                    ? `: ${courseNameById.get(j.entry_value.course_id) ?? "קורס שנמחק"}`
                     : ""}
                   {j.entry_type === "event_interest" && j.entry_value?.event_id
                     ? `: ${eventNameById.get(j.entry_value.event_id) ?? "אירוע שנמחק"}`

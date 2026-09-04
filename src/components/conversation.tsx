@@ -40,6 +40,7 @@ const SIDE: Record<InteractionType, Side> = {
   booking_cancelled: "system",
   course_lead: "system",
   event_registered: "system",
+  course_registered: "system",
 };
 
 const SYSTEM_LABELS: Partial<Record<InteractionType, string>> = {
@@ -49,6 +50,7 @@ const SYSTEM_LABELS: Partial<Record<InteractionType, string>> = {
   booking_cancelled: "ביטל פגישה",
   course_lead: "השאיר פרטים לקורס",
   event_registered: "נרשמה לאירוע",
+  course_registered: "נרשמה לקורס",
 };
 
 const timeFmt = new Intl.DateTimeFormat("he-IL", {

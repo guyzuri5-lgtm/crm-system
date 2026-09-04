@@ -6,6 +6,7 @@ import {
   normalizePhone,
   type CoursePayload,
 } from "@/lib/course";
+import { getLegacyCourse } from "@/lib/courses";
 
 // POST /api/webhooks/course — קליטת לידים מדף הנחיתה של קורס המדיטציה.
 //
@@ -140,7 +141,42 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  // ── הגשר למבנה החדש (0028) ─────────────────────────────────────────────
+  // אם סומן קורס כ"מקבל לידים מהדף הישן", הליד נרשם גם כמתעניין בו — וכך
+  // הוא נכנס למונים, למסעות ולמסך הקורס. ה-webhook הזה עצמו לא השתנה
+  // בשום צורה אחרת, והוא ממשיך לעבוד בדיוק כמו קודם גם בלי קורס מסומן.
+  if (contactId) await linkToLegacyCourse(db, contactId);
+
   return json({ ok: true, lead_id: lead.id, contact_id: contactId });
+}
+
+/**
+ * רישום הליד כמתעניין בקורס המסומן, אם יש כזה.
+ *
+ * **לא מחזירה שגיאה לקורא, בכוונה.** הקליטה עצמה כבר הצליחה ונשמרה; כישלון
+ * של החיבור הנלווה — מיגרציה שטרם רצה, קורס שנמחק באמצע — אינו סיבה להחזיר
+ * שגיאה לדף הנחיתה ולגרום לו להציג ללקוחה שההרשמה נכשלה. הוא כן נרשם ללוג,
+ * כי כישלון שקט לחלוטין הוא בדיוק הדפוס שהסתיר את חוסר ה-enum ב-0025.
+ *
+ * השלב הוא interested ולא registered: השארת פרטים בדף הנחיתה אינה הרשמה
+ * לקורס, והיא בדיוק הקהל שהמסע למתעניינות מדבר אליו.
+ */
+async function linkToLegacyCourse(db: Db, contactId: string): Promise<void> {
+  const course = await getLegacyCourse();
+  if (!course) return;
+
+  const { error } = await db.from("course_registrations").insert({
+    course_id: course.id,
+    contact_id: contactId,
+    stage: "interested",
+    source: "legacy",
+  });
+
+  // 23505 = כבר רשום לקורס הזה. זה המצב הרגיל בליד חוזר, ולא שגיאה:
+  // השלב לא יורד בדרגה, ומי שכבר שילמה לא חוזרת להיות מתעניינת.
+  if (error && error.code !== "23505") {
+    console.error("[course] חיבור הליד לקורס המסומן נכשל:", error.message);
+  }
 }
 
 // ── עזרים ────────────────────────────────────────────────────────────────

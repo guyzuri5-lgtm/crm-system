@@ -5,40 +5,48 @@ import { formatLongDate, formatTime } from "@/lib/booking/timezone";
 import type { EventCustomField } from "@/lib/supabase/database.types";
 
 /**
- * המראה של דף ההרשמה לאירוע ושל עמוד התודה — במקום אחד.
+ * המראה של דף ההרשמה ושל עמוד התודה — לאירועים ולקורסים גם יחד.
  *
- * ── למה זה רכיב ולא שני דפים ──
- * שני צרכנים מציגים בדיוק את אותו דבר: הדף הציבורי ב-/event/[slug], והתצוגה
- * החיה בעורך העיצוב. שני עותקים של הרינדור היו נפרדים זה מזה תוך שבוע — מה
- * שבעל העסק רואה בעורך יפסיק להיות מה שהלקוחה רואה בפועל, וזה בדיוק סוג
- * הפער שמתגלה רק אחרי שהקהל כבר קיבל את הקישור.
+ * ── למה זה רכיב ולא ארבעה דפים ──
+ * ארבעה צרכנים מציגים בדיוק את אותו דבר: הדפים הציבוריים ב-/event/[slug]
+ * וב-/course/[slug], ושתי התצוגות החיות בעורכי העיצוב. עותקים נפרדים של
+ * הרינדור היו נפרדים זה מזה תוך שבוע — מה שבעל העסק רואה בעורך יפסיק להיות
+ * מה שהלקוחה רואה בפועל, וזה בדיוק סוג הפער שמתגלה רק אחרי שהקהל כבר קיבל
+ * את הקישור.
  *
  * לכן הכל כאן מקבל *נתונים* ולא מקורות: העורך מזרים את ה-state המקומי שלו,
  * הדף הציבורי מזרים שורה מהמסד, והמראה זהה בהגדרה.
+ *
+ * ── מה אופציונלי, ולמה ──
+ * לקורס אין תאריך, מקום או קיבולת. השדות האלה אינם "חסרים" בו אלא חסרי
+ * משמעות, ולכן הם אופציונליים בטיפוס ולא מסומנים כ-null: קורס פשוט לא
+ * מספק אותם, והשורה שמציגה אותם אינה מרונדרת. אותו היגיון בכפתורי היומן.
  */
 
 const TIMEZONE = "Asia/Jerusalem";
 
-/** EventRow מתאים לזה מבנית, וכך גם הטיוטה שבעורך. */
-export interface EventLandingDesign {
+/** EventRow ו-CourseRow מתאימים לזה מבנית, וכך גם הטיוטות שבעורכים. */
+export interface LandingDesign {
   name: string;
   subtitle: string | null;
-  starts_at: string;
-  location: string | null;
   header_image_url: string | null;
   form_description: string | null;
   button_text: string;
-  show_datetime: boolean;
-  show_capacity: boolean;
   custom_fields: EventCustomField[];
+  /** אירוע בלבד — קורס לא מספק אותם, ושורת התאריך לא מרונדרת */
+  starts_at?: string;
+  location?: string | null;
+  show_datetime?: boolean;
+  show_capacity?: boolean;
 }
 
-export interface EventThanksDesign {
+export interface ThanksDesign {
   thankyou_title: string;
   thankyou_text: string | null;
-  thankyou_show_calendar: boolean;
   thankyou_show_image: boolean;
   header_image_url: string | null;
+  /** אירוע בלבד — בלי תאריך אין מה להוסיף ליומן */
+  thankyou_show_calendar?: boolean;
 }
 
 /**
@@ -53,7 +61,7 @@ export type RegisterState = {
 };
 
 interface LandingProps {
-  design: EventLandingDesign;
+  design: LandingDesign;
   /** null = בלי הגבלת קיבולת */
   spotsLeft: number | null;
   /**
@@ -65,17 +73,19 @@ interface LandingProps {
 
 // ── דף ההרשמה ──────────────────────────────────────────────────────────────
 
-export function EventLanding({ design, spotsLeft, action }: LandingProps) {
+export function RegistrationLanding({ design, spotsLeft, action }: LandingProps) {
   const isFull = spotsLeft !== null && spotsLeft === 0;
-  const startsAt = new Date(design.starts_at);
-  const validDate = !Number.isNaN(startsAt.getTime());
+  // בלי starts_at (כלומר קורס) אין תאריך לפרסר, ו-new Date(undefined) הוא
+  // Invalid Date — כלומר validDate כבר false והשורה ממילא לא מרונדרת.
+  const startsAt = design.starts_at ? new Date(design.starts_at) : null;
+  const validDate = startsAt !== null && !Number.isNaN(startsAt.getTime());
 
   return (
     <div className="card overflow-hidden p-0">
       <Header design={design} />
 
       <div className="px-6 py-6 sm:px-8">
-        {design.show_datetime && validDate && (
+        {design.show_datetime && validDate && startsAt && (
           <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm text-[var(--muted)]">
             <span className="flex items-center gap-1.5">
               <CalendarIcon />
@@ -121,7 +131,7 @@ function FormCard({
   action,
   onResult,
 }: {
-  design: Pick<EventLandingDesign, "form_description" | "button_text" | "custom_fields">;
+  design: Pick<LandingDesign, "form_description" | "button_text" | "custom_fields">;
   isFull: boolean;
   action?: LandingProps["action"];
   /** ההטמעה בלבד: מה לעשות כשההרשמה חזרה בהצלחה. */
@@ -162,7 +172,7 @@ function FormCard({
  * המקדימה בעורך מהצורך בכתובת שעברה את remotePatterns — שם מוצגות גם תמונות
  * שהרגע הועלו.
  */
-function Header({ design }: { design: Pick<EventLandingDesign, "name" | "subtitle" | "header_image_url"> }) {
+function Header({ design }: { design: Pick<LandingDesign, "name" | "subtitle" | "header_image_url"> }) {
   const hasImage = Boolean(design.header_image_url);
 
   return (
@@ -364,7 +374,7 @@ function useReportHeight(embedId: string) {
  * הודעת התודה מוצגת דווקא במקום — אין סיבה לגרור מישהי מדף הנחיתה שלך רק
  * כדי להגיד לה תודה.
  */
-export function EventEmbed({
+export function RegistrationEmbed({
   design,
   spotsLeft,
   action,
@@ -372,7 +382,7 @@ export function EventEmbed({
   thanksText,
   embedId,
 }: {
-  design: Pick<EventLandingDesign, "form_description" | "button_text" | "custom_fields">;
+  design: Pick<LandingDesign, "form_description" | "button_text" | "custom_fields">;
   spotsLeft: number | null;
   action: NonNullable<LandingProps["action"]>;
   thanksTitle: string;
@@ -449,12 +459,12 @@ export function EventEmbed({
  * ולכן אין לו גישה ל-session, לפרמטרים מהטופס או לזהות הנרשמת. כל מה שהוא
  * מציג נגזר מהאירוע בלבד.
  */
-export function EventThanks({
+export function RegistrationThanks({
   design,
   googleUrl,
   icsUrl,
 }: {
-  design: EventThanksDesign;
+  design: ThanksDesign;
   /** חסרים בתצוגה המקדימה — הכפתורים מוצגים ואינם מקשרים לשום מקום. */
   googleUrl?: string;
   icsUrl?: string;

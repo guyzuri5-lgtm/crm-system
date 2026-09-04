@@ -92,6 +92,26 @@ function Bolt() {
   );
 }
 
+function School() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M22 10v6" />
+      <path d="M2 10l10-5 10 5-10 5z" />
+      <path d="M6 12v5c3 3 9 3 12 0v-5" />
+    </svg>
+  );
+}
+
 function Route() {
   return (
     <svg
@@ -144,6 +164,10 @@ export default async function DashboardPage() {
     { data: nextNewsletter },
     { data: nextEvent },
     { count: unpaidCount },
+    { data: courseInterestedRaw },
+    { count: newCourseInterestCount },
+    { data: eventInterestedRaw },
+    { data: enrolledRaw },
     eventTypes,
     bookingSettings,
     whatsappSettings,
@@ -221,6 +245,19 @@ export default async function DashboardPage() {
       .select("id", { count: "exact", head: true })
       .eq("stage", "registered")
       .lte("created_at", new Date(now.getTime() - DAY_MS).toISOString()),
+    // ── קורסים (0028) ──
+    // שלוש שאילתות רזות שמחזירות contact_id בלבד: הצטלבות "מי מתעניינת"
+    // מול "מי כבר במסע" נעשית בזיכרון, כי PostgREST לא יודע NOT IN על
+    // תת-שאילתה. אם 0028 טרם רצה, השגיאה נבלעת ו-null הופך לרשימה ריקה —
+    // דף הבית ממשיך לעבוד בדיוק כמו קודם.
+    db.from("course_registrations").select("contact_id").eq("stage", "interested"),
+    db
+      .from("course_registrations")
+      .select("id", { count: "exact", head: true })
+      .eq("stage", "interested")
+      .gte("created_at", sevenDaysAgo),
+    db.from("event_registrations").select("contact_id").eq("stage", "interested"),
+    db.from("journey_enrollments").select("contact_id"),
     listEventTypes(),
     getBookingSettings(),
     getWhatsAppSettings(),
@@ -244,6 +281,19 @@ export default async function DashboardPage() {
   const eventTypeById = new Map(eventTypes.map((type) => [type.id, type]));
   const bookings = todayBookings ?? [];
   const quiet = (quietContacts ?? []) as Contact[];
+
+  // ── מתעניינות ──
+  const courseInterested = (courseInterestedRaw ?? []).map((r) => r.contact_id);
+  const courseInterestedCount = new Set(courseInterested).size;
+
+  // מי שהשאירה פרטים ואף אחד לא בנה לה המשך. זו הרשימה שהמסעות נועדו לה,
+  // ולכן "מתעניינת שאינה באף מסע" היא הפער האמיתי — לא מספר המתעניינות.
+  const enrolledIds = new Set((enrolledRaw ?? []).map((r) => r.contact_id));
+  const interestedIds = new Set([
+    ...courseInterested,
+    ...(eventInterestedRaw ?? []).map((r) => r.contact_id),
+  ]);
+  const unlinkedInterestedCount = [...interestedIds].filter((id) => !enrolledIds.has(id)).length;
 
   // כמה כבר שילמו לאירוע הקרוב. שאילתה נפרדת ולא חלק מה-Promise.all שלמעלה,
   // כי היא תלויה במזהה שיוצא ממנו.
@@ -429,7 +479,7 @@ export default async function DashboardPage() {
 
         <div className="card flex flex-col gap-3">
           <h2 className="font-medium">דורש טיפול</h2>
-          {!quiet.length && !unpaidCount ? (
+          {!quiet.length && !unpaidCount && !unlinkedInterestedCount ? (
             <p className="text-sm text-[var(--muted)]">הכול מטופל ✔</p>
           ) : !quiet.length ? null : (
             <ul className="flex flex-col gap-2">
@@ -469,6 +519,23 @@ export default async function DashboardPage() {
             </Link>
           )}
 
+          {/* מתעניינת שאינה באף מסע היא ליד שנפל בין הכיסאות: היא השאירה
+              פרטים, ואיש לא בנה לה המשך. הקישור מוביל למסעות, כי זו הפעולה
+              שסוגרת את הפער. */}
+          {Boolean(unlinkedInterestedCount) && (
+            <Link
+              href="/journeys"
+              className="flex items-baseline justify-between gap-3 border-t border-[var(--border)] pt-3 text-sm hover:underline"
+            >
+              <span className="font-medium">מתעניינות שאינן באף מסע</span>
+              <span
+                className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColorClasses("amber")}`}
+              >
+                {unlinkedInterestedCount}
+              </span>
+            </Link>
+          )}
+
           <p className="mt-auto text-xs text-[var(--subtle)]">
             מי שלא נשמע ממנו {NO_REPLY_DAYS} ימים ומעלה.
           </p>
@@ -477,10 +544,10 @@ export default async function DashboardPage() {
 
       {/* ── שורת מצב ────────────────────────────────────────────────── */}
       {/*
-        המתזמן היה אמור לשבת כאן ככרטיס שלישי, אבל אין טבלה שרושמת את ריצות
-        הקרון — ואין ממה לגזור "רץ לאחרונה ב-". הכרטיס יתווסף אם וכאשר.
+        המתזמן היה אמור לשבת כאן, אבל אין טבלה שרושמת את ריצות הקרון — ואין
+        ממה לגזור "רץ לאחרונה ב-". במקומו נכנס כאן הכרטיס של הקורסים (0028).
       */}
-      <section className="grid gap-4 sm:grid-cols-2">
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Link href="/whatsapp" className="card flex items-center gap-3">
           <span
             className="grid size-9 shrink-0 place-items-center rounded-xl"
@@ -522,6 +589,23 @@ export default async function DashboardPage() {
             </span>
             <span className="block text-xs text-[var(--muted)]">
               {activeJourneysCount ?? 0} מסעות פעילים
+            </span>
+          </span>
+        </Link>
+
+        <Link href="/courses" className="card flex items-center gap-3">
+          <span
+            className="grid size-9 shrink-0 place-items-center rounded-xl"
+            style={{ backgroundColor: "var(--nav-blue-soft)", color: "var(--nav-blue)" }}
+          >
+            <School />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-sm font-medium">
+              {courseInterestedCount} מתעניינות בקורסים
+            </span>
+            <span className="block text-xs text-[var(--muted)]">
+              {newCourseInterestCount ?? 0} חדשות השבוע
             </span>
           </span>
         </Link>

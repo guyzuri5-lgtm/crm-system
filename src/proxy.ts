@@ -11,8 +11,12 @@ import { createServerClient } from "@supabase/ssr";
 //
 // /event/* הוא אותו סיפור בדיוק לדפי ההרשמה לאירועים (0024): הקישור נשלח
 // לקהל, ועמוד התודה שבתוכו הוא גם כתובת ההפניה של גרואו אחרי תשלום — כלומר
-// כניסה מדומיין אחר, בלי שום סשן.
-const PUBLIC_PATHS = ["/login", "/book", "/event", "/oauth2callback"];
+// כניסה מדומיין אחר, בלי שום סשן. /course/* (0028) זהה לו.
+//
+// שימו לב לצורת ההתאמה למטה: היא "שווה בדיוק, או מתחיל ב-path + לוכסן", ולכן
+// /event אינו פותח את /events שבדשבורד — וכך גם /course מול /courses. התאמת
+// תחילית פשוטה הייתה חושפת כאן שני מסכי ניהול שלמים לכל מי שיבקש.
+const PUBLIC_PATHS = ["/login", "/book", "/event", "/course", "/oauth2callback"];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });

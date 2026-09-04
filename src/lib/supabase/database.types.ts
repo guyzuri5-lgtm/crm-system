@@ -40,7 +40,9 @@ export type InteractionType =
   // נוסף ב-0013_course_leads.sql — השארת פרטים בדף הנחיתה של קורס המדיטציה
   | "course_lead"
   // נוסף ב-0024_events.sql — הרשמה לאירוע דרך דף ההרשמה הציבורי
-  | "event_registered";
+  | "event_registered"
+  // נוסף ב-0028_courses.sql — הרשמה לקורס דיגיטלי
+  | "course_registered";
 
 /** סוגי רשומה בשאלון, לפי סדר עולה של "חום" הליד */
 export const QUIZ_KINDS = ["anonymous", "lead", "booking_click"] as const;
@@ -70,6 +72,8 @@ export const JOURNEY_ENTRY_TYPES = [
   // נוסף ב-0024: מתעניינת באירוע מסוים — הראשון שדורש *איזה* אירוע, ולכן
   // entry_value נושא event_id בדיוק כפי שהוא נושא status לכניסה לפי סטטוס.
   "event_interest",
+  // נוסף ב-0028: אותו דפוס בדיוק, עם course_id ב-entry_value.
+  "course_interest",
 ] as const;
 export type JourneyEntryType = (typeof JOURNEY_ENTRY_TYPES)[number];
 
@@ -77,8 +81,10 @@ export const JOURNEY_ENTRY_LABELS: Record<JourneyEntryType, string> = {
   status: "נכנס לסטטוס",
   quiz: "מילא את השאלון",
   booking: "קבע פגישה",
-  course_lead: "השאיר פרטים בדף הקורס",
+  // "בדף הקורס" הישן — דף הנחיתה של קורס המדיטציה, שקדם לטבלת courses.
+  course_lead: "השאיר פרטים בדף הקורס (הישן)",
   event_interest: "נרשמה כמתעניינת לאירוע",
+  course_interest: "נרשמה כמתעניינת לקורס",
 };
 
 /**
@@ -218,6 +224,74 @@ export type EventCustomField = {
 export const EVENT_FIELD_TYPE_LABELS: Record<EventCustomField["type"], string> = {
   text: "טקסט חופשי",
   select: "בחירה מרשימה",
+};
+
+// ── נוספו ב-0028_courses.sql ────────────────────────────────────────────
+
+/**
+ * שלבי ההרשמה לקורס — *אותם* שלושה של אירוע, ובכוונה.
+ *
+ * הטיפוס מוגדר כשם נרדף ולא כרשימה שנייה: שתי רשימות זהות נפרדות זו מזו
+ * עם הזמן, וכל פונקציה שמשרתת את שניהם (strongerStage, מוני השלבים) הייתה
+ * צריכה להכריע בין שני טיפוסים שאומרים בדיוק אותו דבר.
+ */
+export const COURSE_STAGES = EVENT_STAGES;
+export type CourseStage = EventStage;
+
+/**
+ * התוויות, לעומת זאת, כן משלהן — כי הן מדברות על מוצר אחר. באירוע "נרשמה"
+ * היא מי שתפסה מקום באולם; בקורס אין מקומות, ומה שקרה בפועל הוא שהיא התחילה
+ * את התהליך ולא סיימה תשלום.
+ */
+export const COURSE_STAGE_LABELS: Record<CourseStage, string> = {
+  interested: "מתעניינת",
+  registered: "התחילה, לא שילמה",
+  paid: "לקוחה בקורס",
+};
+
+/**
+ * מאיפה הגיעה ההרשמה.
+ *
+ * legacy הוא היחיד שאין לו מקבילה באירועים: הוא מסמן ליד שנקלט ב-webhook
+ * הישן של דף הנחיתה (0013) ושויך לקורס דרך הדגל legacy_webhook. הפרדה שלו
+ * מ-landing היא מה שיאפשר לדעת מתי אפשר לכבות את הדף הישן.
+ */
+export const COURSE_SOURCES = ["landing", "meta", "manual", "legacy"] as const;
+export type CourseSource = (typeof COURSE_SOURCES)[number];
+
+export const COURSE_SOURCE_LABELS: Record<CourseSource, string> = {
+  landing: "דף הרשמה",
+  meta: "מטא",
+  manual: "ידני",
+  legacy: "דף הנחיתה הישן",
+};
+
+/** שדה מותאם בטופס הקורס. מבנה זהה לאירוע — ראו EventCustomField. */
+export type CourseCustomField = EventCustomField;
+
+// ── נוספו ב-0030_webhook_inbox.sql ──────────────────────────────────────
+
+/**
+ * מקורות ה-webhook שנשמרים בתיבה הנכנסת.
+ *
+ * הטיפוס קיים בקוד ולא כאילוץ במסד (ראו הערה במיגרציה): הוא נועד לתפוס שגיאת
+ * הקלדה בכתיבה, לא למנוע קליטה של payload שהגיע ממקור חדש.
+ */
+export const WEBHOOK_SOURCES = ["meta", "grow"] as const;
+export type WebhookSource = (typeof WEBHOOK_SOURCES)[number];
+
+export const WEBHOOK_SOURCE_LABELS: Record<WebhookSource, string> = {
+  meta: "לידים ממטא",
+  grow: "תשלומים מגרואו",
+};
+
+/** לאן טופס של מטא מפנה: אירוע או קורס. */
+export const META_FORM_TARGET_TYPES = ["event", "course"] as const;
+export type MetaFormTargetType = (typeof META_FORM_TARGET_TYPES)[number];
+
+export const META_FORM_TARGET_TYPE_LABELS: Record<MetaFormTargetType, string> = {
+  event: "אירוע",
+  course: "קורס",
 };
 
 export const BOOKING_LOCATIONS = ["google_meet", "phone", "in_person"] as const;
@@ -613,8 +687,11 @@ export type Database = {
           name: string;
           description: string | null;
           entry_type: JourneyEntryType;
-          /** {"status": "..."} לכניסה לפי סטטוס, {"event_id": "..."} לכניסה לפי אירוע */
-          entry_value: { status?: string; event_id?: string };
+          /**
+           * הערך הנלווה לטריגר: {"status":"..."} לכניסה לפי סטטוס,
+           * {"event_id":"..."} לאירוע, {"course_id":"..."} לקורס.
+           */
+          entry_value: { status?: string; event_id?: string; course_id?: string };
           active: boolean;
           /** נוסף ב-0017 — תגובה של הלקוח מסיימת את המסע כולו */
           stop_on_reply: boolean;
@@ -857,6 +934,120 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["event_reminders_sent"]["Row"]>;
         Relationships: Relationships;
       };
+
+      // ── נוספו ב-0028_courses.sql ───────────────────────────────────────
+      /**
+       * קורס דיגיטלי — אירוע בלי תאריך.
+       *
+       * שדות העיצוב זהים לאלה של events *במכוון*: זה מה שמאפשר לרכיבי
+       * התצוגה ב-components/registration-page.tsx לשרת את שניהם בלי שני עותקים
+       * של הטופס. מה שחסר כאן חסר כי אין לו משמעות — starts_at, location,
+       * capacity, ושלושת המתגים שתלויים בהם.
+       */
+      courses: {
+        Row: {
+          id: string;
+          /** הכתובת הציבורית: /course/{slug} */
+          slug: string;
+          name: string;
+          subtitle: string | null;
+          description: string | null;
+          grow_link: string | null;
+          custom_fields: CourseCustomField[];
+          /** תמונת רקע לחלק העליון, מהבאקט media (0023) */
+          header_image_url: string | null;
+          form_description: string | null;
+          button_text: string;
+          thankyou_title: string;
+          thankyou_text: string | null;
+          thankyou_show_image: boolean;
+          /**
+           * הקורס שאליו משויכים לידים מה-webhook הישן של דף הנחיתה.
+           * אינדקס ייחודי חלקי במסד מוודא שלכל היותר אחד מסומן.
+           */
+          legacy_webhook: boolean;
+          active: boolean;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["courses"]["Row"]> & {
+          slug: string;
+          name: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["courses"]["Row"]>;
+        Relationships: Relationships;
+      };
+      course_registrations: {
+        Row: {
+          id: string;
+          course_id: string;
+          contact_id: string;
+          /** interested | registered | paid — עולה בדרגה בלבד */
+          stage: CourseStage;
+          source: CourseSource;
+          /** התשובות לשדות המותאמים, ממופתחות לפי CourseCustomField.key */
+          answers: Record<string, string>;
+          created_at: string;
+          paid_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["course_registrations"]["Row"]> & {
+          course_id: string;
+          contact_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["course_registrations"]["Row"]>;
+        Relationships: Relationships;
+      };
+
+      // ── נוספו ב-0030_webhook_inbox.sql ─────────────────────────────────
+      /**
+       * כל payload שנקלט מ-webhook חיצוני, גולמי, לפני שניסינו להבין אותו.
+       *
+       * processed=false נושא שתי משמעויות במכוון — "טרם עובד" ו"העיבוד נכשל"
+       * — כי שתיהן מובילות לאותה פעולה: מישהו צריך להסתכל.
+       */
+      webhook_inbox: {
+        Row: {
+          id: string;
+          /** WebhookSource בפועל, אך text במסד — ראו ההערה במיגרציה */
+          source: string;
+          /** הגוף כפי שהתקבל, בלי נרמול. unknown ולא any: כל קריאה ממנו חייבת לבדוק. */
+          payload: unknown;
+          processed: boolean;
+          /** למה העיבוד נכשל. ריק בשורה שעברה או שטרם נגעו בה. */
+          error: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["webhook_inbox"]["Row"]> & {
+          source: string;
+          payload: unknown;
+        };
+        Update: Partial<Database["public"]["Tables"]["webhook_inbox"]["Row"]>;
+        Relationships: Relationships;
+      };
+
+      /**
+       * שיוך מזהה טופס אצל מטא לאירוע או לקורס.
+       *
+       * ל-target_id אין מפתח זר — הוא מצביע על אחת משתי טבלאות לפי
+       * target_type. המשמעות המעשית: יעד שנמחק משאיר שורה יתומה, ומי שקורא
+       * אותה חייב להתמודד עם "לא נמצא" ולא להניח שהיא תקפה.
+       */
+      meta_form_targets: {
+        Row: {
+          form_id: string;
+          target_type: MetaFormTargetType;
+          target_id: string;
+          /** שם קריא שגיא כותב ידנית. מטא לא שולחת את שם הטופס ב-webhook. */
+          label: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["meta_form_targets"]["Row"]> & {
+          form_id: string;
+          target_type: MetaFormTargetType;
+          target_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["meta_form_targets"]["Row"]>;
+        Relationships: Relationships;
+      };
     };
     Views: {
       /** נוצרת ב-0012_contact_activity.sql — סיכום פעילות לכל איש קשר. */
@@ -909,3 +1100,11 @@ export type NewsletterRecipient = Database["public"]["Tables"]["newsletter_recip
 export type EventRow = Database["public"]["Tables"]["events"]["Row"];
 export type EventRegistration = Database["public"]["Tables"]["event_registrations"]["Row"];
 export type EventReminder = Database["public"]["Tables"]["event_reminders"]["Row"];
+
+/** CourseRow ולא Course, באותו נימוק כמו EventRow — עקביות, לא התנגשות. */
+export type CourseRow = Database["public"]["Tables"]["courses"]["Row"];
+export type CourseRegistration = Database["public"]["Tables"]["course_registrations"]["Row"];
+
+/** נוספו ב-0030_webhook_inbox.sql — התשתית לקליטת מטא וגרואו. */
+export type WebhookInboxRow = Database["public"]["Tables"]["webhook_inbox"]["Row"];
+export type MetaFormTarget = Database["public"]["Tables"]["meta_form_targets"]["Row"];

@@ -6,6 +6,7 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { verifyTeamMember } from "@/lib/dal";
 import { JOURNEY_ENTRY_TYPES } from "@/lib/supabase/database.types";
+import { toResult, type ActionResult } from "@/lib/action-result";
 
 const journeySchema = z.object({
   name: z.string().trim().min(1, "חובה למלא שם למסע"),
@@ -13,53 +14,69 @@ const journeySchema = z.object({
   entry_type: z.enum(JOURNEY_ENTRY_TYPES),
   status: z.string().trim().optional(),
   event_id: z.string().uuid().optional(),
+  course_id: z.string().uuid().optional(),
 });
 
 /**
  * מה נשמר ב-entry_value, לפי סוג הכניסה.
  *
- * שני סוגים בלבד נושאים ערך: סטטוס ואירוע. השאר נגזרים מהיומן ואין להם מה
- * לצמצם — ולכן אובייקט ריק ולא null, כדי שהעמודה תישאר בעלת צורה אחת.
+ * שלושה סוגים נושאים ערך: סטטוס, אירוע וקורס. השאר נגזרים מהיומן ואין להם
+ * מה לצמצם — ולכן אובייקט ריק ולא null, כדי שהעמודה תישאר בעלת צורה אחת.
  */
 function entryValueOf(data: z.infer<typeof journeySchema>) {
   if (data.entry_type === "status") return { status: data.status };
   if (data.entry_type === "event_interest") return { event_id: data.event_id };
+  if (data.entry_type === "course_interest") return { course_id: data.course_id };
   return {};
 }
 
-export async function createJourneyAction(formData: FormData) {
-  await verifyTeamMember();
+/**
+ * מחזירה תוצאה ולא זורקת.
+ *
+ * ההודעות כאן ("מסע למתעניינות בקורס חייב שיוגדר לו קורס") הן בדיוק הסוג
+ * שנמחק בפרודקשן והוחלף בשגיאה גנרית של React — ר' 8dbd26d. toResult עוטף
+ * את הגוף הקיים בלי לשנות ולו ניסוח אחד, ומעביר את ה-redirect שבסופו הלאה
+ * כמו שהוא.
+ */
+export async function createJourneyAction(formData: FormData): Promise<ActionResult> {
+  return toResult(async () => {
+    await verifyTeamMember();
 
-  const parsed = journeySchema.safeParse({
-    name: formData.get("name"),
-    description: formData.get("description") || undefined,
-    entry_type: formData.get("entry_type"),
-    status: formData.get("status") || undefined,
-    event_id: formData.get("event_id") || undefined,
+    const parsed = journeySchema.safeParse({
+      name: formData.get("name"),
+      description: formData.get("description") || undefined,
+      entry_type: formData.get("entry_type"),
+      status: formData.get("status") || undefined,
+      event_id: formData.get("event_id") || undefined,
+      course_id: formData.get("course_id") || undefined,
+    });
+    if (!parsed.success) throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
+
+    if (parsed.data.entry_type === "status" && !parsed.data.status) {
+      throw new Error("מסע שנכנסים אליו לפי סטטוס חייב שיוגדר לו סטטוס");
+    }
+    if (parsed.data.entry_type === "event_interest" && !parsed.data.event_id) {
+      throw new Error("מסע למתעניינות באירוע חייב שיוגדר לו אירוע");
+    }
+    if (parsed.data.entry_type === "course_interest" && !parsed.data.course_id) {
+      throw new Error("מסע למתעניינות בקורס חייב שיוגדר לו קורס");
+    }
+
+    const { data, error } = await supabaseAdmin()
+      .from("journeys")
+      .insert({
+        name: parsed.data.name,
+        description: parsed.data.description ?? null,
+        entry_type: parsed.data.entry_type,
+        entry_value: entryValueOf(parsed.data),
+      })
+      .select("id")
+      .single();
+    if (error) throw error;
+
+    revalidatePath("/journeys");
+    redirect(`/journeys/${data.id}`);
   });
-  if (!parsed.success) throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
-
-  if (parsed.data.entry_type === "status" && !parsed.data.status) {
-    throw new Error("מסע שנכנסים אליו לפי סטטוס חייב שיוגדר לו סטטוס");
-  }
-  if (parsed.data.entry_type === "event_interest" && !parsed.data.event_id) {
-    throw new Error("מסע למתעניינות באירוע חייב שיוגדר לו אירוע");
-  }
-
-  const { data, error } = await supabaseAdmin()
-    .from("journeys")
-    .insert({
-      name: parsed.data.name,
-      description: parsed.data.description ?? null,
-      entry_type: parsed.data.entry_type,
-      entry_value: entryValueOf(parsed.data),
-    })
-    .select("id")
-    .single();
-  if (error) throw error;
-
-  revalidatePath("/journeys");
-  redirect(`/journeys/${data.id}`);
 }
 
 export async function deleteJourneyAction(formData: FormData) {

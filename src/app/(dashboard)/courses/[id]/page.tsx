@@ -2,116 +2,110 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { verifyTeamMember } from "@/lib/dal";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { assertEventsMigrated, countStages, EVENT_TIMEZONE, getEventById, spotsLeft } from "@/lib/events";
-import { formatDateTime } from "@/lib/booking/timezone";
+import { assertCoursesMigrated, countCourseStages, getCourseById } from "@/lib/courses";
+import { formatDateTime } from "@/lib/dates";
 import {
-  EVENT_SOURCE_LABELS,
-  EVENT_STAGE_LABELS,
+  COURSE_SOURCE_LABELS,
+  COURSE_STAGE_LABELS,
   type Contact,
-  type EventStage,
-  type EventSource,
-  type EventReminder,
-  type MessageTemplate,
+  type CourseStage,
+  type CourseSource,
 } from "@/lib/supabase/database.types";
 import { ActionForm } from "@/components/action-form";
 import { CopyLink } from "../../booking/copy-link";
 import { CopyEmbed } from "@/components/copy-embed";
-import { EventReminders } from "./reminders";
-import { markPaidAction } from "../actions";
+import { markCoursePaidAction, toggleCourseActiveAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
 type RegistrationRow = {
   id: string;
-  stage: EventStage;
-  source: EventSource;
+  stage: CourseStage;
+  source: CourseSource;
   created_at: string;
   paid_at: string | null;
   contacts: Contact | null;
 };
 
-type ReminderRow = EventReminder & { template: MessageTemplate | null };
-
 /** תג צבעוני לכל שלב, באותה שפה ויזואלית של תגי הסטטוס במערכת. */
-const STAGE_TONE: Record<EventStage, { bg: string; text: string }> = {
+const STAGE_TONE: Record<CourseStage, { bg: string; text: string }> = {
   paid: { bg: "var(--primary-soft)", text: "var(--primary)" },
   interested: { bg: "var(--nav-amber-soft)", text: "var(--nav-amber)" },
   registered: { bg: "var(--nav-pink-soft)", text: "var(--nav-pink)" },
 };
 
-export default async function EventPage({ params }: PageProps<"/events/[id]">) {
+export default async function CourseManagePage({ params }: PageProps<"/courses/[id]">) {
   await verifyTeamMember();
   const { id } = await params;
 
-  const event = await getEventById(id);
-  if (!event) notFound();
+  const course = await getCourseById(id);
+  if (!course) notFound();
 
-  const [counts, { data, error }, { data: remindersRaw }, { data: templatesRaw }] =
-    await Promise.all([
-      countStages(event.id),
-      supabaseAdmin()
-        .from("event_registrations")
-        .select("id, stage, source, created_at, paid_at, contacts(*)")
-        .eq("event_id", event.id)
-        .order("created_at", { ascending: false })
-        .returns<RegistrationRow[]>(),
-      // התזכורות והתבניות. שגיאה כאן (0027 שטרם רץ) לא מפילה את המסך —
-      // כרטיס התזכורות פשוט יוצג ריק.
-      supabaseAdmin()
-        .from("event_reminders")
-        .select("*, template:message_templates(*)")
-        .eq("event_id", event.id)
-        .order("created_at")
-        .returns<ReminderRow[]>(),
-      supabaseAdmin().from("message_templates").select("*").eq("channel", "whatsapp"),
-    ]);
+  const [counts, { data, error }] = await Promise.all([
+    countCourseStages(course.id),
+    supabaseAdmin()
+      .from("course_registrations")
+      .select("id, stage, source, created_at, paid_at, contacts(*)")
+      .eq("course_id", course.id)
+      .order("created_at", { ascending: false })
+      .returns<RegistrationRow[]>(),
+  ]);
 
-  assertEventsMigrated(error);
+  assertCoursesMigrated(error);
   if (error) throw error;
 
   const registrations = data ?? [];
-  const left = spotsLeft(event, counts.paid);
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-xl font-semibold">{event.name}</h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            {formatDateTime(new Date(event.starts_at), EVENT_TIMEZONE)}
-            {event.location ? ` · ${event.location}` : ""}
-            {left !== null ? ` · נותרו ${left} מקומות` : ""}
+          <h1 className="text-xl font-semibold">{course.name}</h1>
+          <p className="mt-1 text-sm text-[var(--muted)]" dir="ltr">
+            /course/{course.slug}
           </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <CopyLink path={`/event/${event.slug}`} label="העתקת לינק ההרשמה" />
-          <CopyEmbed slug={event.slug} fieldCount={event.custom_fields.length} />
-          <Link href={`/events/${event.id}/edit`} className="btn-secondary">
+          <CopyLink path={`/course/${course.slug}`} label="העתקת לינק ישיר" />
+          <CopyEmbed slug={course.slug} fieldCount={course.custom_fields.length} kind="course" />
+          <Link href={`/courses/${course.id}/edit`} className="btn-secondary">
             עיצוב הדף
           </Link>
-          {/* פותח יצירת מסע עם הטריגר "נרשמה כמתעניינת לאירוע" מסומן מראש */}
-          <Link href={`/journeys?event=${event.id}`} className="btn-primary">
+          {/* פותח יצירת מסע עם הטריגר "נרשמה כמתעניינת לקורס" מסומן מראש */}
+          <Link href={`/journeys?course=${course.id}`} className="btn-primary">
             מסע למתעניינות
           </Link>
         </div>
       </div>
 
+      {!course.active && (
+        <div className="card flex flex-wrap items-center justify-between gap-3 border-[var(--nav-amber)]">
+          <p className="text-sm">
+            <span className="font-semibold text-[var(--nav-amber)]">הקורס כבוי.</span>{" "}
+            <span className="text-[var(--muted)]">
+              דף ההרשמה הציבורי מחזיר &quot;לא נמצא&quot;, וטופס מוטמע מפסיק להופיע.
+            </span>
+          </p>
+          <ActionForm action={toggleCourseActiveAction}>
+            <input type="hidden" name="id" value={course.id} />
+            <input type="hidden" name="active" value="true" />
+            <button type="submit" className="btn-secondary">
+              הפעלה מחדש
+            </button>
+          </ActionForm>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Metric label="שילמו" value={counts.paid} tone="var(--primary)" />
-        <Metric label="נרשמו ולא שילמו" value={counts.registered} tone="var(--nav-pink)" />
+        <Metric label="לקוחות בקורס" value={counts.paid} tone="var(--primary)" />
+        <Metric label="התחילו ולא שילמו" value={counts.registered} tone="var(--nav-pink)" />
         <Metric label="מתעניינות" value={counts.interested} tone="var(--nav-amber)" />
       </div>
 
-      <EventReminders
-        eventId={event.id}
-        reminders={remindersRaw ?? []}
-        templates={(templatesRaw ?? []) as MessageTemplate[]}
-      />
-
       {registrations.length === 0 ? (
         <div className="card text-center text-sm text-[var(--muted)]">
-          עוד אף אחת לא נרשמה. הקישור לדף ההרשמה מוכן להעתקה למעלה.
+          עוד אף אחת לא נרשמה. הקישור לדף ההרשמה וקוד ההטמעה מוכנים להעתקה למעלה.
         </div>
       ) : (
         <div className="table-wrap">
@@ -153,20 +147,18 @@ export default async function EventPage({ params }: PageProps<"/events/[id]">) {
                         color: STAGE_TONE[row.stage].text,
                       }}
                     >
-                      {EVENT_STAGE_LABELS[row.stage]}
+                      {COURSE_STAGE_LABELS[row.stage]}
                     </span>
                   </td>
-                  <td className="td text-[var(--muted)]">{EVENT_SOURCE_LABELS[row.source]}</td>
-                  <td className="td text-[var(--muted)]">
-                    {formatDateTime(new Date(row.created_at), EVENT_TIMEZONE)}
-                  </td>
+                  <td className="td text-[var(--muted)]">{COURSE_SOURCE_LABELS[row.source]}</td>
+                  <td className="td text-[var(--muted)]">{formatDateTime(row.created_at)}</td>
                   <td className="td text-end">
                     {row.stage !== "paid" && (
                       // הגיבוי לגרואו: כל עוד אין webhook, זו הדרך לסגור את
                       // המעגל אחרי שרואים תשלום בפועל.
-                      <ActionForm action={markPaidAction}>
+                      <ActionForm action={markCoursePaidAction}>
                         <input type="hidden" name="registration_id" value={row.id} />
-                        <input type="hidden" name="event_id" value={event.id} />
+                        <input type="hidden" name="course_id" value={course.id} />
                         <button type="submit" className="btn-ghost whitespace-nowrap">
                           סימון כשילמה
                         </button>

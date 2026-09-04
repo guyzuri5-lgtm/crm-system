@@ -4,15 +4,10 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import {
-  countStages,
-  findOrCreateContact,
-  getActiveEventBySlug,
-  spotsLeft,
-  strongerStage,
-} from "@/lib/events";
+import { countStages, getActiveEventBySlug, spotsLeft } from "@/lib/events";
+import { findOrCreateContact, strongerStage } from "@/lib/registration";
 import type { EventStage } from "@/lib/supabase/database.types";
-import type { RegisterState } from "@/components/event-page";
+import type { RegisterState } from "@/components/registration-page";
 
 /**
  * ההרשמה מדף האירוע הציבורי.
@@ -60,7 +55,7 @@ async function register(
       phone: parsed.data.phone,
       email: parsed.data.email,
     },
-    event.name
+    `אירוע: ${event.name}`
   );
   if ("error" in contact) return { error: contact.error };
 
@@ -150,7 +145,7 @@ export async function registerForEventAction(
 /**
  * גרסת ההטמעה: מחזירה לאן ללכת במקום ללכת לשם.
  *
- * הניווט נעשה בלקוח (ראו EventEmbed ב-components/event-page.tsx) כי רק שם
+ * הניווט נעשה בלקוח (ראו RegistrationEmbed ב-components/registration-page.tsx) כי רק שם
  * אפשר להבחין בין שני המקרים: תשלום חייב לקחת את *כל* החלון — דף גרואו בתוך
  * מסגרת של 420 פיקסלים אינו דף תשלום שמישהי תשלים — ואילו הודעת התודה דווקא
  * נכון שתופיע במקום, בלי לגרור את הגולשת מדף הנחיתה שלך.

@@ -25,6 +25,7 @@ const ACTIVITY_LABELS: Record<InteractionType, string> = {
   quiz_submitted: "מילא שאלון",
   course_lead: "השאיר פרטים לקורס",
   event_registered: "נרשמה לאירוע",
+  course_registered: "נרשמה לקורס",
   booking_created: "קבע פגישה",
   booking_cancelled: "ביטל פגישה",
   whatsapp_out: "נשלחה אליו הודעה",
