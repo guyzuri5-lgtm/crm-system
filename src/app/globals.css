@@ -1,54 +1,165 @@
 @import "tailwindcss";
 
+/* ══════════════════════════════════════════════════════════════════════════
+   פטינה — שכבת האסימונים של המערכת
+   ──────────────────────────────────────────────────────────────────────────
+   כל צבע במערכת עובר דרך המשתנים כאן. שמות המשתנים לא השתנו מהגרסה הקודמת
+   בכוונה: כל עמוד שכבר כותב var(--primary) או var(--muted) מקבל את המראה
+   החדש בלי שינוי קוד.
+
+   שלוש משפחות, שלא מתערבבות:
+     --primary        המבטא היחיד. אומר "זו הפעולה".
+     --nav-*          שש קבוצות הניווט. אומרות "זה האזור".
+     --ok/--warn/--danger  מצב. אומרים "זה קורה עכשיו".
+
+   המצב הכהה מוגדר כאן במלואו, אבל נדלק רק כש-data-theme="dark" יושב על
+   <html>. הוא לא מחובר ל-prefers-color-scheme עדיין, כי חלק מהמסכים עוד
+   מחזיקים bg-white ישירות ב-JSX — הם יעברו לאסימונים בשלבים 1–3, ורק בשלב 5
+   נדליק את המצב הכהה אוטומטית. עד אז משתמש עם מערכת הפעלה כהה ממשיך לראות
+   בדיוק את מה שראה קודם.
+   ══════════════════════════════════════════════════════════════════════════ */
+
 :root {
-  --background: #faf9f7;
+  /* ── משטחים ─────────────────────────────────────────────────────────── */
+  --background: #fbfaf8;
   --surface: #ffffff;
-  --border: #e7e2dc;
-  --border-strong: #d6cfc6;
+  /* משטח שקוע: רקע של תיבת שיחה, כותרת טבלה, שדה לקריאה בלבד */
+  --surface-sunken: #f1efe9;
+  --border: #e7e3db;
+  --border-strong: #d6d0c5;
 
-  --foreground: #1c1a17;
-  --muted: #6b6459;
-  --subtle: #a39a8c;
+  /* ── דיו ────────────────────────────────────────────────────────────── */
+  /* שחור עם הטיה ירוקה קלה לכיוון המבטא — אפור טהור נקרא כברירת מחדל */
+  --foreground: #171e1b;
+  --muted: #5a625e;
+  --subtle: #8b928d;
 
-  --primary: #0f766e;
-  --primary-hover: #0b5c56;
-  --primary-soft: #e6f4f2;
-  --ring: #14b8a6;
+  /* ── ורדיגריס: המבטא היחיד ───────────────────────────────────────────── */
+  --primary: #0c6b62;
+  --primary-hover: #08514a;
+  --primary-soft: #e1f0ee;
+  --ring: #14a093;
 
-  --danger: #b91c1c;
-  --danger-soft: #fdf1f1;
+  /* ── מצב ────────────────────────────────────────────────────────────── */
+  --ok: #0d7255;
+  --ok-soft: #e2f2eb;
+  --warn: #8e5e06;
+  --warn-soft: #faf0d9;
+  --danger: #ac2e2e;
+  --danger-soft: #fbe9e8;
 
-  /* צבעי קבוצות הניווט */
-  --nav-pink: #993556;
-  --nav-pink-icon: #d4537e;
-  --nav-pink-soft: #fbeaf0;
-  --nav-purple: #534ab7;
-  --nav-purple-icon: #7f77dd;
-  --nav-purple-soft: #eeedfe;
-  --nav-coral: #993c1d;
-  --nav-coral-icon: #d85a30;
-  --nav-coral-soft: #faece7;
-  --nav-amber: #854f0b;
-  --nav-amber-icon: #ef9f27;
-  --nav-amber-soft: #faeeda;
-  --nav-blue: #0c447c;
-  --nav-blue-icon: #378add;
-  --nav-blue-soft: #e6f1fb;
-  --nav-gray: #5f5e5a;
-  --nav-gray-soft: #f1efe8;
+  /* ── צבעי קבוצות הניווט ─────────────────────────────────────────────── */
+  /* מכוילים לבהירות נתפסת אחידה, כדי שאף קבוצה לא תצעק חזק מהאחרות.
+     ‎-icon בהיר יותר: האייקון מוצג גם כשהקבוצה אינה פעילה, ובגוון המלא הוא
+     היה מושך את העין לקבוצה הלא-נכונה. */
+  --nav-pink: #a33a5e;
+  --nav-pink-icon: #c95c80;
+  --nav-pink-soft: #faeaf0;
+  --nav-purple: #524bb6;
+  --nav-purple-icon: #8079dc;
+  --nav-purple-soft: #edecfb;
+  --nav-coral: #b0451d;
+  --nav-coral-icon: #d96a3c;
+  --nav-coral-soft: #faebe4;
+  --nav-amber: #8f5806;
+  --nav-amber-icon: #d19323;
+  --nav-amber-soft: #f9f0da;
+  --nav-blue: #14568f;
+  --nav-blue-icon: #3e8dd1;
+  --nav-blue-soft: #e6f0fa;
+  --nav-gray: #585d59;
+  --nav-gray-soft: #efeee9;
+
+  /* ── גובה ───────────────────────────────────────────────────────────── */
+  /* שלוש רמות בלבד. יותר מזה משטח את ההיררכיה במקום לבנות אותה. */
+  --shadow-1: 0 1px 2px rgb(23 30 27 / 0.05);
+  --shadow-2:
+    0 1px 2px rgb(23 30 27 / 0.05), 0 10px 26px -14px rgb(23 30 27 / 0.2);
+  --shadow-3:
+    0 2px 4px rgb(23 30 27 / 0.06), 0 26px 60px -28px rgb(23 30 27 / 0.32);
+
+  /* ── טיפוגרפיה ──────────────────────────────────────────────────────── */
+  /* Rubik לכותרות ולמספרים גדולים — הוא הקול של המערכת.
+     Plex Sans Hebrew לגוף הממשק: פנים רציונליות יותר, שמפנות מקום לכותרת.
+     Plex Mono לכל נתון שנקרא משמאל לימין — טלפונים, תאריכים, slugs, מזהים.
+     בלעדיו הספרות נשברות בתוך משפט עברי. */
+  --font-ui: var(--font-plex-hebrew), var(--font-rubik), system-ui, sans-serif;
+  --font-display: var(--font-rubik), var(--font-plex-hebrew), system-ui, sans-serif;
+  --font-data: var(--font-plex-mono), ui-monospace, monospace;
+}
+
+/* ── מצב כהה ──────────────────────────────────────────────────────────────
+   מוגדר במלואו, נדלק רק בבחירה מפורשת. ראו ההסבר בראש הקובץ. */
+:root[data-theme="dark"] {
+  --background: #10140f;
+  --surface: #171c19;
+  --surface-sunken: #0b0f0c;
+  --border: #29302b;
+  --border-strong: #3a423c;
+
+  --foreground: #ecefeb;
+  --muted: #a2aaa4;
+  --subtle: #7a827c;
+
+  --primary: #4fc4b3;
+  --primary-hover: #74d6c7;
+  --primary-soft: #0f312d;
+  --ring: #4fc4b3;
+
+  --ok: #52c098;
+  --ok-soft: #0f3025;
+  --warn: #dca53c;
+  --warn-soft: #30240f;
+  --danger: #ef6e67;
+  --danger-soft: #341715;
+
+  --nav-pink: #e9799d;
+  --nav-pink-icon: #e9799d;
+  --nav-pink-soft: #331521;
+  --nav-purple: #9c95f2;
+  --nav-purple-icon: #9c95f2;
+  --nav-purple-soft: #1c1a3b;
+  --nav-coral: #ee865a;
+  --nav-coral-icon: #ee865a;
+  --nav-coral-soft: #331a11;
+  --nav-amber: #dfa93e;
+  --nav-amber-icon: #dfa93e;
+  --nav-amber-soft: #2d2211;
+  --nav-blue: #66b0eb;
+  --nav-blue-icon: #66b0eb;
+  --nav-blue-soft: #11253a;
+  --nav-gray: #a6aca7;
+  --nav-gray-soft: #212622;
+
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-2: 0 1px 2px rgb(0 0 0 / 0.4), 0 12px 28px -14px rgb(0 0 0 / 0.7);
+  --shadow-3: 0 2px 6px rgb(0 0 0 / 0.5), 0 30px 70px -30px rgb(0 0 0 / 0.85);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-rubik);
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-data);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-rubik), Arial, Helvetica, sans-serif;
+  font-family: var(--font-ui);
   -webkit-font-smoothing: antialiased;
+}
+
+/* ספרות בטור חייבות להתיישר. מספרים בתוך משפט לא — שם רוחב משתנה קריא יותר. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* נתון שנקרא משמאל לימין: טלפון, תאריך, מזהה, slug. */
+.data {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 
 @layer components {
@@ -58,19 +169,22 @@ body {
      not other custom component classes. */
   .btn-primary {
     @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium
-      text-white shadow-sm transition-[transform,background-color,box-shadow] duration-150 ease-out
+      text-white transition-[transform,background-color,box-shadow] duration-150 ease-out
       disabled:pointer-events-none disabled:opacity-50 active:scale-[0.97];
     background-color: var(--primary);
+    box-shadow: var(--shadow-1);
   }
   .btn-primary:hover {
     background-color: var(--primary-hover);
   }
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-lg border bg-white px-3.5 py-2 text-sm font-medium
-      shadow-sm transition-[transform,background-color,border-color,box-shadow] duration-150 ease-out
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-medium
+      transition-[transform,background-color,border-color,box-shadow] duration-150 ease-out
       disabled:pointer-events-none disabled:opacity-50 active:scale-[0.97];
+    background-color: var(--surface);
     border-color: var(--border-strong);
     color: var(--foreground);
+    box-shadow: var(--shadow-1);
   }
   .btn-secondary:hover {
     background-color: var(--background);
@@ -82,7 +196,7 @@ body {
     color: var(--muted);
   }
   .btn-ghost:hover {
-    background-color: var(--background);
+    background-color: var(--surface-sunken);
     color: var(--foreground);
   }
   .btn-danger {
@@ -97,8 +211,10 @@ body {
 
   /* ── Surfaces ────────────────────────────────────────────────────── */
   .card {
-    @apply rounded-2xl border bg-white p-5 shadow-[0_1px_2px_rgba(28,26,23,0.04)];
+    @apply rounded-2xl border p-5;
+    background-color: var(--surface);
     border-color: var(--border);
+    box-shadow: var(--shadow-1);
   }
 
   /* ── Form fields ─────────────────────────────────────────────────── */
@@ -107,9 +223,11 @@ body {
     color: var(--foreground);
   }
   .input {
-    @apply rounded-lg border bg-white px-3 py-2 text-sm text-inherit shadow-[inset_0_1px_1px_rgba(28,26,23,0.03)]
+    @apply rounded-lg border px-3 py-2 text-sm text-inherit
       transition-colors duration-150 outline-none;
+    background-color: var(--surface);
     border-color: var(--border-strong);
+    box-shadow: inset 0 1px 1px rgb(23 30 27 / 0.03);
   }
   .input::placeholder {
     color: var(--subtle);
@@ -121,8 +239,10 @@ body {
 
   /* ── Table ───────────────────────────────────────────────────────── */
   .table-wrap {
-    @apply overflow-x-auto rounded-2xl border bg-white shadow-[0_1px_2px_rgba(28,26,23,0.04)];
+    @apply overflow-x-auto rounded-2xl border;
+    background-color: var(--surface);
     border-color: var(--border);
+    box-shadow: var(--shadow-1);
   }
   .th {
     @apply px-4 py-3 text-start text-xs font-semibold tracking-wide uppercase;
@@ -133,5 +253,22 @@ body {
   }
   .tr-hover:hover {
     background-color: var(--background);
+  }
+}
+
+/* טבעת פוקוס אחידה לכל מה שמקבל מיקוד מהמקלדת. עד עכשיו כל דפדפן צייר
+   משלו, ובחלק מהפקדים היא נבלעה לגמרי מול הרקע הבהיר. */
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
