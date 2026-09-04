@@ -293,6 +293,125 @@ body {
     color: var(--pill-color, var(--muted));
     background-color: var(--pill-bg, var(--surface-sunken));
   }
+
+  /* ── כרטיס עם ראש, גוף ותחתית ────────────────────────────────────── */
+  /* כרטיס מחולק מקבל `card p-0`: הריפוד יורד לשלושת החלקים, כדי שהקו
+     המפריד של התחתית יימתח לרוחב מלא במקום להיעצר בתוך הריפוד. */
+  .card-h {
+    @apply flex items-center gap-2.5 px-4 pt-3.5 pb-3;
+  }
+  .card-h h2,
+  .card-h h3 {
+    @apply text-sm font-semibold;
+  }
+  .card-b {
+    @apply px-4 pb-4;
+  }
+  .card-f {
+    @apply border-t px-4 py-2.5 text-[11.5px];
+    border-color: var(--border);
+    color: var(--subtle);
+  }
+
+  /* ── אווטר ראשי תיבות ────────────────────────────────────────────── */
+  /* מחליף תמונת פרופיל שאין לנו: שתי האותיות הראשונות של השם. */
+  .av {
+    @apply grid size-[26px] shrink-0 place-items-center rounded-lg text-[10px] font-semibold;
+    color: var(--av-color, var(--primary));
+    background-color: var(--av-bg, var(--primary-soft));
+  }
+
+  /* ── פס התקדמות דקיק ─────────────────────────────────────────────── */
+  .bar {
+    @apply h-1 overflow-hidden rounded-full;
+    background-color: var(--surface-sunken);
+  }
+  .bar > i {
+    @apply block h-full rounded-full;
+    background-color: var(--bar-color, var(--primary));
+  }
+
+  /* ── שורת קבוצה ──────────────────────────────────────────────────── */
+  /* ספירה שמקפלת רשימה שלמה לשורה אחת: "מתעניינות שאינן באף מסע · 9". */
+  .group-row {
+    @apply flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-[12.5px];
+    background-color: var(--background);
+    border-color: var(--border);
+  }
+
+  /* ── כרטיס מדד ───────────────────────────────────────────────────── */
+  .metric {
+    @apply relative flex flex-col overflow-hidden rounded-2xl border px-4 pt-4 pb-3.5
+      transition-[box-shadow,transform] duration-200 ease-out;
+    background-color: var(--surface);
+    border-color: var(--border);
+    box-shadow: var(--shadow-1);
+  }
+  .metric:hover {
+    box-shadow: var(--shadow-2);
+    transform: translateY(-1px);
+  }
+  /* המספר ב-Rubik: הוא מה שהעין מחפשת ראשון בעמוד. */
+  .metric-value {
+    @apply text-[31px] leading-[1.05] font-medium;
+    font-family: var(--font-display);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.03em;
+    color: var(--metric-color, var(--foreground));
+  }
+
+  /* ── ציר היום ────────────────────────────────────────────────────── */
+  /* שלוש עמודות: שעה, פס, תוכן. ב-dir="rtl" הן זורמות מאליהן מימין
+     לשמאל — השעה בימין והתוכן בשמאל — ולכן אין כאן אף מחלקה לוגית. */
+  .day-row,
+  .day-now {
+    @apply relative grid;
+    grid-template-columns: 3.25rem 1.125rem 1fr;
+  }
+  .day-row {
+    @apply items-start py-2.5;
+  }
+  .day-now {
+    @apply items-center py-0.5;
+  }
+  /* הקו האנכי מצויר על התא האמצעי ונמשך אל השורות שמעליו ומתחתיו, כדי
+     שייראה רציף לאורך הציר. data-edge קוטע אותו בקצוות — בלעדיו הוא בולט
+     מעל הנקודה הראשונה ומתחת לאחרונה. */
+  .day-rail {
+    @apply relative flex justify-center self-stretch;
+  }
+  .day-rail::before {
+    content: "";
+    @apply absolute -top-2.5 -bottom-2.5 w-px;
+    background-color: var(--border);
+  }
+  .day-row[data-edge~="first"] .day-rail::before {
+    top: 0.5rem;
+  }
+  .day-row[data-edge~="last"] .day-rail::before {
+    bottom: calc(100% - 0.5rem);
+  }
+  .day-now[data-edge~="first"] .day-rail::before {
+    top: 50%;
+  }
+  .day-now[data-edge~="last"] .day-rail::before {
+    bottom: 50%;
+  }
+  .day-rail i {
+    @apply z-10 mt-1 size-2.5 shrink-0 rounded-full border-2;
+    background-color: var(--surface);
+    border-color: var(--dot-color, var(--primary));
+  }
+  /* סימון "עכשיו": נקודה מלאה וקו שדוהה שמאלה — הכיוון שהעין ממשיכה
+     אליו בעברית. */
+  .day-now .day-rail i {
+    @apply mt-0 size-[7px] border-0;
+    background-color: var(--danger);
+  }
+  .day-now-line {
+    @apply h-px;
+    background: linear-gradient(to left, var(--danger), transparent);
+  }
 }
 
 /* טבעת פוקוס אחידה לכל מה שמקבל מיקוד מהמקלדת. עד עכשיו כל דפדפן צייר

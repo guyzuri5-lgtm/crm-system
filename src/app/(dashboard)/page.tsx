@@ -1,11 +1,22 @@
 import Link from "next/link";
+import type { CSSProperties, ReactNode } from "react";
 import { verifyTeamMember } from "@/lib/dal";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getBookingSettings, listEventTypes } from "@/lib/booking/data";
-import { utcToZonedParts, zonedTimeToUtc, formatTime, formatDateTime } from "@/lib/booking/timezone";
+import {
+  utcToZonedParts,
+  zonedTimeToUtc,
+  zonedDateKey,
+  formatTime,
+  formatDateTime,
+} from "@/lib/booking/timezone";
 import { getWhatsAppSettings } from "@/lib/whatsapp-throttle";
 import { isWhatsAppConfigured, getPhoneNumberStatus } from "@/lib/whatsapp-cloud";
-import { statusColorClasses } from "@/lib/status-colors";
+import { countAudience } from "@/lib/newsletter";
+import { statusToken } from "@/lib/status-colors";
+import { MetricTile, type MetricTileProps } from "@/components/metric-tile";
+import { DayTimeline, type DayItem } from "@/components/day-timeline";
+import { BOOKING_LOCATION_LABELS } from "@/lib/supabase/database.types";
 import type { Contact } from "@/lib/supabase/database.types";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +27,23 @@ const TIMEZONE = "Asia/Jerusalem";
 /** כמה ימי שקט הופכים איש קשר ל"דורש טיפול". אותה יחידה שהכללים עובדים בה. */
 const NO_REPLY_DAYS = 3;
 
+/** מעבר לזה, "לא נשמע ממנו" מפסיק להיות תזכורת ומתחיל להיות התראה. */
+const URGENT_DAYS = 5;
+
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * אורך חלון גרפי המגמה. ארבעה-עשר יום ולא חודש: מספר השורות שנשלפות נשאר
+ * חסום, והצורה בקצה — זה שהעין קוראת — נשארת מדויקת.
+ */
+const TREND_DAYS = 14;
+
+/**
+ * חסם על שתי שאילתות המגמה. הן שולפות שורות ולא ספירות, כי PostgREST לא
+ * יודע לקבץ לפי יום בלי RPC — ומיגרציה חורגת מגבולות עבודת העיצוב. הסדר
+ * יורד בכוונה: אם החסם ייגע אי-פעם, ייחתכו הימים הישנים ולא החדשים.
+ */
+const TREND_ROW_CAP = 3000;
 
 function greeting(hourInIsrael: number): string {
   if (hourInIsrael < 12) return "בוקר טוב";
@@ -24,8 +51,8 @@ function greeting(hourInIsrael: number): string {
   return "ערב טוב";
 }
 
-/** "יום רביעי · 20 באלול · 2 בספטמבר 2026" */
-function dateLine(now: Date): string {
+/** "יום רביעי" · "כ״ב באלול" · "2 בספטמבר 2026" — שלושה חלקים, לא מחרוזת אחת. */
+function dateParts(now: Date): { weekday: string; hebrew: string; gregorian: string } {
   const weekday = new Intl.DateTimeFormat("he-IL", { timeZone: TIMEZONE, weekday: "long" }).format(now);
   // התאריך העברי מגיע מלוח השנה של ICU — אין כאן טבלת חגים לתחזק.
   const hebrew = new Intl.DateTimeFormat("he-IL-u-ca-hebrew", {
@@ -39,7 +66,7 @@ function dateLine(now: Date): string {
     month: "long",
     year: "numeric",
   }).format(now);
-  return `${weekday} · ${hebrew} · ${gregorian}`;
+  return { weekday, hebrew, gregorian };
 }
 
 function relativeTime(iso: string | null, now: Date): string {
@@ -54,6 +81,38 @@ function relativeTime(iso: string | null, now: Date): string {
 
 function daysSince(iso: string, now: Date): number {
   return Math.max(0, Math.floor((now.getTime() - new Date(iso).getTime()) / DAY_MS));
+}
+
+/** "נקבע היום" רק כשזה באמת חדש — פגישה שנקבעה לפני שבוע היא סתם פגישה. */
+function bookedRecently(iso: string, now: Date): string | null {
+  const days = daysSince(iso, now);
+  if (days === 0) return "נקבע היום";
+  if (days === 1) return "נקבע אתמול";
+  return null;
+}
+
+/** שתי אותיות ראשונות משתי המילים הראשונות בשם, לאווטר. */
+function initials(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return "?";
+  return words.slice(0, 2).map((word) => [...word][0]).join("");
+}
+
+/**
+ * ספירה ליום לאורך TREND_DAYS הימים האחרונים, מהישן לחדש. הקיבוץ נעשה לפי
+ * שעון ישראל ולא לפי UTC — אחרת הודעה שיצאה בעשר בערב נספרת למחרת.
+ */
+function dailyCounts(rows: { created_at: string }[] | null, now: Date): number[] {
+  const buckets = new Map<string, number>();
+  for (let i = TREND_DAYS - 1; i >= 0; i--) {
+    buckets.set(zonedDateKey(new Date(now.getTime() - i * DAY_MS), TIMEZONE), 0);
+  }
+  for (const row of rows ?? []) {
+    const key = zonedDateKey(new Date(row.created_at), TIMEZONE);
+    const current = buckets.get(key);
+    if (current !== undefined) buckets.set(key, current + 1);
+  }
+  return [...buckets.values()];
 }
 
 /** מצב הערוץ בשורה אחת. bad צובע את הכרטיס באדום, warn משאיר אותו בענבר. */
@@ -74,11 +133,15 @@ function whatsappHealth(
   return { text: "תקין", tone: "ok" };
 }
 
-function Bolt() {
+/* ── אייקונים ───────────────────────────────────────────────────────────── */
+/* קו בעובי אחיד, 24×24. הגודל נקבע בכל אתר קריאה, כי אותו אייקון מופיע
+   בריבוע של 24 פיקסלים בכרטיס מדד ובריבוע של 32 בשורת המצב. */
+
+function Svg({ size = 14, children }: { size?: number; children: ReactNode }) {
   return (
     <svg
-      width={18}
-      height={18}
+      width={size}
+      height={size}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -87,49 +150,77 @@ function Bolt() {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z" />
+      {children}
     </svg>
   );
 }
 
-function School() {
-  return (
-    <svg
-      width={18}
-      height={18}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M22 10v6" />
-      <path d="M2 10l10-5 10 5-10 5z" />
-      <path d="M6 12v5c3 3 9 3 12 0v-5" />
-    </svg>
-  );
+const Users = ({ size }: { size?: number }) => (
+  <Svg size={size}>
+    <path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+    <circle cx="9.5" cy="7" r="4" />
+    <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+  </Svg>
+);
+
+const Calendar = ({ size }: { size?: number }) => (
+  <Svg size={size}>
+    <rect x="3" y="4.5" width="18" height="17" rx="2.5" />
+    <path d="M16 2.5v4M8 2.5v4M3 10h18" />
+  </Svg>
+);
+
+const Route = ({ size }: { size?: number }) => (
+  <Svg size={size}>
+    <circle cx="6" cy="19" r="3" />
+    <circle cx="18" cy="5" r="3" />
+    <path d="M12 19h4.5a3.5 3.5 0 0 0 0-7h-9a3.5 3.5 0 0 1 0-7H12" />
+  </Svg>
+);
+
+const Ticket = ({ size }: { size?: number }) => (
+  <Svg size={size}>
+    <path d="M2 9.5a3 3 0 0 1 0 6V18a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2.5a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z" />
+    <path d="M13 5.5v13" />
+  </Svg>
+);
+
+const Clock = ({ size }: { size?: number }) => (
+  <Svg size={size}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5.3l3.2 2" />
+  </Svg>
+);
+
+const Alert = ({ size }: { size?: number }) => (
+  <Svg size={size}>
+    <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+    <path d="M12 9.5v4M12 17.2h.01" />
+  </Svg>
+);
+
+const Chat = ({ size }: { size?: number }) => (
+  <Svg size={size}>
+    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z" />
+  </Svg>
+);
+
+const School = ({ size }: { size?: number }) => (
+  <Svg size={size}>
+    <path d="M22 10v6" />
+    <path d="M2 10l10-5 10 5-10 5z" />
+    <path d="M6 12v5c3 3 9 3 12 0v-5" />
+  </Svg>
+);
+
+/** ריבוע אייקון צבעוני — שני אסימונים, בלי לחזור על שתי השורות בכל קריאה. */
+function glyphStyle(color: string, soft: string): CSSProperties {
+  return { "--glyph-color": color, "--glyph-bg": soft } as CSSProperties;
 }
 
-function Route() {
-  return (
-    <svg
-      width={18}
-      height={18}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <circle cx="6" cy="19" r="3" />
-      <circle cx="18" cy="5" r="3" />
-      <path d="M12 19h4.5a3.5 3.5 0 0 0 0-7h-9a3.5 3.5 0 0 1 0-7H12" />
-    </svg>
-  );
+/** תווית רכה בגוון — אותו דבר לספירות שיושבות בכותרות ובשורות קבוצה. */
+function pillStyle(color: string, soft: string): CSSProperties {
+  return { "--pill-color": color, "--pill-bg": soft } as CSSProperties;
 }
 
 export default async function DashboardPage() {
@@ -148,6 +239,7 @@ export default async function DashboardPage() {
   const startOfMonth = zonedTimeToUtc(year, month, 1, 0, TIMEZONE);
   const sevenDaysAgo = new Date(now.getTime() - 7 * DAY_MS).toISOString();
   const noReplyCutoff = new Date(now.getTime() - NO_REPLY_DAYS * DAY_MS).toISOString();
+  const trendFrom = zonedTimeToUtc(year, month, day - (TREND_DAYS - 1), 0, TIMEZONE).toISOString();
 
   const configured = isWhatsAppConfigured();
 
@@ -159,7 +251,7 @@ export default async function DashboardPage() {
     { count: activeJourneysCount },
     { count: enrolledCount },
     { data: todayBookings },
-    { data: quietContacts },
+    { data: quietContacts, count: quietTotal },
     { data: lastWhatsAppOut },
     { data: nextNewsletter },
     { data: nextEvent },
@@ -168,6 +260,8 @@ export default async function DashboardPage() {
     { count: newCourseInterestCount },
     { data: eventInterestedRaw },
     { data: enrolledRaw },
+    { data: contactTrendRaw },
+    { data: sentTrendRaw },
     eventTypes,
     bookingSettings,
     whatsappSettings,
@@ -206,9 +300,12 @@ export default async function DashboardPage() {
     // הקריטריון של הטריגר "זמן ללא מענה" (src/lib/automation-engine.ts), עם 3
     // ימים ובלי סינון סטטוס — כאן רק מציגים, לא שולחים. הסדר יורד כדי שמי
     // ששתק לאחרונה יופיע ראשון, ומי שמעולם לא כתב (null) ייפול לסוף.
+    //
+    // ה-count מגיע על אותה שאילתה ולא בנוספת: הכרטיס מציג חמישה שמות אבל
+    // התווית בכותרת סופרת את כולם.
     db
       .from("contacts")
-      .select("*")
+      .select("*", { count: "exact" })
       .or(
         `last_incoming_message_at.lte.${noReplyCutoff},and(last_incoming_message_at.is.null,created_at.lte.${noReplyCutoff})`
       )
@@ -225,7 +322,7 @@ export default async function DashboardPage() {
     // הבית — השורה פשוט לא תוצג.
     db
       .from("newsletters")
-      .select("id, subject, scheduled_at")
+      .select("id, subject, scheduled_at, audience")
       .in("status", ["scheduled", "sending"])
       .order("scheduled_at")
       .limit(1)
@@ -258,6 +355,20 @@ export default async function DashboardPage() {
       .gte("created_at", sevenDaysAgo),
     db.from("event_registrations").select("contact_id").eq("stage", "interested"),
     db.from("journey_enrollments").select("contact_id"),
+    // ── שתי סדרות המגמה ──
+    db
+      .from("contacts")
+      .select("created_at")
+      .gte("created_at", trendFrom)
+      .order("created_at", { ascending: false })
+      .limit(TREND_ROW_CAP),
+    db
+      .from("interactions")
+      .select("created_at")
+      .in("type", ["whatsapp_out", "email_out"])
+      .gte("created_at", trendFrom)
+      .order("created_at", { ascending: false })
+      .limit(TREND_ROW_CAP),
     listEventTypes(),
     getBookingSettings(),
     getWhatsAppSettings(),
@@ -269,6 +380,37 @@ export default async function DashboardPage() {
       : Promise.resolve(null),
   ]);
 
+  const bookings = todayBookings ?? [];
+  const quiet = (quietContacts ?? []) as Contact[];
+
+  // גל שני: שלוש שאילתות שתלויות בתוצאות שלמעלה, ולכן לא יכלו לרוץ איתן.
+  // יחד ולא בזו אחר זו — הן אינן תלויות זו בזו.
+  const [{ count: nextEventPaid }, { data: quietActivity }, newsletterAudience] = await Promise.all([
+    nextEvent
+      ? db
+          .from("event_registrations")
+          .select("id", { count: "exact", head: true })
+          .eq("event_id", nextEvent.id)
+          .eq("stage", "paid")
+      : Promise.resolve({ count: null }),
+    // מה שכל אחת מהן כתבה לאחרונה. התצוגה כבר מחזיקה את הטקסט, ולכן זו
+    // שליפה אחת לפי מזהים ולא שאילתה לכל שורה.
+    quiet.length
+      ? db
+          .from("contact_activity")
+          .select("contact_id, last_inbound_text")
+          .in(
+            "contact_id",
+            quiet.map((contact) => contact.id)
+          )
+      : Promise.resolve({ data: [] }),
+    // כמה אנשים יקבלו את הניוזלטר הקרוב. הקהל נשמר כתנאי ולא כרשימה, ולכן
+    // הוא נספר עכשיו. נפילה כאן מסתירה את המספר בלבד.
+    nextNewsletter?.audience
+      ? countAudience(nextNewsletter.audience).catch(() => null)
+      : Promise.resolve(null),
+  ]);
+
   const statusError = phoneStatus && "error" in phoneStatus ? phoneStatus.error : null;
   const phone = phoneStatus && !("error" in phoneStatus) ? phoneStatus : null;
   const health = whatsappHealth(
@@ -277,10 +419,13 @@ export default async function DashboardPage() {
     statusError,
     phone?.qualityRating ?? null
   );
+  const healthColor = health.tone === "bad" ? "var(--danger)" : health.tone === "warn" ? "var(--warn)" : "var(--ok)";
+  const healthSoft = health.tone === "bad" ? "var(--danger-soft)" : health.tone === "warn" ? "var(--warn-soft)" : "var(--ok-soft)";
 
   const eventTypeById = new Map(eventTypes.map((type) => [type.id, type]));
-  const bookings = todayBookings ?? [];
-  const quiet = (quietContacts ?? []) as Contact[];
+  const lastTextById = new Map(
+    (quietActivity ?? []).map((row) => [row.contact_id as string, row.last_inbound_text as string | null])
+  );
 
   // ── מתעניינות ──
   const courseInterested = (courseInterestedRaw ?? []).map((r) => r.contact_id);
@@ -295,49 +440,107 @@ export default async function DashboardPage() {
   ]);
   const unlinkedInterestedCount = [...interestedIds].filter((id) => !enrolledIds.has(id)).length;
 
-  // כמה כבר שילמו לאירוע הקרוב. שאילתה נפרדת ולא חלק מה-Promise.all שלמעלה,
-  // כי היא תלויה במזהה שיוצא ממנו.
-  const { count: nextEventPaid } = nextEvent
-    ? await db
-        .from("event_registrations")
-        .select("id", { count: "exact", head: true })
-        .eq("event_id", nextEvent.id)
-        .eq("stage", "paid")
-    : { count: null };
+  const attentionTotal = (quietTotal ?? 0) + (unpaidCount ?? 0) + unlinkedInterestedCount;
 
-  const metrics: {
-    href: string;
-    label: string;
-    value: string;
-    context: string;
-    soft: string;
-    strong: string;
-    /** פס התקדמות דקיק — רק לכרטיס האירוע, וגם שם רק כשיש קיבולת. */
-    progress?: { value: number; max: number };
-  }[] = [
+  // ── ציר היום ──
+  // שעון אחד לכל הציר: אותו אזור זמן שהשעות מוצגות בו הוא זה שקו "עכשיו"
+  // ממוקם לפיו. שני אזורים שונים היו מזיזים את הקו בשעה בלי שיהיה סימן לכך.
+  const dayZone = bookingSettings.timezone;
+  const dayItems: DayItem[] = bookings.map((booking) => {
+    const eventType = eventTypeById.get(booking.event_type_id);
+    const at = new Date(booking.starts_at);
+    const detail = [
+      eventType ? eventType.location_details || BOOKING_LOCATION_LABELS[eventType.location] : null,
+      eventType ? `${eventType.duration_minutes} דק׳` : null,
+      bookedRecently(booking.created_at, now),
+    ].filter(Boolean);
+    return {
+      key: booking.id,
+      minutes: utcToZonedParts(at, dayZone).minutes,
+      time: formatTime(at, dayZone),
+      title: [eventType?.name, booking.invitee_name].filter(Boolean).join(" · "),
+      detail: detail.join(" · "),
+      color: statusToken(eventType?.color),
+      href: booking.contact_id ? `/contacts/${booking.contact_id}` : undefined,
+    };
+  });
+
+  // הניוזלטר יושב על אותו ציר כשהוא יוצא היום. כשהוא מתוזמן ליום אחר הוא
+  // יורד לשורה נפרדת מתחת לציר — אחרת הוא היה נעלם מדף הבית לגמרי.
+  const newsletterAt = nextNewsletter?.scheduled_at ? new Date(nextNewsletter.scheduled_at) : null;
+  const newsletterToday =
+    newsletterAt && zonedDateKey(newsletterAt, TIMEZONE) === zonedDateKey(now, TIMEZONE);
+  if (nextNewsletter && newsletterAt && newsletterToday) {
+    dayItems.push({
+      key: `newsletter-${nextNewsletter.id}`,
+      minutes: utcToZonedParts(newsletterAt, dayZone).minutes,
+      time: formatTime(newsletterAt, dayZone),
+      title: `ניוזלטר: ${nextNewsletter.subject}`,
+      detail: [
+        newsletterAudience !== null ? `יוצא ל-${newsletterAudience} נמענים` : null,
+        "מתוזמן",
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      color: "var(--nav-coral)",
+      href: "/newsletter/scheduled",
+    });
+  }
+
+  const { weekday: weekdayName, hebrew, gregorian } = dateParts(now);
+  const newContacts = newContactsCount ?? 0;
+
+  const metrics: MetricTileProps[] = [
     {
       href: "/active",
       label: "לקוחות פעילים",
       value: String(activeCount ?? 0),
-      context: `${newContactsCount ?? 0} אנשי קשר חדשים בשבוע האחרון`,
+      context: (
+        <>
+          {newContacts > 0 && (
+            <b className="font-semibold text-[var(--ok)]">+{newContacts} </b>
+          )}
+          {newContacts === 0 && <b className="font-semibold text-[var(--foreground)]">0 </b>}
+          אנשי קשר חדשים בשבוע האחרון
+        </>
+      ),
+      icon: <Users />,
+      color: "var(--primary)",
       soft: "var(--primary-soft)",
-      strong: "var(--primary)",
+      trend: dailyCounts(contactTrendRaw, now),
     },
     {
       href: "/booking/upcoming",
       label: "פגישות השבוע",
       value: String(weekBookingsCount ?? 0),
-      context: bookings.length ? `${bookings.length} היום` : "אין פגישות היום",
+      context: bookings.length ? (
+        <>
+          <b className="font-semibold text-[var(--foreground)]">{bookings.length}</b> מהן היום
+        </>
+      ) : (
+        "אין פגישות היום"
+      ),
+      icon: <Calendar />,
+      color: "var(--nav-pink)",
       soft: "var(--nav-pink-soft)",
-      strong: "var(--nav-pink)",
+      // הפס מודד את היום מתוך השבוע, ולכן הוא נעלם כשאין שבוע למדוד מולו.
+      bar: weekBookingsCount ? { value: bookings.length, max: weekBookingsCount } : undefined,
     },
     {
       href: "/journeys",
-      label: "הודעות שנשלחו החודש",
+      label: "הודעות שיצאו החודש",
       value: String(sentThisMonthCount ?? 0),
-      context: `${activeJourneysCount ?? 0} מסעות פעילים`,
+      context: (
+        <>
+          <b className="font-semibold text-[var(--foreground)]">{activeJourneysCount ?? 0}</b> מסעות
+          פעילים · <b className="font-semibold text-[var(--foreground)]">{enrolledCount ?? 0}</b>{" "}
+          אנשים בתוכם
+        </>
+      ),
+      icon: <Route />,
+      color: "var(--nav-purple)",
       soft: "var(--nav-purple-soft)",
-      strong: "var(--nav-purple)",
+      trend: dailyCounts(sentTrendRaw, now),
     },
     // הכרטיס הרביעי מתחלף לפי מה שדחוף: כשיש אירוע קרוב הוא המספר שבעלת
     // העסק בודקת כמה פעמים ביום. כשאין — חוזר מצב הוואטסאפ, שהוא ברירת
@@ -346,200 +549,200 @@ export default async function DashboardPage() {
       ? {
           href: `/events/${nextEvent.id}`,
           label: nextEvent.name,
-          value: nextEvent.capacity
-            ? `${nextEventPaid ?? 0}/${nextEvent.capacity}`
-            : String(nextEventPaid ?? 0),
-          context: `נרשמו · ${formatDateTime(new Date(nextEvent.starts_at), TIMEZONE)}`,
+          value: String(nextEventPaid ?? 0),
+          suffix: nextEvent.capacity ? ` / ${nextEvent.capacity}` : undefined,
+          context: `שילמו · ${formatDateTime(new Date(nextEvent.starts_at), dayZone)}`,
+          icon: <Ticket />,
+          color: "var(--nav-amber)",
           soft: "var(--nav-amber-soft)",
-          strong: "var(--nav-amber)",
-          progress: nextEvent.capacity
+          bar: nextEvent.capacity
             ? { value: nextEventPaid ?? 0, max: nextEvent.capacity }
             : undefined,
         }
       : {
           href: "/whatsapp",
-          label: "מצב וואטסאפ",
+          label: "מצב הערוץ",
           value: health.text,
           context: `שליחה אחרונה: ${relativeTime(lastWhatsAppOut?.created_at ?? null, now)}`,
-          soft: health.tone === "bad" ? "var(--danger-soft)" : "var(--nav-amber-soft)",
-          strong: health.tone === "bad" ? "var(--danger)" : "var(--nav-amber)",
+          icon: <Chat />,
+          color: healthColor,
+          soft: healthSoft,
         },
   ];
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h1 className="text-xl font-semibold">
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
+        <h1 className="text-[26px] font-medium tracking-[-0.025em] [font-family:var(--font-display)]">
           {greeting(Math.floor(minutes / 60))}
           {email ? `, ${email.split("@")[0]}` : ""}
         </h1>
-        <p className="text-sm text-[var(--subtle)]">{dateLine(now)}</p>
+        <p className="text-[12.5px] text-[var(--subtle)]">
+          <b className="font-medium text-[var(--muted)]">{weekdayName}</b> · {hebrew} · {gregorian}
+        </p>
       </div>
 
       {/* ── ארבעה מדדים ─────────────────────────────────────────────── */}
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {metrics.map((metric) => (
-          <Link
-            key={metric.href}
-            href={metric.href}
-            className="rounded-2xl p-5 transition-transform duration-150 ease-out active:scale-[0.99]"
-            style={{ backgroundColor: metric.soft }}
-          >
-            {/*
-              break-words ולא truncate: הכרטיס של הוואטסאפ מציג שגיאה מלאה
-              כשמשהו נשבר, ושגיאה חתוכה באמצע לא שווה כלום.
-            */}
-            <p
-              className="text-2xl font-medium break-words"
-              style={{ color: metric.strong }}
-            >
-              {metric.value}
-            </p>
-            <p className="mt-1 text-sm font-medium" style={{ color: metric.strong }}>
-              {metric.label}
-            </p>
-
-            {metric.progress && (
-              <div
-                className="mt-2.5 h-1 overflow-hidden rounded-full"
-                style={{ backgroundColor: "color-mix(in srgb, var(--nav-amber) 20%, transparent)" }}
-              >
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    backgroundColor: "var(--nav-amber)",
-                    // חסם עליון: אירוע שנמכר מעבר לקיבולת (סימון ידני, מקום
-                    // שהתפנה) לא אמור לגלוש מהפס החוצה.
-                    width: `${Math.min(100, Math.round((metric.progress.value / metric.progress.max) * 100))}%`,
-                  }}
-                />
-              </div>
-            )}
-
-            <p className="mt-2 text-xs text-[var(--muted)]">{metric.context}</p>
-          </Link>
+          <MetricTile key={metric.href} {...metric} />
         ))}
       </section>
 
       {/* ── היום · דורש טיפול ───────────────────────────────────────── */}
-      <section className="grid gap-4 lg:grid-cols-2">
-        <div className="card flex flex-col gap-3">
-          <h2 className="font-medium">היום</h2>
-          {!bookings.length && !nextNewsletter ? (
-            <p className="text-sm text-[var(--muted)]">אין פגישות היום.</p>
-          ) : (
-            <ul className="flex flex-col gap-2">
-              {bookings.map((booking) => {
-                const eventType = eventTypeById.get(booking.event_type_id);
-                return (
-                  <li
-                    key={booking.id}
-                    className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm"
-                  >
-                    <span className="font-medium tabular-nums">
-                      {formatTime(new Date(booking.starts_at), bookingSettings.timezone)}
-                    </span>
-                    {eventType && (
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColorClasses(eventType.color)}`}
-                      >
-                        {eventType.name}
-                      </span>
-                    )}
-                    {booking.contact_id ? (
-                      <Link
-                        href={`/contacts/${booking.contact_id}`}
-                        className="text-[var(--muted)] hover:underline"
-                      >
-                        {booking.invitee_name}
-                      </Link>
-                    ) : (
-                      <span className="text-[var(--muted)]">{booking.invitee_name}</span>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-
-          {nextNewsletter && (
-            <p className="border-t border-[var(--border)] pt-3 text-sm">
+      {/* היום רחב יותר: ציר זמן צריך מקום לשמות מלאים, ורשימת המשימות לא. */}
+      <section className="grid gap-3.5 lg:grid-cols-[1.15fr_0.85fr]">
+        <section className="card flex flex-col p-0">
+          <div className="card-h">
+            <span className="glyph" style={glyphStyle("var(--nav-pink)", "var(--nav-pink-soft)")}>
+              <Clock />
+            </span>
+            <h2>היום</h2>
+            <span className="flex-1" />
+            {bookings.length > 0 && (
+              <span className="pill" style={pillStyle("var(--nav-pink)", "var(--nav-pink-soft)")}>
+                {bookings.length} פגישות
+              </span>
+            )}
+          </div>
+          <div className="card-b">
+            {dayItems.length ? (
+              <DayTimeline
+                items={dayItems}
+                nowMinutes={utcToZonedParts(now, dayZone).minutes}
+                nowLabel={formatTime(now, dayZone)}
+              />
+            ) : (
+              <p className="py-2 text-sm text-[var(--muted)]">אין פגישות היום.</p>
+            )}
+          </div>
+          {nextNewsletter && newsletterAt && !newsletterToday && (
+            <div className="card-f">
               <Link href="/newsletter/scheduled" className="hover:underline">
-                <span className="font-medium">ניוזלטר:</span>{" "}
-                <span className="text-[var(--muted)]">
-                  {nextNewsletter.subject}
-                  {nextNewsletter.scheduled_at
-                    ? ` · ${formatDateTime(new Date(nextNewsletter.scheduled_at), bookingSettings.timezone)}`
-                    : ""}
-                </span>
+                <span className="font-semibold">הניוזלטר הקרוב:</span> {nextNewsletter.subject} ·{" "}
+                {formatDateTime(newsletterAt, dayZone)}
               </Link>
-            </p>
+            </div>
           )}
-        </div>
+        </section>
 
-        <div className="card flex flex-col gap-3">
-          <h2 className="font-medium">דורש טיפול</h2>
-          {!quiet.length && !unpaidCount && !unlinkedInterestedCount ? (
-            <p className="text-sm text-[var(--muted)]">הכול מטופל ✔</p>
-          ) : !quiet.length ? null : (
-            <ul className="flex flex-col gap-2">
-              {quiet.map((contact) => (
-                <li
-                  key={contact.id}
-                  className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-sm"
-                >
-                  <Link
-                    href={`/contacts/${contact.id}`}
-                    className="font-medium hover:underline"
-                  >
-                    {contact.full_name || contact.phone || "ללא שם"}
-                  </Link>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColorClasses("orange")}`}
-                  >
-                    {daysSince(contact.last_incoming_message_at ?? contact.created_at, now)} ימים
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-          {/* מי שהשאירה פרטים, יצאה לתשלום ולא חזרה. יממה היא הסף שבו זה
-              מפסיק להיות "היא עוד באמצע" ומתחיל להיות "צריך לפנות אליה". */}
-          {Boolean(unpaidCount) && (
-            <Link
-              href="/events"
-              className="flex items-baseline justify-between gap-3 border-t border-[var(--border)] pt-3 text-sm hover:underline"
-            >
-              <span className="font-medium">נרשמו לאירוע ולא שילמו</span>
-              <span
-                className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColorClasses("rose")}`}
-              >
-                {unpaidCount}
+        <section className="card flex flex-col p-0">
+          <div className="card-h">
+            <span className="glyph" style={glyphStyle("var(--nav-coral)", "var(--nav-coral-soft)")}>
+              <Alert />
+            </span>
+            <h2>דורש טיפול</h2>
+            <span className="flex-1" />
+            {attentionTotal > 0 && (
+              <span className="pill" style={pillStyle("var(--nav-coral)", "var(--nav-coral-soft)")}>
+                {attentionTotal}
               </span>
-            </Link>
-          )}
+            )}
+          </div>
 
-          {/* מתעניינת שאינה באף מסע היא ליד שנפל בין הכיסאות: היא השאירה
-              פרטים, ואיש לא בנה לה המשך. הקישור מוביל למסעות, כי זו הפעולה
-              שסוגרת את הפער. */}
-          {Boolean(unlinkedInterestedCount) && (
-            <Link
-              href="/journeys"
-              className="flex items-baseline justify-between gap-3 border-t border-[var(--border)] pt-3 text-sm hover:underline"
-            >
-              <span className="font-medium">מתעניינות שאינן באף מסע</span>
-              <span
-                className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColorClasses("amber")}`}
-              >
-                {unlinkedInterestedCount}
-              </span>
-            </Link>
-          )}
+          <div className="card-b">
+            {attentionTotal === 0 ? (
+              <p className="py-2 text-sm text-[var(--muted)]">הכול מטופל ✔</p>
+            ) : (
+              <>
+                {quiet.map((contact) => {
+                  const name = contact.full_name || contact.phone || "ללא שם";
+                  const said = lastTextById.get(contact.id);
+                  const days = daysSince(
+                    contact.last_incoming_message_at ?? contact.created_at,
+                    now
+                  );
+                  const urgent = days >= URGENT_DAYS;
+                  return (
+                    <div
+                      key={contact.id}
+                      className="flex items-center gap-2.5 border-b border-[var(--border)] py-2.5 last:border-b-0"
+                    >
+                      <span className="av" aria-hidden="true">
+                        {initials(name)}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <Link
+                          href={`/contacts/${contact.id}`}
+                          className="block truncate text-[13px] font-medium hover:underline"
+                        >
+                          {name}
+                        </Link>
+                        {said && (
+                          <span className="block truncate text-[11px] text-[var(--muted)]">
+                            {said}
+                          </span>
+                        )}
+                      </span>
+                      <span
+                        className="pill"
+                        style={
+                          urgent
+                            ? pillStyle("var(--nav-coral)", "var(--nav-coral-soft)")
+                            : pillStyle("var(--nav-amber)", "var(--nav-amber-soft)")
+                        }
+                      >
+                        {days} ימים
+                      </span>
+                    </div>
+                  );
+                })}
 
-          <p className="mt-auto text-xs text-[var(--subtle)]">
-            מי שלא נשמע ממנו {NO_REPLY_DAYS} ימים ומעלה.
-          </p>
-        </div>
+                {(Boolean(unpaidCount) || unlinkedInterestedCount > 0) && (
+                  <div className={`flex flex-col gap-2 ${quiet.length ? "mt-3" : ""}`}>
+                    {/* מי שהשאירה פרטים, יצאה לתשלום ולא חזרה. יממה היא הסף
+                        שבו זה מפסיק להיות "היא עוד באמצע" ומתחיל להיות
+                        "צריך לפנות אליה". */}
+                    {Boolean(unpaidCount) && (
+                      <Link href="/events" className="group-row">
+                        <span
+                          className="glyph size-6"
+                          style={glyphStyle("var(--nav-pink)", "var(--nav-pink-soft)")}
+                        >
+                          <Ticket size={13} />
+                        </span>
+                        <b className="font-semibold">נרשמו לאירוע ולא שילמו</b>
+                        <span className="flex-1" />
+                        <span
+                          className="pill"
+                          style={pillStyle("var(--nav-pink)", "var(--nav-pink-soft)")}
+                        >
+                          {unpaidCount}
+                        </span>
+                      </Link>
+                    )}
+
+                    {/* מתעניינת שאינה באף מסע היא ליד שנפל בין הכיסאות: היא
+                        השאירה פרטים, ואיש לא בנה לה המשך. הקישור מוביל
+                        למסעות, כי זו הפעולה שסוגרת את הפער. */}
+                    {unlinkedInterestedCount > 0 && (
+                      <Link href="/journeys" className="group-row">
+                        <span
+                          className="glyph size-6"
+                          style={glyphStyle("var(--nav-purple)", "var(--nav-purple-soft)")}
+                        >
+                          <Route size={13} />
+                        </span>
+                        <b className="font-semibold">מתעניינות שאינן באף מסע</b>
+                        <span className="flex-1" />
+                        <span
+                          className="pill"
+                          style={pillStyle("var(--nav-purple)", "var(--nav-purple-soft)")}
+                        >
+                          {unlinkedInterestedCount}
+                        </span>
+                      </Link>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          <div className="card-f mt-auto">
+            מי שלא נשמע ממנו {NO_REPLY_DAYS} ימים ומעלה נכנס לרשימה אוטומטית.
+          </div>
+        </section>
       </section>
 
       {/* ── שורת מצב ────────────────────────────────────────────────── */}
@@ -547,64 +750,64 @@ export default async function DashboardPage() {
         המתזמן היה אמור לשבת כאן, אבל אין טבלה שרושמת את ריצות הקרון — ואין
         ממה לגזור "רץ לאחרונה ב-". במקומו נכנס כאן הכרטיס של הקורסים (0028).
       */}
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Link href="/whatsapp" className="card flex items-center gap-3">
-          <span
-            className="grid size-9 shrink-0 place-items-center rounded-xl"
-            style={{
-              backgroundColor: health.tone === "bad" ? "var(--danger-soft)" : "var(--nav-amber-soft)",
-              color: health.tone === "bad" ? "var(--danger)" : "var(--nav-amber)",
-            }}
-          >
-            <Bolt />
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <Link href="/whatsapp" className="card flex items-center gap-3 px-4 py-3.5">
+          <span className="glyph size-8" style={glyphStyle(healthColor, healthSoft)}>
+            <Chat size={15} />
           </span>
-          <span className="min-w-0">
-            <span className="block text-sm font-medium break-words">{health.text}</span>
-            <span className="block text-xs text-[var(--muted)]">
+          <span className="min-w-0 flex-1">
+            <span className="block text-[13.5px] font-semibold break-words">{health.text}</span>
+            <span className="block text-[11.5px] text-[var(--muted)]">
               ערוץ הוואטסאפ
               {phone?.displayPhoneNumber && (
                 <>
                   {" · "}
                   {/* בלי dir המספר נשבר: הדפדפן מסדר את הקטעים שלו מימין לשמאל. */}
-                  <span dir="ltr">{phone.displayPhoneNumber}</span>
+                  <span className="data" dir="ltr">
+                    {phone.displayPhoneNumber}
+                  </span>
                 </>
               )}
             </span>
           </span>
+          {/* רק כשהאיכות ירוקה: בכל מצב אחר הכותרת כבר אומרת את זה, והתווית
+              הייתה חוזרת על עצמה. */}
+          {health.tone === "ok" && phone?.qualityRating === "GREEN" && (
+            <span className="pill" style={pillStyle("var(--ok)", "var(--ok-soft)")}>
+              איכות ירוקה
+            </span>
+          )}
         </Link>
 
-        <Link href="/journeys" className="card flex items-center gap-3">
+        <Link href="/journeys" className="card flex items-center gap-3 px-4 py-3.5">
           <span
-            className="grid size-9 shrink-0 place-items-center rounded-xl"
-            style={{
-              backgroundColor: "var(--nav-purple-soft)",
-              color: "var(--nav-purple)",
-            }}
+            className="glyph size-8"
+            style={glyphStyle("var(--nav-purple)", "var(--nav-purple-soft)")}
           >
-            <Route />
+            <Route size={15} />
           </span>
           <span className="min-w-0">
-            <span className="block text-sm font-medium">
+            <span className="block text-[13.5px] font-semibold">
               {enrolledCount ?? 0} אנשים במסעות כרגע
             </span>
-            <span className="block text-xs text-[var(--muted)]">
+            <span className="block text-[11.5px] text-[var(--muted)]">
               {activeJourneysCount ?? 0} מסעות פעילים
             </span>
           </span>
         </Link>
 
-        <Link href="/courses" className="card flex items-center gap-3">
+        <Link href="/courses" className="card flex items-center gap-3 px-4 py-3.5">
           <span
-            className="grid size-9 shrink-0 place-items-center rounded-xl"
-            style={{ backgroundColor: "var(--nav-blue-soft)", color: "var(--nav-blue)" }}
+            className="glyph size-8"
+            style={glyphStyle("var(--nav-blue)", "var(--nav-blue-soft)")}
           >
-            <School />
+            <School size={15} />
           </span>
           <span className="min-w-0">
-            <span className="block text-sm font-medium">
+            <span className="block text-[13.5px] font-semibold">
               {courseInterestedCount} מתעניינות בקורסים
             </span>
-            <span className="block text-xs text-[var(--muted)]">
+            <span className="block text-[11.5px] text-[var(--muted)]">
               {newCourseInterestCount ?? 0} חדשות השבוע
             </span>
           </span>

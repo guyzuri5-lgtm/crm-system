@@ -63,3 +63,31 @@ export function statusColorClasses(color: string | null | undefined): string {
 export function statusLabel(name: string): string {
   return name.replaceAll("_", " ");
 }
+
+/**
+ * הצבע שסימון עירום נצבע בו — נקודה על ציר הזמן, ריבוע אייקון, פס — כלומר
+ * מקום שצריך ערך צבע ולא מחלקת Tailwind. תוויות הסטטוס עצמן ממשיכות דרך
+ * STATUS_COLOR_CLASSES ולא נוגעות בזה.
+ *
+ * שנים-עשר השמות ממופים לשישה אסימוני פטינה ולא לשנים-עשר גוונים חדשים:
+ * הפלטה מכוילת לבהירות נתפסת אחידה, וכל גוון שנוסף לה מבחוץ שובר את הכיול.
+ * המיפוי גם מביא את המצב הכהה בחינם — האסימונים מוגדרים בשני המצבים.
+ */
+export const STATUS_TOKENS: Record<StatusColor, string> = {
+  blue: "var(--nav-blue)",
+  sky: "var(--nav-blue)",
+  cyan: "var(--nav-blue)",
+  violet: "var(--nav-purple)",
+  fuchsia: "var(--nav-purple)",
+  rose: "var(--nav-pink)",
+  orange: "var(--nav-coral)",
+  amber: "var(--nav-amber)",
+  lime: "var(--nav-amber)",
+  emerald: "var(--primary)",
+  stone: "var(--nav-gray)",
+  slate: "var(--nav-gray)",
+};
+
+export function statusToken(color: string | null | undefined): string {
+  return STATUS_TOKENS[(color ?? "stone") as StatusColor] ?? STATUS_TOKENS.stone;
+}
