@@ -215,15 +215,21 @@ export async function runTimeSinceNoReplyRules(
     for (const contact of staleContacts) {
       if (alreadyRunIds.has(contact.id)) continue;
 
-      if (throttled) {
-        const allowed = budget.canSend();
-        if (!allowed.ok) {
-          // לא break: כלל אחר באותה ריצה עשוי להיות כלל מייל, שאינו מווסת
-          // ואין סיבה לעצור אותו בגלל תקרת הוואטסאפ.
-          stopped ??= allowed.reason;
-          skipped += 1;
-          continue;
-        }
+      // הבדיקה חלה על **כל** ערוץ, ו-SendBudget יודע בעצמו מה חל על מה:
+      // ההשהיה ותקציב הזמן על שניהם, התקרה היומית על וואטסאפ בלבד.
+      //
+      // קודם היא הייתה עטופה ב-if (throttled), כלומר כלל מייל לא עבר דרך שום
+      // בלם: מתג ההשהיה לא עצר אותו — בניגוד למה שהמתג מבטיח למי שלוחץ עליו —
+      // ולא היה לו תקציב זמן, כך שכלל שהתאים למאות אנשי קשר ניסה לשלוח לכולם
+      // בריצה אחת ונקטע באמצע.
+      //
+      // לא break: כלל אחר באותה ריצה עשוי להיות כלל מייל, ואין סיבה לעצור
+      // אותו בגלל תקרת הוואטסאפ שנגמרה.
+      const allowed = budget.canSend(rule.action_channel);
+      if (!allowed.ok) {
+        stopped ??= allowed.reason;
+        skipped += 1;
+        continue;
       }
 
       const result = await dispatchRuleToContact(rule, rule.message_templates, contact);

@@ -2,7 +2,7 @@ import "server-only";
 
 import { supabaseAdmin } from "./supabase/admin";
 import { zonedTimeToUtc, utcToZonedParts } from "./booking/timezone";
-import type { WhatsAppSettings } from "./supabase/database.types";
+import type { MessageChannel, WhatsAppSettings } from "./supabase/database.types";
 
 /**
  * בלמים על השליחה האוטומטית בוואטסאפ.
@@ -139,10 +139,30 @@ export class SendBudget {
    *
    * תקציב הזמן נבדק מול הערכה פסימית של משך השליחה: הבדיקה חייבת להיות נכונה
    * גם במקרה הגרוע, אחרת ההודעה האחרונה בכל ריצה תיקטע באמצע.
+   *
+   * ── למה הערוץ הוא פרמטר ──
+   * שתיים מהסיבות חלות על כל שליחה אוטומטית, ואחת לא:
+   *   paused      — חלה על הכול. המתג אומר "שום דבר לא יוצא מעצמו", וזה כולל
+   *                 מייל. זו הסיבה שהוא כאן ולא רק בבדיקת הוואטסאפ.
+   *   time_budget — חלה על הכול. הפונקציה עומדת להיקטע, בלי קשר לערוץ.
+   *   daily_limit — וואטסאפ בלבד. היא סופרת הודעות שמטא מחייבת עליהן, ולמייל
+   *                 אין לה משמעות.
+   *
+   * הערוץ מתקבל כפרמטר ולא נבדק אצל הקורא, כי הניסיון הקודם — שכל מנוע סינן
+   * בעצמו לפי הסיבה שחזרה — הותיר את מנוע הכללים בלי מתג השהיה ובלי תקציב
+   * זמן על מייל, וגרם למנוע המסעות לדלג על בדיקת הזמן בכל פעם שהתקרה היומית
+   * של הוואטסאפ נגמרה (הבדיקה מחזירה סיבה אחת, ו-daily_limit קדמה לה).
+   *
+   * ברירת המחדל היא וואטסאפ — הערוץ המגביל מבין השניים. קורא ששכח להעביר
+   * ערוץ מקבל את ההתנהגות השמרנית ולא את המתירנית.
    */
-  canSend(): { ok: true } | { ok: false; reason: "paused" | "daily_limit" | "time_budget" } {
+  canSend(
+    channel: MessageChannel = "whatsapp"
+  ): { ok: true } | { ok: false; reason: "paused" | "daily_limit" | "time_budget" } {
     if (this.settings.paused) return { ok: false, reason: "paused" };
-    if (this.remainingToday <= 0) return { ok: false, reason: "daily_limit" };
+    if (channel === "whatsapp" && this.remainingToday <= 0) {
+      return { ok: false, reason: "daily_limit" };
+    }
     if (Date.now() + SEND_ALLOWANCE_MS > this.deadline) {
       return { ok: false, reason: "time_budget" };
     }

@@ -556,14 +556,14 @@ export async function runJourneys(
       continue;
     }
 
-    // שלוש סיבות, ולא כולן חלות על כל ערוץ:
-    //   paused      — חלה על הכול. המתג אומר "שום דבר לא יוצא מעצמו", ושלב
-    //                 מייל של מסע הוא בדיוק שליחה אוטומטית.
-    //   time_budget — חלה על הכול. הפונקציה עומדת להיקטע, בלי קשר לערוץ.
-    //   daily_limit — וואטסאפ בלבד. היא סופרת הודעות שמטא מחייבת עליהן, ואין
-    //                 סיבה לעצור בגללה שלב מייל של מסע אחר.
-    const allowed = budget.canSend();
-    if (!allowed.ok && (allowed.reason !== "daily_limit" || step.channel === "whatsapp")) {
+    // ההבחנה בין שלוש הסיבות עברה לתוך SendBudget.canSend, שמקבל את הערוץ.
+    //
+    // קודם היא נעשתה כאן, בסינון הסיבה שחזרה — וזה היה שגוי בקצה אחד: canSend
+    // מחזירה סיבה *אחת*, ו-daily_limit נבדקת לפני time_budget. ברגע שהתקרה
+    // היומית של הוואטסאפ נגמרה, שלב מייל היה מדלג על הסיבה שחזרה וממשיך —
+    // בלי שבדיקת תקציב הזמן רצה בכלל, כי היא לא הגיעה לתורה.
+    const allowed = budget.canSend(step.channel);
+    if (!allowed.ok) {
       summary.stopped ??= allowed.reason;
       summary.skipped += 1;
       continue;
