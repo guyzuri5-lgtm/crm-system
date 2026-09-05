@@ -50,7 +50,7 @@ export default async function UpcomingPage() {
                   {formatDateTime(new Date(booking.starts_at), settings.timezone)}
                   {calendarConnected && !booking.google_event_id && (
                     <span
-                      className="mr-2 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20"
+                      className="mr-2 rounded-full bg-[var(--warn-soft)] px-2 py-0.5 text-xs font-medium text-[var(--warn)] ring-1 ring-inset ring-[var(--warn)]/25"
                       title="הפגישה נשמרה אבל יצירת האירוע ביומן נכשלה — יש להוסיף אותו ידנית"
                     >
                       לא סונכרן ליומן

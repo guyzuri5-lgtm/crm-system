@@ -416,7 +416,7 @@ export function NewsletterEditor({
 
         {notice && (
           <p
-            className={`text-sm ${notice.tone === "ok" ? "text-emerald-700" : "text-[var(--danger)]"}`}
+            className={`text-sm ${notice.tone === "ok" ? "text-[var(--ok)]" : "text-[var(--danger)]"}`}
           >
             {notice.text}
           </p>

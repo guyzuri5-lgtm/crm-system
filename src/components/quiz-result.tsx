@@ -110,7 +110,7 @@ export function QuizResult({ submission }: { submission: QuizSubmissionView }) {
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h2 className="font-medium">תוצאת שאלון הצ&apos;אקרות</h2>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-[var(--subtle)]">
             {formatDateTime(s.submitted_at)} · {QUIZ_KIND_LABELS[s.kind]}
             {s.booking_clicked_at && " · יצא ליומן"}
           </p>
@@ -121,11 +121,11 @@ export function QuizResult({ submission }: { submission: QuizSubmissionView }) {
         </span>
       </div>
 
-      <div className="rounded bg-gray-50 p-3">
+      <div className="rounded bg-[var(--background)] p-3">
         <LineGraph scores={s.scores} lowest={lowest} />
         <ul className="mt-1 grid grid-cols-7 gap-0.5">
           {CHAKRA_KEYS.map((k) => (
-            <li key={k} className="text-center text-[10px] leading-tight text-gray-500">
+            <li key={k} className="text-center text-[10px] leading-tight text-[var(--subtle)]">
               {CHAKRAS[k].short.map((w) => <span key={w} className="block">{w}</span>)}
             </li>
           ))}
@@ -135,7 +135,7 @@ export function QuizResult({ submission }: { submission: QuizSubmissionView }) {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-[130px_1fr]">
         <div className="text-center">
           <Figure chakra={lowest} />
-          <p className="mt-1 text-xs text-gray-500">{CHAKRAS[lowest].location}</p>
+          <p className="mt-1 text-xs text-[var(--subtle)]">{CHAKRAS[lowest].location}</p>
         </div>
 
         <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
@@ -144,9 +144,16 @@ export function QuizResult({ submission }: { submission: QuizSubmissionView }) {
             const t = flowStatus(v);
             return (
               <div key={k} className="rounded border px-2 py-1">
-                <span className="block text-[11px] text-gray-500">{CHAKRAS[k].name}</span>
-                <b className="text-sm" style={{ color: t.color }}>{v}</b>
-                <span className="mt-0.5 block h-1 overflow-hidden rounded-full bg-gray-200">
+                <span className="block text-[11px] text-[var(--subtle)]">{CHAKRAS[k].name}</span>
+                {/* צבע הצ'אקרה כטקסט: בנייר כהה הוא נופל מתחת לסף, ולכן
+                    הוא מעורבב אל צבע הדיו לפי --tint-lift (אפס בבהיר). */}
+                <b
+                  className="text-sm"
+                  style={{ color: `color-mix(in srgb, ${t.color}, var(--foreground) var(--tint-lift))` }}
+                >
+                  {v}
+                </b>
+                <span className="mt-0.5 block h-1 overflow-hidden rounded-full bg-[var(--surface-sunken)]">
                   <span className="block h-full rounded-full"
                         style={{ width: `${Math.max(v, 2)}%`, background: CHAKRAS[k].color }} />
                 </span>
@@ -154,16 +161,16 @@ export function QuizResult({ submission }: { submission: QuizSubmissionView }) {
             );
           })}
           <div className="rounded border px-2 py-1">
-            <span className="block text-[11px] text-gray-500">מדד איזון</span>
+            <span className="block text-[11px] text-[var(--subtle)]">מדד איזון</span>
             <b className="text-sm">{s.balance_index ?? "—"}</b>
-            <span className="block text-[10px] text-gray-400">פער {s.spread ?? "—"}</span>
+            <span className="block text-[10px] text-[var(--subtle)]">פער {s.spread ?? "—"}</span>
           </div>
         </div>
       </div>
 
       {s.answers.length > 0 && (
         <details className="text-sm">
-          <summary className="cursor-pointer text-gray-600">
+          <summary className="cursor-pointer text-[var(--muted)]">
             כל {s.answers.length} התשובות
           </summary>
           <ul className="mt-2 flex flex-col gap-1">
@@ -172,7 +179,7 @@ export function QuizResult({ submission }: { submission: QuizSubmissionView }) {
               const t = a.score == null ? flowStatus(50) : flowStatus((a.score / 3) * 100);
               return (
                 <li key={a.id} className="flex items-baseline gap-2 rounded border px-2 py-1">
-                  <span className="flex-1 text-xs text-gray-600">{a.id}. {a.text}</span>
+                  <span className="flex-1 text-xs text-[var(--muted)]">{a.id}. {a.text}</span>
                   <span className="shrink-0 rounded-full px-2 text-[11px] font-bold"
                         style={{ background: t.bg, color: t.color }}>{label}</span>
                 </li>
@@ -182,7 +189,7 @@ export function QuizResult({ submission }: { submission: QuizSubmissionView }) {
         </details>
       )}
 
-      <p className="text-[11px] text-gray-400">
+      <p className="text-[11px] text-[var(--subtle)]">
         מזהה לקישור מקלנדלי (utm_content): <span dir="ltr">{s.session_id}</span>
       </p>
     </div>

@@ -172,13 +172,13 @@ export function ImportForm() {
         </div>
 
         {!hasIdentity && (
-          <p className="rounded-lg bg-amber-50 px-3 py-2 text-amber-800">
+          <p className="rounded-lg bg-[var(--warn-soft)] px-3 py-2 text-[var(--warn)]">
             צריך למפות לפחות עמודה אחת לשם, לטלפון או למייל — בלי פרט מזהה אי אפשר ליצור איש קשר.
           </p>
         )}
 
         {duplicates.length > 0 && (
-          <p className="rounded-lg bg-amber-50 px-3 py-2 text-amber-800">
+          <p className="rounded-lg bg-[var(--warn-soft)] px-3 py-2 text-[var(--warn)]">
             יותר מעמודה אחת ממופה לאותו שדה. בכל שורה תילקח הערך הראשון שאינו ריק.
           </p>
         )}
@@ -251,10 +251,10 @@ function Stat({
   tone: "good" | "info" | "warn" | "muted";
 }) {
   const tones = {
-    good: "bg-emerald-50 text-emerald-700",
-    info: "bg-blue-50 text-blue-700",
-    warn: "bg-amber-50 text-amber-700",
-    muted: "bg-stone-100 text-stone-500",
+    good: "bg-[var(--ok-soft)] text-[var(--ok)]",
+    info: "bg-[var(--nav-blue-soft)] text-[var(--nav-blue)]",
+    warn: "bg-[var(--warn-soft)] text-[var(--warn)]",
+    muted: "bg-[var(--surface-sunken)] text-[var(--subtle)]",
   } as const;
   return (
     <span className={`rounded-lg px-3 py-1.5 text-sm font-medium ${tones[tone]}`}>

@@ -121,7 +121,7 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
       </div>
 
       {journey.active && (
-        <div className="card border-emerald-200 bg-emerald-50 text-sm text-emerald-900">
+        <div className="card border-[var(--ok)]/30 bg-[var(--ok-soft)] text-sm text-[var(--ok)]">
           <strong>המסע פעיל.</strong> הקרון היומי מצרף אליו אנשים ושולח להם הודעות
           אמיתיות. שינוי שלבים עכשיו משפיע גם על מי שכבר באמצע.
         </div>

@@ -115,8 +115,8 @@ export default async function RulesPage() {
                   <span
                     className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                       rule.active
-                        ? "bg-emerald-50 text-emerald-700"
-                        : "bg-stone-100 text-stone-500"
+                        ? "bg-[var(--ok-soft)] text-[var(--ok)]"
+                        : "bg-[var(--surface-sunken)] text-[var(--subtle)]"
                     }`}
                   >
                     {rule.active ? "פעיל" : "כבוי"}

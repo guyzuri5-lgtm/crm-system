@@ -40,13 +40,26 @@ export const metadata: Metadata = {
   description: "ניהול לידים, וואטסאפ ומייל במקום אחד",
 };
 
+/**
+ * החלת מצב התצוגה לפני הציור הראשון.
+ *
+ * חייב לרוץ כסקריפט חוסם ב-<head> ולא ברכיב React: רכיב רץ אחרי שהדפדפן
+ * כבר צייר, ומצב כהה שנדלק שם מהבהב לבן לרגע בכל טעינת עמוד. try/catch כי
+ * localStorage זורק בחלון פרטי בחלק מהדפדפנים, ואז ברירת המחדל היא המערכת.
+ */
+const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem("crm-theme")||"system";var d=t==="dark"||(t==="system"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.setAttribute("data-theme",d?"dark":"light");document.documentElement.style.colorScheme=d?"dark":"light"}catch(e){}})()`;
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="he"
       dir="rtl"
       className={`${rubik.variable} ${plexHebrew.variable} ${plexMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

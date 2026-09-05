@@ -178,7 +178,7 @@ export default async function WhatsAppPage() {
             </thead>
             <tbody>
               <tr className="border-b border-[var(--border)]">
-                <td className="td font-medium text-emerald-600">חלון פתוח</td>
+                <td className="td font-medium text-[var(--ok)]">חלון פתוח</td>
                 <td className="td">הלקוח כתב ב-24 השעות האחרונות</td>
                 <td className="td">כל טקסט חופשי</td>
                 <td className="td">חינם</td>

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
@@ -399,6 +400,8 @@ export function DashboardShell({
       </nav>
 
       <div className="mt-auto flex flex-col gap-2 pt-4">
+        <ThemeToggle />
+
         {/*
           מצב הערוץ קבוע מול העין בכל מסך. מתג ההשהיה חוסם שליחה בשקט — הוא
           הדבר היחיד במערכת שיכול להיות שבור בלי שאף מסך יצעק — ולכן הוא

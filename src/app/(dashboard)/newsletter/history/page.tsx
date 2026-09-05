@@ -59,7 +59,7 @@ export default async function HistoryPage() {
                   <td className="td font-medium">
                     {newsletter.subject}
                     {newsletter.status === "canceled" && (
-                      <span className="mr-2 rounded-full bg-stone-100 px-2 py-0.5 text-xs font-medium text-stone-600">
+                      <span className="mr-2 rounded-full bg-[var(--surface-sunken)] px-2 py-0.5 text-xs font-medium text-[var(--muted)]">
                         בוטל
                       </span>
                     )}

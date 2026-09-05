@@ -57,9 +57,9 @@ const PLACEHOLDER_HINT = `תוכן — נתמכים: ${braced(CONTACT_PLACEHOLDE
 )}`;
 
 const TONE_CLASSES = {
-  ok: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
-  warn: "bg-amber-50 text-amber-700 ring-amber-600/20",
-  bad: "bg-red-50 text-[var(--danger)] ring-red-600/20",
+  ok: "bg-[var(--ok-soft)] text-[var(--ok)] ring-[var(--ok)]/25",
+  warn: "bg-[var(--warn-soft)] text-[var(--warn)] ring-[var(--warn)]/25",
+  bad: "bg-[var(--danger-soft)] text-[var(--danger)] ring-[var(--danger)]/25",
 };
 
 export default async function TemplatesPage({
@@ -111,7 +111,7 @@ export default async function TemplatesPage({
       </div>
 
       {blockedTemplate && blockedHolders && (
-        <div className="card border-red-200 bg-red-50 text-sm leading-relaxed text-red-900">
+        <div className="card border-[var(--danger)]/30 bg-[var(--danger-soft)] text-sm leading-relaxed text-[var(--danger)]">
           <strong>{blockedExplanation(blockedTemplate.name, blockedHolders)}</strong>
           <p className="mt-1">
             מחיקה הייתה משאירה שם שלב בלי תוכן, ותקלה כזו מתגלה רק כשהמערכת מגיעה
@@ -121,7 +121,7 @@ export default async function TemplatesPage({
       )}
 
       {!canManage && (
-        <div className="card border-amber-200 bg-amber-50 text-sm text-amber-900">
+        <div className="card border-[var(--warn)]/30 bg-[var(--warn-soft)] text-sm text-[var(--warn)]">
           <strong>ניהול תבניות מול Meta כבוי.</strong> חסר{" "}
           <code dir="ltr">WHATSAPP_WABA_ID</code> — בלעדיו אפשר רק לרשום ידנית שם של
           תבנית שנוצרה בממשק של Meta, ואי אפשר לדעת אם היא עדיין מאושרת.
@@ -287,7 +287,7 @@ export default async function TemplatesPage({
                               {meta.text}
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-2 rounded-full bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-600 ring-1 ring-inset ring-stone-500/15">
+                            <span className="inline-flex items-center gap-2 rounded-full bg-[var(--surface-sunken)] px-3 py-1 text-xs font-semibold text-[var(--muted)] ring-1 ring-inset ring-[var(--border)]">
                               טרם סונכרן
                             </span>
                           );

@@ -342,12 +342,12 @@ export function JourneyCanvas({
               onClick={() => isTarget && connectTo(node.id)}
               className={`absolute flex flex-col justify-center rounded-2xl border-2 px-4 shadow-sm select-none ${
                 drag?.id === node.id ? "cursor-grabbing" : "cursor-grab"
-              } ${isTarget ? "ring-2 ring-amber-400" : ""} ${
+              } ${isTarget ? "ring-2 ring-[var(--warn)]/50" : ""} ${
                 selectedId === node.id ? "ring-2 ring-[var(--primary)]" : ""
               } ${
                 node.channel === "email"
-                  ? "border-sky-300 bg-sky-50"
-                  : "border-emerald-300 bg-emerald-50"
+                  ? "border-[var(--nav-blue)]/40 bg-[var(--nav-blue-soft)]"
+                  : "border-[var(--ok)]/40 bg-[var(--ok-soft)]"
               }`}
             >
               <p className="text-[10px] text-[var(--subtle)]">

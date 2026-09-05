@@ -171,14 +171,14 @@ export function JourneySimulation({
                 <span
                   className={`mr-2 rounded-full px-2 py-0.5 text-[11px] font-normal ${
                     step.channel === "email"
-                      ? "bg-sky-100 text-sky-800"
-                      : "bg-emerald-100 text-emerald-800"
+                      ? "bg-[var(--nav-blue-soft)] text-[var(--nav-blue)]"
+                      : "bg-[var(--ok-soft)] text-[var(--ok)]"
                   }`}
                 >
                   {step.channel === "email" ? "מייל" : "וואטסאפ"}
                 </span>
                 {conditionLabel && (
-                  <span className="mr-2 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-normal text-amber-700">
+                  <span className="mr-2 rounded-full bg-[var(--warn-soft)] px-2 py-0.5 text-[11px] font-normal text-[var(--warn)]">
                     {conditionLabel}
                   </span>
                 )}
@@ -188,7 +188,7 @@ export function JourneySimulation({
               </p>
               <p
                 className={`mt-1.5 max-w-xl rounded-xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
-                  step.channel === "email" ? "bg-sky-50" : "bg-emerald-50"
+                  step.channel === "email" ? "bg-[var(--nav-blue-soft)]" : "bg-[var(--ok-soft)]"
                 }`}
               >
                 {template

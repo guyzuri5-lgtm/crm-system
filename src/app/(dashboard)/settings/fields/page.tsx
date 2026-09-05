@@ -84,7 +84,7 @@ export default async function FieldsPage() {
                     {TYPE_LABELS[field.input_type]}
                   </span>
                   {field.kind === "builtin" ? (
-                    <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">
+                    <span className="rounded-full bg-[var(--surface-sunken)] px-2 py-0.5 text-xs text-[var(--subtle)]">
                       מובנה
                     </span>
                   ) : (

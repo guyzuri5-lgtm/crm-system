@@ -167,8 +167,8 @@ export default async function JourneysPage({ searchParams }: PageProps<"/journey
                   <span
                     className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${
                       j.active
-                        ? "bg-emerald-50 text-emerald-700 ring-emerald-600/20"
-                        : "bg-stone-100 text-stone-600 ring-stone-500/15"
+                        ? "bg-[var(--ok-soft)] text-[var(--ok)] ring-[var(--ok)]/25"
+                        : "bg-[var(--surface-sunken)] text-[var(--muted)] ring-[var(--border)]"
                     }`}
                   >
                     {j.active ? "פעיל" : "כבוי"}

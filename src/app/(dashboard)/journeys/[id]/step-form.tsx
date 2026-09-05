@@ -152,8 +152,8 @@ export function StepForm({
                 <span
                   className={`rounded-full px-2 py-0.5 text-[11px] ${
                     t.channel === "email"
-                      ? "bg-sky-100 text-sky-800"
-                      : "bg-emerald-100 text-emerald-800"
+                      ? "bg-[var(--nav-blue-soft)] text-[var(--nav-blue)]"
+                      : "bg-[var(--ok-soft)] text-[var(--ok)]"
                   }`}
                 >
                   {t.channel === "email" ? "מייל" : "וואטסאפ"}
@@ -165,7 +165,7 @@ export function StepForm({
                 <div className="mt-2">
                   <p
                     className={`rounded-xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
-                      t.channel === "email" ? "bg-sky-50" : "bg-emerald-50"
+                      t.channel === "email" ? "bg-[var(--nav-blue-soft)]" : "bg-[var(--ok-soft)]"
                     }`}
                   >
                     {t.body}
@@ -308,7 +308,7 @@ export function StepForm({
           </>
         )}
 
-        <p className="rounded-xl bg-sky-50 px-4 py-2.5 text-sm text-sky-900">
+        <p className="rounded-xl bg-[var(--nav-blue-soft)] px-4 py-2.5 text-sm text-[var(--nav-blue)]">
           {timingExample(timing, waitDays, relativeAt, offsetMinutes, dayOffset, dayAtMinutes)}
         </p>
       </div>
@@ -327,20 +327,20 @@ export function StepForm({
 function MetaBadge({ template }: { template: CanvasTemplate }) {
   if (!template.metaTemplateName) {
     return (
-      <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] text-red-700">
+      <span className="rounded-full bg-[var(--danger-soft)] px-2 py-0.5 text-[11px] text-[var(--danger)]">
         בלי אישור ב-Meta
       </span>
     );
   }
   if (template.metaStatus && template.metaStatus.toUpperCase() !== "APPROVED") {
     return (
-      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700">
+      <span className="rounded-full bg-[var(--warn-soft)] px-2 py-0.5 text-[11px] text-[var(--warn)]">
         ממתינה לאישור ב-Meta
       </span>
     );
   }
   return (
-    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-700">
+    <span className="rounded-full bg-[var(--ok-soft)] px-2 py-0.5 text-[11px] text-[var(--ok)]">
       מאושרת ב-Meta
     </span>
   );
