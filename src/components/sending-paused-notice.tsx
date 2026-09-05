@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { isSendingPaused } from "@/lib/whatsapp-throttle";
+import { readWhatsAppSettings } from "@/lib/whatsapp-throttle";
 
 /**
  * אזהרה שמופיעה במסכים שמתזמנים שליחה, כשההשהיה דלוקה.
@@ -11,9 +11,15 @@ import { isSendingPaused } from "@/lib/whatsapp-throttle";
  *
  * רכיב שרת שבודק בעצמו ומחזיר null כשהשליחה פעילה, כדי שאתר הקריאה יהיה
  * שורה אחת ולא תנאי.
+ *
+ * למה readWhatsAppSettings ולא isSendingPaused: זו האחרונה נשענת על פולבק
+ * שמחזיר paused: false כשהקריאה למסד נכשלת, והרכיב היה מחזיר null — כלומר
+ * *לא* מזהיר, דווקא ברגע שבו אין לאיש מושג אם השליחה עצורה. שתיקה כאן היא
+ * הבטחה שהכול תקין, ואסור להבטיח את זה בלי לדעת.
  */
 export async function SendingPausedNotice() {
-  if (!(await isSendingPaused())) return null;
+  const { settings, degraded } = await readWhatsAppSettings();
+  if (!degraded && !settings.paused) return null;
 
   return (
     <div
@@ -37,8 +43,17 @@ export async function SendingPausedNotice() {
       >
         <path d="M9 5v14M15 5v14" />
       </svg>
-      <strong className="font-semibold">השליחה האוטומטית מושהית.</strong>
-      <span>מה שמתוזמן כאן לא ייצא עד שתכובה.</span>
+      {degraded ? (
+        <>
+          <strong className="font-semibold">לא הצלחנו לקרוא את מצב השליחה.</strong>
+          <span>ייתכן שההשהיה דלוקה, ואז מה שמתוזמן כאן לא ייצא. רעננו את הדף.</span>
+        </>
+      ) : (
+        <>
+          <strong className="font-semibold">השליחה האוטומטית מושהית.</strong>
+          <span>מה שמתוזמן כאן לא ייצא עד שתכובה.</span>
+        </>
+      )}
       <Link href="/settings/sending" className="font-semibold underline underline-offset-2">
         הגדרות ← בלמי שליחה
       </Link>
