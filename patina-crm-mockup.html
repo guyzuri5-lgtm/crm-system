@@ -1,0 +1,2065 @@
+<title>פטינה CRM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600&family=IBM+Plex+Sans+Hebrew:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   פטינה — שפה חזותית ל-CRM בעברית
+   נייר חמים · דיו ירקרק · ורדיגריס כמבטא יחיד · שש קבוצות בגוון אחיד
+   ══════════════════════════════════════════════════════════════════ */
+
+:root{
+  /* משטחים */
+  --paper:#FBFAF8;  --paper-2:#F3F1EC;  --paper-3:#EDEAE3;
+  --surface:#FFFFFF; --surface-2:#FCFBF9;
+  --line:#E7E3DB;   --line-2:#D6D0C5;
+
+  /* דיו — שחור עם הטיה ירוקה קלה לכיוון המבטא */
+  --ink:#171E1B; --ink-2:#5A625E; --ink-3:#8B928D; --ink-4:#ADB3AE;
+
+  /* ורדיגריס — המבטא היחיד */
+  --acc:#0C6B62; --acc-2:#08514A; --acc-t:#E1F0EE; --acc-t2:#CDE6E2;
+
+  /* שש הקבוצות — בהירות נתפסת אחידה */
+  --rose:#A33A5E;    --rose-t:#FAEAF0;
+  --iris:#524BB6;    --iris-t:#EDECFB;
+  --ember:#B0451D;   --ember-t:#FAEBE4;
+  --saffron:#8F5806;  --saffron-t:#F9F0DA;
+  --azure:#14568F;   --azure-t:#E6F0FA;
+  --slate:#585D59;   --slate-t:#EFEEE9;
+
+  /* מצב — נפרד מהמבטא */
+  --ok:#0D7255;  --ok-t:#E2F2EB;
+  --warn:#8E5E06; --warn-t:#FAF0D9;
+  --bad:#AC2E2E;  --bad-t:#FBE9E8;
+
+  --shadow-1:0 1px 2px rgba(23,30,27,.05);
+  --shadow-2:0 1px 2px rgba(23,30,27,.05), 0 10px 26px -14px rgba(23,30,27,.20);
+  --shadow-3:0 2px 4px rgba(23,30,27,.06), 0 26px 60px -28px rgba(23,30,27,.32);
+
+  --r-s:8px; --r-m:12px; --r-l:16px; --r-xl:22px;
+
+  --font-ui:"IBM Plex Sans Hebrew","Rubik",system-ui,sans-serif;
+  --font-dis:"Rubik","IBM Plex Sans Hebrew",system-ui,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#10140F; --paper-2:#0B0F0C; --paper-3:#181D19;
+    --surface:#171C19; --surface-2:#1C221E;
+    --line:#29302B; --line-2:#3A423C;
+    --ink:#ECEFEB; --ink-2:#A2AAA4; --ink-3:#7A827C; --ink-4:#606861;
+    --acc:#4FC4B3; --acc-2:#74D6C7; --acc-t:#0F312D; --acc-t2:#164740;
+    --rose:#E9799D;   --rose-t:#331521;
+    --iris:#9C95F2;   --iris-t:#1C1A3B;
+    --ember:#EE865A;  --ember-t:#331A11;
+    --saffron:#DFA93E; --saffron-t:#2D2211;
+    --azure:#66B0EB;  --azure-t:#11253A;
+    --slate:#A6ACA7;  --slate-t:#212622;
+    --ok:#52C098;  --ok-t:#0F3025;
+    --warn:#DCA53C; --warn-t:#30240F;
+    --bad:#EF6E67;  --bad-t:#341715;
+    --shadow-1:0 1px 2px rgba(0,0,0,.4);
+    --shadow-2:0 1px 2px rgba(0,0,0,.4), 0 12px 28px -14px rgba(0,0,0,.7);
+    --shadow-3:0 2px 6px rgba(0,0,0,.5), 0 30px 70px -30px rgba(0,0,0,.85);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#10140F; --paper-2:#0B0F0C; --paper-3:#181D19;
+  --surface:#171C19; --surface-2:#1C221E;
+  --line:#29302B; --line-2:#3A423C;
+  --ink:#ECEFEB; --ink-2:#A2AAA4; --ink-3:#7A827C; --ink-4:#606861;
+  --acc:#4FC4B3; --acc-2:#74D6C7; --acc-t:#0F312D; --acc-t2:#164740;
+  --rose:#E9799D;   --rose-t:#331521;
+  --iris:#9C95F2;   --iris-t:#1C1A3B;
+  --ember:#EE865A;  --ember-t:#331A11;
+  --saffron:#DFA93E; --saffron-t:#2D2211;
+  --azure:#66B0EB;  --azure-t:#11253A;
+  --slate:#A6ACA7;  --slate-t:#212622;
+  --ok:#52C098;  --ok-t:#0F3025;
+  --warn:#DCA53C; --warn-t:#30240F;
+  --bad:#EF6E67;  --bad-t:#341715;
+  --shadow-1:0 1px 2px rgba(0,0,0,.4);
+  --shadow-2:0 1px 2px rgba(0,0,0,.4), 0 12px 28px -14px rgba(0,0,0,.7);
+  --shadow-3:0 2px 6px rgba(0,0,0,.5), 0 30px 70px -30px rgba(0,0,0,.85);
+}
+
+*{box-sizing:border-box}
+body{background:var(--paper-2);color:var(--ink);font-family:var(--font-ui);font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4,p,ul,ol,dl,dd,figure{margin:0;padding:0}
+ul,ol{list-style:none}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+a{color:inherit;text-decoration:none}
+svg{display:block}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px;border-radius:4px}
+.mono{font-family:var(--font-mono);font-feature-settings:"tnum";letter-spacing:-.01em}
+.num{font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ─── מסגרת המסמך ───────────────────────────────────────────────── */
+.doc{max-width:1280px;margin:0 auto;padding:34px 22px 72px}
+.doc-head{display:flex;flex-direction:column;gap:14px;padding-bottom:26px;border-bottom:1px solid var(--line)}
+.brandline{display:flex;align-items:center;gap:10px}
+.brandmark{width:30px;height:30px;border-radius:9px;background:linear-gradient(150deg,var(--acc),var(--acc-2));display:grid;place-items:center;color:#fff;box-shadow:var(--shadow-1)}
+.brandname{font-family:var(--font-dis);font-weight:600;letter-spacing:-.01em}
+.brandtag{font-size:11px;letter-spacing:.1em;color:var(--ink-3);border-inline-start:1px solid var(--line-2);padding-inline-start:10px;margin-inline-start:2px}
+.doc-title{font-family:var(--font-dis);font-size:clamp(26px,4vw,38px);font-weight:500;letter-spacing:-.025em;line-height:1.15;text-wrap:balance;max-width:20ch}
+.doc-lede{color:var(--ink-2);max-width:62ch;line-height:1.7}
+.doc-facts{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.fact{display:inline-flex;align-items:center;gap:7px;background:var(--surface);border:1px solid var(--line);border-radius:100px;padding:5px 12px 5px 10px;font-size:12px;color:var(--ink-2);box-shadow:var(--shadow-1)}
+.fact b{font-weight:600;color:var(--ink)}
+.fact i{width:7px;height:7px;border-radius:50%;background:var(--c,var(--acc));display:block}
+
+/* ─── מחליף מסכים ───────────────────────────────────────────────── */
+.switch{display:flex;gap:6px;overflow-x:auto;padding:20px 2px 18px;scrollbar-width:thin}
+.sw{display:inline-flex;align-items:center;gap:8px;flex-shrink:0;padding:8px 13px;border-radius:100px;border:1px solid transparent;color:var(--ink-2);font-size:13px;font-weight:500;white-space:nowrap;transition:background-color .16s,color .16s,border-color .16s}
+.sw:hover{background:var(--surface);color:var(--ink)}
+.sw i{width:8px;height:8px;border-radius:50%;background:var(--c,var(--acc));opacity:.55;transition:opacity .16s,transform .16s}
+.sw[aria-selected="true"]{background:var(--surface);border-color:var(--line-2);color:var(--ink);box-shadow:var(--shadow-1)}
+.sw[aria-selected="true"] i{opacity:1;transform:scale(1.25)}
+.sw-n{font-family:var(--font-mono);font-size:10px;color:var(--ink-4)}
+
+/* ─── חלון הדפדפן ───────────────────────────────────────────────── */
+/* המוקאפ מציג מערכת דסקטופ: המסגרת שומרת על רוחב מינימלי וגוללת בתוך עצמה,
+   כך שגוף העמוד לעולם לא נגלל לצדדים והעיצוב נקרא נכון בכל רוחב. */
+.stage{overflow-x:auto;padding-bottom:6px}
+.chrome{min-width:940px;border:1px solid var(--line-2);border-radius:var(--r-xl);background:var(--surface);box-shadow:var(--shadow-3);overflow:hidden}
+.chrome-bar{display:flex;align-items:center;gap:12px;padding:11px 15px;background:var(--paper-3);border-bottom:1px solid var(--line)}
+.dots{display:flex;gap:6px}
+.dots span{width:10px;height:10px;border-radius:50%;background:var(--line-2)}
+.urlbar{flex:1;display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:100px;padding:4px 12px;font-size:11.5px;color:var(--ink-3);max-width:380px;margin:0 auto}
+
+/* ─── שלד האפליקציה ─────────────────────────────────────────────── */
+.app{display:grid;grid-template-columns:238px 1fr;min-height:760px;background:var(--paper)}
+
+/* סרגל צד */
+.side{background:var(--surface);border-inline-start:1px solid var(--line);display:flex;flex-direction:column;gap:4px;padding:14px 12px}
+.side-brand{display:flex;align-items:center;gap:10px;padding:6px 8px 14px}
+.side-logo{width:32px;height:32px;border-radius:10px;background:linear-gradient(150deg,var(--acc),var(--acc-2));display:grid;place-items:center;color:#fff;flex-shrink:0}
+.side-biz{font-family:var(--font-dis);font-weight:500;font-size:14px;letter-spacing:-.01em;line-height:1.2}
+.side-biz span{display:block;font-family:var(--font-ui);font-size:11px;font-weight:400;color:var(--ink-3);letter-spacing:0}
+.side-search{display:flex;align-items:center;gap:8px;width:100%;background:var(--paper);border:1px solid var(--line);border-radius:var(--r-s);padding:7px 10px;color:var(--ink-3);font-size:12.5px;margin-bottom:10px;transition:border-color .16s}
+.side-search:hover{border-color:var(--line-2)}
+.side-search kbd{margin-inline-start:auto;font-family:var(--font-mono);font-size:10px;background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:1px 5px;color:var(--ink-4)}
+.side-lbl{font-size:10.5px;letter-spacing:.09em;color:var(--ink-4);padding:12px 10px 5px;font-weight:500}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav-i{display:flex;align-items:center;gap:10px;width:100%;padding:7px 10px;border-radius:var(--r-s);font-size:13.5px;color:var(--ink-2);transition:background-color .14s,color .14s}
+.nav-i>svg{color:var(--c,var(--ink-3));flex-shrink:0;transition:color .14s}
+.nav-i:hover{background:var(--paper);color:var(--ink)}
+.nav-i[aria-current]{background:var(--t,var(--acc-t));color:var(--c,var(--acc));font-weight:600}
+.nav-i[aria-current]>svg{color:var(--c,var(--acc))}
+.nav-count{margin-inline-start:auto;font-family:var(--font-mono);font-size:10.5px;background:var(--paper-3);color:var(--ink-3);border-radius:100px;padding:1px 6px;min-width:22px;text-align:center}
+.nav-i[aria-current] .nav-count{background:var(--surface);color:var(--c,var(--acc))}
+.sub{display:none;flex-direction:column;gap:1px;margin:3px 0 6px;padding-inline-start:20px;border-inline-start:1px solid var(--line);margin-inline-start:19px}
+li.open .sub{display:flex}
+.sub a{padding:5px 10px;border-radius:6px;font-size:12.5px;color:var(--ink-3);transition:color .14s,background-color .14s}
+.sub a:hover{color:var(--ink);background:var(--paper)}
+.sub a[aria-current]{color:var(--ink);font-weight:600;background:var(--paper)}
+.side-foot{margin-top:auto;display:flex;flex-direction:column;gap:8px;padding-top:12px}
+.health{display:flex;align-items:center;gap:9px;background:var(--paper);border:1px solid var(--line);border-radius:var(--r-m);padding:9px 10px}
+.health-dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px var(--ok-t);flex-shrink:0}
+.health b{display:block;font-size:12px;font-weight:600}
+.health span{display:block;font-size:10.5px;color:var(--ink-3)}
+.me{display:flex;align-items:center;gap:9px;padding:6px;border-radius:var(--r-m);transition:background-color .14s}
+.me:hover{background:var(--paper)}
+.av{width:28px;height:28px;border-radius:9px;background:var(--acc-t);color:var(--acc);display:grid;place-items:center;font-size:11px;font-weight:600;flex-shrink:0}
+.me b{font-size:12.5px;font-weight:500}
+.me span{display:block;font-size:10.5px;color:var(--ink-3)}
+
+/* סרגל עליון */
+.main{display:flex;flex-direction:column;min-width:0}
+.top{display:flex;align-items:center;gap:12px;padding:13px 22px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--surface) 78%,transparent);backdrop-filter:blur(8px);position:sticky;top:0;z-index:5}
+.crumb{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink-3);min-width:0}
+.crumb b{color:var(--ink);font-weight:600}
+.top-sp{flex:1}
+.icobtn{width:31px;height:31px;border-radius:9px;display:grid;place-items:center;color:var(--ink-3);position:relative;transition:background-color .14s,color .14s}
+.icobtn:hover{background:var(--paper-3);color:var(--ink)}
+.icobtn .bell-dot{position:absolute;top:5px;inset-inline-end:6px;width:6px;height:6px;border-radius:50%;background:var(--ember);border:1.5px solid var(--surface)}
+.canvas{padding:24px 22px 34px;display:flex;flex-direction:column;gap:22px;min-width:0}
+
+/* ─── פרימיטיבים ────────────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border-radius:var(--r-s);padding:7px 14px;font-size:13px;font-weight:500;transition:background-color .14s,border-color .14s,transform .1s;white-space:nowrap}
+.btn:active{transform:scale(.98)}
+.btn-p{background:var(--acc);color:#fff;box-shadow:var(--shadow-1)}
+.btn-p:hover{background:var(--acc-2)}
+.btn-s{background:var(--surface);border:1px solid var(--line-2);color:var(--ink);box-shadow:var(--shadow-1)}
+.btn-s:hover{background:var(--paper)}
+.btn-g{color:var(--ink-2);padding:6px 10px}
+.btn-g:hover{background:var(--paper-3);color:var(--ink)}
+.btn-xs{font-size:12px;padding:4px 10px;border-radius:7px}
+
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:100px;padding:2px 10px 2px 8px;font-size:11.5px;font-weight:600;line-height:1.7;white-space:nowrap}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.85;flex-shrink:0}
+.pill.np::before{display:none}
+.p-acc{background:var(--acc-t);color:var(--acc)}
+.p-rose{background:var(--rose-t);color:var(--rose)}
+.p-iris{background:var(--iris-t);color:var(--iris)}
+.p-ember{background:var(--ember-t);color:var(--ember)}
+.p-saffron{background:var(--saffron-t);color:var(--saffron)}
+.p-azure{background:var(--azure-t);color:var(--azure)}
+.p-slate{background:var(--slate-t);color:var(--slate)}
+.p-ok{background:var(--ok-t);color:var(--ok)}
+.p-warn{background:var(--warn-t);color:var(--warn)}
+.p-bad{background:var(--bad-t);color:var(--bad)}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-l);box-shadow:var(--shadow-1)}
+.card-h{display:flex;align-items:center;gap:10px;padding:14px 16px 12px}
+.card-h h3{font-size:14px;font-weight:600;letter-spacing:-.005em}
+.card-h .sp{flex:1}
+.card-b{padding:0 16px 16px}
+.card-f{border-top:1px solid var(--line);padding:10px 16px;font-size:11.5px;color:var(--ink-3)}
+.glyph{width:28px;height:28px;border-radius:9px;display:grid;place-items:center;background:var(--t,var(--acc-t));color:var(--c,var(--acc));flex-shrink:0}
+
+.h-page{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap}
+.h-page h2{font-family:var(--font-dis);font-size:21px;font-weight:500;letter-spacing:-.02em;line-height:1.25}
+.h-page p{font-size:12.5px;color:var(--ink-2);margin-top:3px;max-width:60ch;line-height:1.6}
+.h-page .sp{flex:1}
+.sec-lbl{display:flex;align-items:center;gap:8px;font-size:10.5px;letter-spacing:.09em;color:var(--ink-4);font-weight:500}
+.sec-lbl::after{content:"";flex:1;height:1px;background:var(--line)}
+
+.input{background:var(--surface);border:1px solid var(--line-2);border-radius:var(--r-s);padding:7px 11px;font-size:13px;color:var(--ink-3);display:flex;align-items:center;gap:8px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field>label{font-size:11.5px;font-weight:600;color:var(--ink-2)}
+
+/* ─── דף הבית ───────────────────────────────────────────────────── */
+.hello{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.hello h2{font-family:var(--font-dis);font-size:26px;font-weight:500;letter-spacing:-.025em}
+.hello .date{font-size:12.5px;color:var(--ink-3)}
+.hello .date b{color:var(--ink-2);font-weight:500}
+
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+@media (max-width:1080px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-l);padding:15px 16px 14px;display:flex;flex-direction:column;gap:2px;position:relative;overflow:hidden;box-shadow:var(--shadow-1);transition:box-shadow .18s,transform .18s}
+.kpi:hover{box-shadow:var(--shadow-2);transform:translateY(-1px)}
+.kpi-top{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.kpi-lbl{font-size:11.5px;font-weight:600;color:var(--ink-2)}
+.kpi-v{font-family:var(--font-dis);font-size:31px;font-weight:500;letter-spacing:-.03em;line-height:1.05;color:var(--c,var(--ink));font-variant-numeric:tabular-nums}
+.kpi-v small{font-size:16px;color:var(--ink-3);font-weight:400}
+.kpi-ctx{font-size:11.5px;color:var(--ink-3);margin-top:5px}
+.kpi-ctx b{color:var(--ink-2);font-weight:600}
+.bar{height:4px;border-radius:100px;background:var(--paper-3);overflow:hidden;margin-top:9px}
+.bar>i{display:block;height:100%;border-radius:100px;background:var(--c,var(--acc))}
+.delta{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:600;color:var(--ok)}
+.spark{margin-top:8px;height:26px;width:100%}
+
+.two{display:grid;grid-template-columns:1.15fr .85fr;gap:14px}
+@media (max-width:1000px){.two{grid-template-columns:1fr}}
+
+/* ציר היום */
+.day{display:flex;flex-direction:column}
+.day-r{display:grid;grid-template-columns:52px 18px 1fr;align-items:start;gap:0;padding:9px 0;position:relative}
+.day-r time{font-family:var(--font-mono);font-size:12px;color:var(--ink-3);padding-top:1px}
+.day-rail{position:relative;display:flex;justify-content:center;align-self:stretch}
+.day-rail::before{content:"";position:absolute;top:-9px;bottom:-9px;width:1px;background:var(--line)}
+.day-r:first-child .day-rail::before{top:8px}
+.day-r:last-child .day-rail::before{bottom:calc(100% - 8px)}
+.day-rail i{width:9px;height:9px;border-radius:50%;background:var(--surface);border:2px solid var(--c,var(--acc));margin-top:4px;z-index:1}
+.day-c{padding-inline-start:12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.day-c b{font-size:13px;font-weight:500}
+.day-c span{font-size:11.5px;color:var(--ink-3)}
+.day-now{display:grid;grid-template-columns:52px 18px 1fr;align-items:center;padding:2px 0}
+.day-now time{font-family:var(--font-mono);font-size:10.5px;color:var(--ember);font-weight:500}
+.day-now .day-rail i{width:7px;height:7px;background:var(--ember);border-color:var(--ember);margin:0}
+.day-now .day-c{padding-inline-start:12px}
+.day-now .day-c::before{content:"";display:block;height:1px;background:linear-gradient(to left,var(--ember),transparent)}
+
+/* דורש טיפול */
+.todo{display:flex;flex-direction:column}
+.todo-r{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+.todo-r:last-child{border-bottom:0}
+.todo-r .av{width:26px;height:26px;border-radius:8px;font-size:10px}
+.todo-r b{font-size:13px;font-weight:500}
+.todo-r .sub2{font-size:11px;color:var(--ink-3)}
+.todo-r .sp{flex:1}
+.group-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--r-m);background:var(--paper);border:1px solid var(--line);font-size:12.5px}
+.group-row b{font-weight:600}
+.group-row .sp{flex:1}
+
+.strip{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media (max-width:1000px){.strip{grid-template-columns:1fr}}
+.stat{display:flex;align-items:center;gap:11px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-l);padding:13px 15px;box-shadow:var(--shadow-1)}
+.stat b{display:block;font-size:13.5px;font-weight:600}
+.stat span{display:block;font-size:11.5px;color:var(--ink-3)}
+.stat .sp{flex:1}
+
+/* ─── רשימת שיחות ───────────────────────────────────────────────── */
+.filters{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);border-radius:100px;padding:5px 12px;font-size:12.5px;color:var(--ink-2);transition:border-color .14s,color .14s,background-color .14s}
+.chip:hover{border-color:var(--line-2);color:var(--ink)}
+.chip[aria-pressed="true"]{background:var(--acc-t);border-color:transparent;color:var(--acc);font-weight:600}
+.chip .n{font-family:var(--font-mono);font-size:10.5px;color:var(--ink-4)}
+.chip[aria-pressed="true"] .n{color:var(--acc)}
+
+.rows{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-l);overflow:hidden;box-shadow:var(--shadow-1)}
+.row{display:grid;grid-template-columns:36px 1fr auto;gap:11px;align-items:center;padding:11px 15px;border-bottom:1px solid var(--line);transition:background-color .14s;text-align:start;width:100%}
+.row:last-child{border-bottom:0}
+.row:hover{background:var(--surface-2)}
+.row.unread{background:color-mix(in srgb,var(--acc-t) 40%,var(--surface))}
+.row-m{min-width:0;display:flex;flex-direction:column;gap:2px}
+.row-l1{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.row-l1 b{font-size:13.5px;font-weight:600}
+.row-act{font-size:11px;color:var(--ink-3);display:inline-flex;align-items:center;gap:4px}
+.row-prev{font-size:12.5px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:56ch}
+.row-e{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0}
+.row-time{font-family:var(--font-mono);font-size:11px;color:var(--ink-3)}
+
+/* מד חלון 24 השעות — המכשיר הייחודי של המערכת */
+.win{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:600;color:var(--ok);background:var(--ok-t);border-radius:100px;padding:2px 9px 2px 7px}
+.win-t{width:26px;height:4px;border-radius:100px;background:color-mix(in srgb,var(--ok) 25%,transparent);overflow:hidden}
+.win-t>i{display:block;height:100%;background:var(--ok);border-radius:100px}
+.win.shut{color:var(--ink-3);background:var(--paper-3)}
+.win.shut .win-t{background:var(--line-2)}
+.win.warn2{color:var(--warn);background:var(--warn-t)}
+.win.warn2 .win-t{background:color-mix(in srgb,var(--warn) 25%,transparent)}
+.win.warn2 .win-t>i{background:var(--warn)}
+
+/* שיחה */
+.thread{display:flex;flex-direction:column;gap:9px;background:var(--paper);border-radius:var(--r-m);padding:14px;max-height:330px;overflow-y:auto}
+.msg{max-width:74%;padding:8px 12px;border-radius:14px;font-size:13px;line-height:1.6;position:relative;box-shadow:var(--shadow-1)}
+.msg time{display:block;font-family:var(--font-mono);font-size:9.5px;margin-top:3px;opacity:.65}
+.in{align-self:flex-start;background:var(--surface);border:1px solid var(--line);border-start-start-radius:5px}
+.out{align-self:flex-end;background:var(--acc);color:#fff;border-start-end-radius:5px}
+.out time{color:#fff}
+.sys{align-self:center;background:transparent;box-shadow:none;font-size:11px;color:var(--ink-3);display:flex;align-items:center;gap:7px;max-width:100%}
+.sys::before,.sys::after{content:"";width:26px;height:1px;background:var(--line)}
+.day-sep{align-self:center;font-size:10.5px;color:var(--ink-4);background:var(--paper-3);border-radius:100px;padding:2px 10px;font-family:var(--font-mono)}
+
+.reply{border:1px solid var(--line-2);border-radius:var(--r-m);background:var(--surface);overflow:hidden}
+.reply-tabs{display:flex;gap:2px;padding:6px 6px 0;border-bottom:1px solid var(--line);background:var(--paper)}
+.rt{padding:6px 12px;font-size:12.5px;color:var(--ink-3);border-radius:7px 7px 0 0;font-weight:500}
+.rt[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 0 var(--surface);border:1px solid var(--line);border-bottom-color:var(--surface);margin-bottom:-1px}
+.reply-b{padding:11px 13px;display:flex;flex-direction:column;gap:9px}
+.reply-in{font-size:13px;color:var(--ink-3);min-height:40px}
+.reply-f{display:flex;align-items:center;gap:8px}
+.reply-f .sp{flex:1}
+
+/* ─── טבלה ──────────────────────────────────────────────────────── */
+.tbl-wrap{border:1px solid var(--line);border-radius:var(--r-l);background:var(--surface);overflow:hidden;box-shadow:var(--shadow-1)}
+.tbl-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{text-align:start;font-size:10.5px;letter-spacing:.07em;color:var(--ink-4);font-weight:600;padding:10px 14px;background:var(--paper);border-bottom:1px solid var(--line);white-space:nowrap}
+tbody td{padding:10px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+tbody tr:last-child td{border-bottom:0}
+tbody tr{transition:background-color .14s}
+tbody tr:hover{background:var(--surface-2)}
+tbody tr:has(input:checked){background:var(--acc-t)}
+.cbx{width:15px;height:15px;border-radius:4px;border:1.5px solid var(--line-2);appearance:none;background:var(--surface);cursor:pointer;display:grid;place-items:center;transition:background-color .14s,border-color .14s}
+.cbx:checked{background:var(--acc);border-color:var(--acc)}
+.cbx:checked::after{content:"";width:8px;height:5px;border:1.8px solid #fff;border-top:0;border-inline-end:0;transform:rotate(-45deg) translate(1px,-1px)}
+.bulk{display:none;align-items:center;gap:10px;padding:9px 14px;background:var(--acc-t);border-bottom:1px solid var(--acc-t2);font-size:12.5px;color:var(--acc);font-weight:500}
+.tbl-wrap:has(tbody input:checked) .bulk{display:flex}
+.bulk .sp{flex:1}
+.avc{display:inline-flex;align-items:center;gap:9px}
+.avc .av{width:26px;height:26px;border-radius:8px;font-size:10px}
+.avc b{font-weight:500}
+.tags{display:inline-flex;gap:4px}
+.tag{font-size:10.5px;background:var(--paper-3);color:var(--ink-2);border-radius:5px;padding:1px 7px}
+.tbl-foot{display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--line);font-size:11.5px;color:var(--ink-3);background:var(--paper)}
+.tbl-foot .sp{flex:1}
+
+/* ─── פגישות ────────────────────────────────────────────────────── */
+.mt{display:flex;align-items:center;gap:13px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.mt:last-child{border-bottom:0}
+.mt-dur{width:46px;height:46px;border-radius:13px;display:grid;place-items:center;background:var(--t);color:var(--c);font-family:var(--font-dis);font-weight:500;line-height:1;flex-shrink:0}
+.mt-dur small{display:block;font-size:9px;font-weight:400;opacity:.8;margin-top:2px}
+.mt-m{min-width:0;flex:1}
+.mt-m b{font-size:13.5px;font-weight:600;display:block}
+.mt-m span{font-size:11.5px;color:var(--ink-3)}
+.slug{font-family:var(--font-mono);font-size:11px;color:var(--ink-3);background:var(--paper-3);border-radius:5px;padding:1px 6px}
+
+.week{display:grid;grid-template-columns:44px repeat(6,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r-m);overflow:hidden}
+.week>div{background:var(--surface);padding:5px 4px;font-size:10.5px;text-align:center;color:var(--ink-3);min-height:26px}
+.week .wh{background:var(--paper);font-weight:600;color:var(--ink-2);padding:7px 4px}
+.week .wt{background:var(--paper);font-family:var(--font-mono);font-size:9.5px;color:var(--ink-4);display:grid;place-items:center}
+.week .free{background:var(--acc-t)}
+.week .busy{background:var(--paper-3);color:var(--ink-4)}
+.week .bk{background:var(--rose-t);color:var(--rose);font-weight:600;font-size:9.5px;display:grid;place-items:center}
+
+/* ─── לוח המסע ──────────────────────────────────────────────────── */
+.timing{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:500;color:var(--ink-2);background:var(--paper-3);border-radius:100px;padding:2px 8px}
+.step-add{display:flex;align-items:center;gap:8px;padding:9px 12px;border:1px dashed var(--line-2);border-radius:var(--r-m);color:var(--ink-3);font-size:12.5px;width:100%;transition:border-color .16s,color .16s}
+.step-add:hover{border-color:var(--acc);color:var(--acc)}
+
+.jbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.jbar .sp{flex:1}
+.jhint{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--ink-3)}
+
+.board{position:relative;height:500px;border:1px solid var(--line);border-radius:var(--r-l);background:var(--paper);overflow:hidden;touch-action:none;cursor:grab;box-shadow:inset 0 1px 3px rgba(23,30,27,.05)}
+.board.panning{cursor:grabbing}
+.board::before{content:"";position:absolute;inset:0;background-image:radial-gradient(circle,var(--line-2) 1px,transparent 1px);background-size:24px 24px;opacity:.45;pointer-events:none}
+.board-inner{position:absolute;top:0;left:0;width:1120px;height:500px;transform:translate(var(--px,0px),var(--py,0px))}
+.wires{position:absolute;top:0;left:0;overflow:visible;pointer-events:none}
+.wire{fill:none;stroke:var(--line-2);stroke-width:1.8;transition:stroke .14s}
+.wire-hit{fill:none;stroke:transparent;stroke-width:18;pointer-events:stroke;cursor:pointer}
+.wireg:hover .wire{stroke:var(--acc)}
+.wire-x circle{fill:var(--surface);stroke:var(--line-2)}
+.wire-x path{stroke:var(--ink-3);stroke-width:1.8;stroke-linecap:round}
+.wire-x{opacity:0;pointer-events:auto;cursor:pointer;transition:opacity .14s}
+.wireg:hover .wire-x{opacity:1}
+.wire-x:hover circle{stroke:var(--bad)}
+.wire-x:hover path{stroke:var(--bad)}
+.wire-live{fill:none;stroke:var(--acc);stroke-width:1.8;stroke-dasharray:5 4}
+
+.node{position:absolute;width:190px;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow-1);padding:10px 11px;display:flex;flex-direction:column;gap:6px;cursor:grab;user-select:none;transition:box-shadow .16s,border-color .16s}
+.node:hover{border-color:var(--line-2);box-shadow:var(--shadow-2)}
+.node:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
+.node.dragging{cursor:grabbing;box-shadow:var(--shadow-3);border-color:var(--acc);z-index:20}
+.node.target{border-color:var(--acc);box-shadow:0 0 0 3px var(--acc-t)}
+.node-h{display:flex;align-items:center;gap:7px}
+.node-h b{font-size:12.5px;font-weight:600;flex:1;min-width:0;letter-spacing:-.005em}
+.node-ic{width:22px;height:22px;border-radius:7px;background:var(--t);color:var(--c);display:grid;place-items:center;flex-shrink:0}
+.node-msg{font-size:11px;color:var(--ink-2);line-height:1.55;background:var(--paper);border-radius:8px;padding:7px 9px}
+.node-msg .var{background:var(--iris-t);color:var(--iris);border-radius:4px;padding:0 3px;font-family:var(--font-mono);font-size:10px}
+.node-f{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.node-st{font-size:9.5px;color:var(--ink-3);margin-inline-start:auto;font-family:var(--font-mono)}
+.node.trigger{background:var(--acc-t);border-color:transparent}
+.node.trigger .node-msg{background:color-mix(in srgb,var(--surface) 60%,transparent)}
+.node.cond{border-color:color-mix(in srgb,var(--saffron) 45%,var(--line))}
+.cond-rows{display:flex;flex-direction:column;gap:3px}
+.cond-row{height:17px;display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--ink-2)}
+.cond-row i{width:6px;height:6px;border-radius:50%;background:var(--c);flex-shrink:0}
+
+.port{position:absolute;width:13px;height:13px;border-radius:50%;background:var(--surface);border:2px solid var(--line-2);padding:0;margin-top:-6.5px;transition:border-color .14s,background-color .14s,transform .14s}
+.port.in{right:-7px;top:50%}
+.port.out{left:-7px;top:50%;cursor:crosshair}
+.port.br{left:-7px;cursor:crosshair}
+.port.br.yes{top:46px}
+.port.br.no{top:67px}
+.port.out:hover,.port.br:hover,.port.hot{border-color:var(--acc);background:var(--acc);transform:scale(1.3)}
+.port.out::after,.port.br::after{content:"";position:absolute;inset:-9px;border-radius:50%}
+
+.funnel{display:flex;flex-direction:column;gap:9px}
+.fn{display:flex;align-items:center;gap:10px}
+.fn-l{width:76px;font-size:11.5px;color:var(--ink-2);flex-shrink:0}
+.fn-t{flex:1;height:22px;border-radius:6px;background:var(--paper-3);overflow:hidden;position:relative}
+.fn-t>i{display:block;height:100%;background:var(--c);border-radius:6px;opacity:.9}
+.fn-v{font-family:var(--font-dis);font-size:14px;font-weight:500;width:34px;text-align:end;font-variant-numeric:tabular-nums}
+
+/* ─── ניוזלטר ───────────────────────────────────────────────────── */
+.blocks{display:flex;flex-direction:column;gap:8px}
+.blk{display:flex;align-items:flex-start;gap:10px;border:1px solid var(--line);border-radius:var(--r-m);padding:11px 12px;background:var(--surface);transition:border-color .16s}
+.blk:hover{border-color:var(--line-2)}
+.blk-grip{color:var(--ink-4);cursor:grab;padding-top:2px}
+.blk-t{font-size:10.5px;letter-spacing:.07em;color:var(--ink-4);font-weight:600;margin-bottom:3px}
+.blk-c{font-size:12.5px;color:var(--ink-2);line-height:1.6;flex:1;min-width:0}
+.mailprev{background:var(--paper);border:1px solid var(--line);border-radius:var(--r-m);padding:16px;display:flex;flex-direction:column;gap:11px}
+.mailprev h4{font-family:var(--font-dis);font-size:17px;font-weight:500;letter-spacing:-.02em;line-height:1.3}
+.mailprev p{font-size:12.5px;color:var(--ink-2);line-height:1.75}
+.mailprev .mp-img{height:76px;border-radius:9px;background:linear-gradient(120deg,var(--acc-t),var(--saffron-t));display:grid;place-items:center;color:var(--ink-4);font-size:11px}
+.mailprev .mp-btn{align-self:flex-start;background:var(--acc);color:#fff;border-radius:7px;padding:7px 15px;font-size:12.5px;font-weight:500}
+.mailprev .mp-foot{border-top:1px solid var(--line);padding-top:9px;font-size:10px;color:var(--ink-4);text-align:center}
+.aud{display:flex;flex-direction:column;gap:6px}
+.aud-r{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:9px;border:1px solid var(--line);font-size:12.5px}
+.aud-r.on{border-color:var(--acc);background:var(--acc-t)}
+.aud-r .sp{flex:1}
+.aud-n{font-family:var(--font-mono);font-size:11.5px;color:var(--ink-3)}
+.aud-r.on .aud-n{color:var(--acc);font-weight:500}
+
+/* ─── אירועים ───────────────────────────────────────────────────── */
+.ev{display:flex;align-items:center;gap:14px;padding:14px 16px;border-bottom:1px solid var(--line);transition:background-color .14s}
+.ev:last-child{border-bottom:0}
+.ev:hover{background:var(--surface-2)}
+.ev-d{width:50px;flex-shrink:0;text-align:center;border-radius:12px;border:1px solid var(--line);overflow:hidden}
+.ev-d .m{background:var(--saffron-t);color:var(--saffron);font-size:9.5px;font-weight:600;padding:2px}
+.ev-d .d{font-family:var(--font-dis);font-size:19px;font-weight:500;padding:3px 0 5px;line-height:1}
+.ev-m{flex:1;min-width:0}
+.ev-m b{font-size:13.5px;font-weight:600;display:block}
+.ev-m span{font-size:11.5px;color:var(--ink-3)}
+.ev-n{display:flex;gap:16px;flex-shrink:0}
+.ev-n div{text-align:center}
+.ev-n b{font-family:var(--font-dis);font-size:17px;font-weight:500;display:block;line-height:1.2;color:var(--c)}
+.ev-n span{font-size:10px;color:var(--ink-3)}
+.cap{display:flex;align-items:center;gap:10px}
+.cap-t{flex:1;height:8px;border-radius:100px;background:var(--paper-3);overflow:hidden;display:flex}
+.cap-t i{display:block;height:100%}
+
+/* ─── וואטסאפ ───────────────────────────────────────────────────── */
+.gauge{display:flex;align-items:center;gap:14px}
+.gauge svg{flex-shrink:0}
+.quota{display:flex;flex-direction:column;gap:3px}
+.quota b{font-family:var(--font-dis);font-size:25px;font-weight:500;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.quota b small{font-size:14px;color:var(--ink-3)}
+.quota span{font-size:11.5px;color:var(--ink-3)}
+.toggle{width:38px;height:22px;border-radius:100px;background:var(--ok);position:relative;flex-shrink:0;transition:background-color .18s}
+.toggle::after{content:"";position:absolute;top:3px;inset-inline-end:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:var(--shadow-1);transition:inset-inline-end .18s}
+.toggle.off{background:var(--line-2)}
+.toggle.off::after{inset-inline-end:19px}
+.rulebox{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:900px){.rulebox{grid-template-columns:1fr}}
+.rule{border:1px solid var(--line);border-radius:var(--r-m);padding:13px 14px;display:flex;flex-direction:column;gap:7px;background:var(--surface)}
+.rule.open2{border-color:color-mix(in srgb,var(--ok) 40%,transparent);background:color-mix(in srgb,var(--ok-t) 45%,var(--surface))}
+.rule h4{font-size:13px;font-weight:600;display:flex;align-items:center;gap:7px}
+.rule dl{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:12px}
+.rule dt{color:var(--ink-3)}
+.rule dd{font-weight:500}
+
+/* ─── הגדרות ────────────────────────────────────────────────────── */
+.tabs{display:flex;gap:3px;border-bottom:1px solid var(--line)}
+.tb{padding:8px 14px;font-size:13px;color:var(--ink-3);font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .14s,border-color .14s}
+.tb:hover{color:var(--ink)}
+.tb[aria-selected="true"]{color:var(--acc);border-bottom-color:var(--acc);font-weight:600}
+.st{display:flex;align-items:center;gap:11px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.st:last-child{border-bottom:0}
+.st-grip{color:var(--ink-4);cursor:grab}
+.sw-color{width:16px;height:16px;border-radius:5px;background:var(--c);flex-shrink:0}
+.st b{font-size:13px;font-weight:500;flex:1}
+.st .n{font-family:var(--font-mono);font-size:11.5px;color:var(--ink-3)}
+.slider{display:flex;align-items:center;gap:12px}
+.slider-t{flex:1;height:5px;border-radius:100px;background:var(--paper-3);position:relative}
+.slider-t>i{display:block;height:100%;border-radius:100px;background:var(--acc)}
+.slider-t>b{position:absolute;top:50%;width:15px;height:15px;border-radius:50%;background:var(--surface);border:2px solid var(--acc);transform:translate(50%,-50%);box-shadow:var(--shadow-1)}
+
+/* ─── מערכת העיצוב ──────────────────────────────────────────────── */
+.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:9px}
+.sws{border:1px solid var(--line);border-radius:var(--r-m);overflow:hidden;background:var(--surface)}
+.sws .chip2{height:52px;background:var(--c)}
+.sws .meta{padding:7px 9px}
+.sws .meta b{display:block;font-size:11.5px;font-weight:600}
+.sws .meta code{font-family:var(--font-mono);font-size:10px;color:var(--ink-3)}
+.typerow{display:flex;align-items:baseline;gap:14px;padding:9px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.typerow:last-child{border-bottom:0}
+.typerow .spec{font-family:var(--font-mono);font-size:10.5px;color:var(--ink-4);width:150px;flex-shrink:0}
+.demo-grid{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
+
+/* ─── הערות עיצוב ───────────────────────────────────────────────── */
+.notes{margin-top:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media (max-width:900px){.notes{grid-template-columns:1fr}}
+.note{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-m);padding:13px 15px;display:flex;flex-direction:column;gap:5px;box-shadow:var(--shadow-1)}
+.note-k{font-size:10.5px;letter-spacing:.08em;color:var(--c,var(--acc));font-weight:600}
+.note b{font-size:13px;font-weight:600;letter-spacing:-.005em}
+.note p{font-size:12.5px;color:var(--ink-2);line-height:1.65}
+.notes-h{display:flex;align-items:center;gap:9px;margin-top:26px;font-size:11px;letter-spacing:.09em;color:var(--ink-4);font-weight:600}
+.notes-h::after{content:"";flex:1;height:1px;background:var(--line)}
+
+.screen[hidden]{display:none!important}
+.screen{display:flex;flex-direction:column;gap:22px;animation:fade .22s ease-out}
+@keyframes fade{from{opacity:.4}to{opacity:1}}
+
+.doc-foot{margin-top:44px;padding-top:20px;border-top:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--ink-3)}
+.doc-foot .sp{flex:1}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<g id="i-home" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></g>
+<g id="i-users" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></g>
+<g id="i-cal" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></g>
+<g id="i-route" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M12 19h4.5a3.5 3.5 0 0 0 0-7h-9a3.5 3.5 0 0 1 0-7H12"/></g>
+<g id="i-mail" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></g>
+<g id="i-ticket" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/><path d="M13 5v2M13 11v2M13 17v2"/></g>
+<g id="i-school" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></g>
+<g id="i-cog" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.09A1.65 1.65 0 0 0 10 3.09V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></g>
+<g id="i-search" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></g>
+<g id="i-bell" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></g>
+<g id="i-plus" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></g>
+<g id="i-chat" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.2A8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4z"/></g>
+<g id="i-clock" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></g>
+<g id="i-send" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3 3 10.5l7 3 3 7z"/><path d="m10 13.5 4.5-4.5"/></g>
+<g id="i-check" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m4.5 12.5 5 5 10-11"/></g>
+<g id="i-alert" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2.5 20h19z"/><path d="M12 10v4M12 17.5v.01"/></g>
+<g id="i-chev" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m14 6-6 6 6 6"/></g>
+<g id="i-copy" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></g>
+<g id="i-grip" fill="currentColor"><circle cx="9" cy="6" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="18" r="1.4"/></g>
+<g id="i-filter" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></g>
+<g id="i-spark" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></g>
+<g id="i-note" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v12l-4 4H4z"/><path d="M20 16h-4v4"/><path d="M8 9h8M8 13h4"/></g>
+<g id="i-pause" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 5v14M15 5v14"/></g>
+</defs></svg>
+
+<div class="doc" dir="rtl" lang="he">
+
+  <!-- ══ כותרת המסמך ══════════════════════════════════════════════ -->
+  <header class="doc-head">
+    <div class="brandline">
+      <span class="brandmark"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-spark"/></svg></span>
+      <span class="brandname">פטינה</span>
+      <span class="brandtag">שפה חזותית ל‑CRM</span>
+    </div>
+    <h1 class="doc-title">מוקאפ מלא של המערכת בעיצוב חדש</h1>
+    <p class="doc-lede">
+      אחד‑עשר מסכים, בנויים על הנתונים והמושגים שכבר קיימים במערכת — חלון 24 השעות של הוואטסאפ,
+      מסעות הלקוח, משפך ההרשמה לאירועים. אין כאן שום פיצ׳ר חדש: אותה מערכת בדיוק, עם היררכיה,
+      צבע ומרווחים שעושים אותה קריאה במבט אחד.
+    </p>
+    <div class="doc-facts">
+      <span class="fact" style="--c:var(--acc)"><i></i>ורדיגריס כמבטא יחיד</span>
+      <span class="fact" style="--c:var(--rose)"><i></i>שש קבוצות בגוון אחיד</span>
+      <span class="fact" style="--c:var(--ink-3)"><i></i>Rubik · Plex Sans Hebrew · Plex Mono</span>
+      <span class="fact" style="--c:var(--iris)"><i></i>מצב בהיר וכהה</span>
+    </div>
+  </header>
+
+  <!-- ══ מחליף מסכים ══════════════════════════════════════════════ -->
+  <nav class="switch" role="tablist" aria-label="מסכי המוקאפ">
+    <button class="sw" role="tab" aria-selected="true"  data-s="home"      style="--c:var(--acc)"><i></i>בית<span class="sw-n">01</span></button>
+    <button class="sw" role="tab" aria-selected="false" data-s="inbox"     style="--c:var(--acc)"><i></i>מי שיצר קשר<span class="sw-n">02</span></button>
+    <button class="sw" role="tab" aria-selected="false" data-s="contact"   style="--c:var(--acc)"><i></i>כרטיס לקוח<span class="sw-n">03</span></button>
+    <button class="sw" role="tab" aria-selected="false" data-s="contacts"  style="--c:var(--acc)"><i></i>אנשי קשר<span class="sw-n">04</span></button>
+    <button class="sw" role="tab" aria-selected="false" data-s="booking"   style="--c:var(--rose)"><i></i>פגישות<span class="sw-n">05</span></button>
+    <button class="sw" role="tab" aria-selected="false" data-s="journey"   style="--c:var(--iris)"><i></i>מסע לקוח<span class="sw-n">06</span></button>
+    <button class="sw" role="tab" aria-selected="false" data-s="news"      style="--c:var(--ember)"><i></i>ניוזלטר<span class="sw-n">07</span></button>
+    <button class="sw" role="tab" aria-selected="false" data-s="events"    style="--c:var(--saffron)"><i></i>אירועים<span class="sw-n">08</span></button>
+    <button class="sw" role="tab" aria-selected="false" data-s="whatsapp"  style="--c:var(--ok)"><i></i>וואטסאפ<span class="sw-n">09</span></button>
+    <button class="sw" role="tab" aria-selected="false" data-s="settings"  style="--c:var(--slate)"><i></i>הגדרות<span class="sw-n">10</span></button>
+    <button class="sw" role="tab" aria-selected="false" data-s="system"    style="--c:var(--azure)"><i></i>מערכת העיצוב<span class="sw-n">11</span></button>
+  </nav>
+
+  <!-- ══ חלון האפליקציה ═══════════════════════════════════════════ -->
+  <div class="stage">
+  <div class="chrome">
+    <div class="chrome-bar">
+      <span class="dots"><span></span><span></span><span></span></span>
+      <span class="urlbar"><svg width="11" height="11" viewBox="0 0 24 24" style="opacity:.6"><use href="#i-check"/></svg><span class="mono" id="url" dir="ltr">crm.local /</span></span>
+      <span style="width:52px"></span>
+    </div>
+
+    <div class="app">
+      <!-- ── סרגל צד ─────────────────────────────────────────── -->
+      <aside class="side">
+        <div class="side-brand">
+          <span class="side-logo"><svg width="17" height="17" viewBox="0 0 24 24"><use href="#i-spark"/></svg></span>
+          <span class="side-biz">שחרור חסמים<span>גיא זורי</span></span>
+        </div>
+
+        <button class="side-search"><svg width="13" height="13" viewBox="0 0 24 24"><use href="#i-search"/></svg>חיפוש<kbd>⌘K</kbd></button>
+
+        <ul class="nav" id="nav">
+          <li><a class="nav-i" href="#" data-s="home" style="--c:var(--acc);--t:var(--acc-t)"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-home"/></svg>בית</a></li>
+
+          <li data-g="customers">
+            <a class="nav-i" href="#" data-s="inbox" style="--c:var(--acc);--t:var(--acc-t)"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-users"/></svg>לקוחות<span class="nav-count">7</span></a>
+            <ul class="sub">
+              <li><a href="#" data-s="inbox">מי שיצר קשר</a></li>
+              <li><a href="#" data-s="inbox">נשלח אליהם</a></li>
+              <li><a href="#" data-s="contacts">כל אנשי הקשר</a></li>
+            </ul>
+          </li>
+
+          <li data-g="booking">
+            <a class="nav-i" href="#" data-s="booking" style="--c:var(--rose);--t:var(--rose-t)"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-cal"/></svg>פגישות<span class="nav-count">3</span></a>
+            <ul class="sub">
+              <li><a href="#" data-s="booking">סוגי פגישות</a></li>
+              <li><a href="#" data-s="booking">יומן זמינות</a></li>
+              <li><a href="#" data-s="booking">פגישות קרובות</a></li>
+            </ul>
+          </li>
+
+          <li data-g="automation">
+            <a class="nav-i" href="#" data-s="journey" style="--c:var(--iris);--t:var(--iris-t)"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-route"/></svg>אוטומציה</a>
+            <ul class="sub">
+              <li><a href="#" data-s="journey">מסעות לקוח</a></li>
+              <li><a href="#" data-s="journey">תבניות הודעה</a></li>
+              <li><a href="#" data-s="journey">כללים</a></li>
+            </ul>
+          </li>
+
+          <li data-g="newsletter">
+            <a class="nav-i" href="#" data-s="news" style="--c:var(--ember);--t:var(--ember-t)"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-mail"/></svg>ניוזלטר</a>
+            <ul class="sub">
+              <li><a href="#" data-s="news">הודעה חדשה</a></li>
+              <li><a href="#" data-s="news">מתוזמנים</a></li>
+              <li><a href="#" data-s="news">היסטוריה</a></li>
+            </ul>
+          </li>
+
+          <li data-g="events">
+            <a class="nav-i" href="#" data-s="events" style="--c:var(--saffron);--t:var(--saffron-t)"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-ticket"/></svg>אירועים<span class="nav-count">2</span></a>
+            <ul class="sub">
+              <li><a href="#" data-s="events">כל האירועים</a></li>
+              <li><a href="#" data-s="events">אירוע חדש</a></li>
+            </ul>
+          </li>
+
+          <li><a class="nav-i" href="#" data-s="events" style="--c:var(--azure);--t:var(--azure-t)"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-school"/></svg>קורסים</a></li>
+        </ul>
+
+        <div class="side-lbl">מערכת</div>
+        <ul class="nav">
+          <li><a class="nav-i" href="#" data-s="whatsapp" style="--c:var(--ok);--t:var(--ok-t)"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-chat"/></svg>וואטסאפ</a></li>
+          <li><a class="nav-i" href="#" data-s="settings" style="--c:var(--slate);--t:var(--slate-t)"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-cog"/></svg>הגדרות</a></li>
+        </ul>
+
+        <div class="side-foot">
+          <div class="health">
+            <span class="health-dot"></span>
+            <span><b>הערוץ תקין</b><span>84 מתוך 250 היום</span></span>
+          </div>
+          <a class="me" href="#"><span class="av">גז</span><span><b>גיא זורי</b><span>מנהל</span></span></a>
+        </div>
+      </aside>
+
+      <!-- ── התוכן ───────────────────────────────────────────── -->
+      <div class="main">
+        <div class="top">
+          <span class="crumb" id="crumb"><b>בית</b></span>
+          <span class="top-sp"></span>
+          <button class="icobtn" aria-label="חיפוש"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-search"/></svg></button>
+          <button class="icobtn" aria-label="התראות"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-bell"/></svg><span class="bell-dot"></span></button>
+          <button class="btn btn-p btn-xs"><svg width="13" height="13" viewBox="0 0 24 24"><use href="#i-plus"/></svg>חדש</button>
+        </div>
+
+        <div class="canvas">
+
+<!-- ═══════════════ 01 · בית ═══════════════════════════════════════ -->
+<section class="screen" id="s-home" role="tabpanel" aria-label="בית">
+
+  <div class="hello">
+    <div>
+      <h2>בוקר טוב, גיא</h2>
+      <p class="date"><b>יום שישי</b> · כ״ב באלול · 4 בספטמבר 2026</p>
+    </div>
+    <div style="display:flex;gap:7px">
+      <button class="btn btn-s"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-note"/></svg>הערה מהירה</button>
+      <button class="btn btn-p"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-send"/></svg>שליחת הודעה</button>
+    </div>
+  </div>
+
+  <div class="kpis">
+    <article class="kpi" style="--c:var(--acc)">
+      <div class="kpi-top"><span class="glyph" style="--c:var(--acc);--t:var(--acc-t)"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-users"/></svg></span><span class="kpi-lbl">לקוחות פעילים</span></div>
+      <p class="kpi-v">38</p>
+      <svg class="spark" viewBox="0 0 120 26" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M0 20 L15 18 L30 21 L45 14 L60 16 L75 9 L90 11 L105 5 L120 3 L120 26 L0 26 Z" fill="var(--acc)" opacity=".10"/>
+        <path d="M0 20 L15 18 L30 21 L45 14 L60 16 L75 9 L90 11 L105 5 L120 3" fill="none" stroke="var(--acc)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="120" cy="3" r="2.6" fill="var(--acc)"/>
+      </svg>
+      <p class="kpi-ctx"><span class="delta">+6</span> אנשי קשר חדשים השבוע</p>
+    </article>
+
+    <article class="kpi" style="--c:var(--rose)">
+      <div class="kpi-top"><span class="glyph" style="--c:var(--rose);--t:var(--rose-t)"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-cal"/></svg></span><span class="kpi-lbl">פגישות השבוע</span></div>
+      <p class="kpi-v">9</p>
+      <div class="bar" style="--c:var(--rose)"><i style="width:33%"></i></div>
+      <p class="kpi-ctx"><b>3</b> מהן היום · 6 בשבוע הבא</p>
+    </article>
+
+    <article class="kpi" style="--c:var(--iris)">
+      <div class="kpi-top"><span class="glyph" style="--c:var(--iris);--t:var(--iris-t)"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-route"/></svg></span><span class="kpi-lbl">הודעות שיצאו החודש</span></div>
+      <p class="kpi-v">412</p>
+      <svg class="spark" viewBox="0 0 120 26" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M0 22 L20 17 L40 19 L60 12 L80 13 L100 7 L120 8" fill="none" stroke="var(--iris)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="120" cy="8" r="2.6" fill="var(--iris)"/>
+      </svg>
+      <p class="kpi-ctx"><b>5</b> מסעות פעילים · 61 אנשים בתוכם</p>
+    </article>
+
+    <article class="kpi" style="--c:var(--saffron)">
+      <div class="kpi-top"><span class="glyph" style="--c:var(--saffron);--t:var(--saffron-t)"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-ticket"/></svg></span><span class="kpi-lbl">סדנת נשימה מעגלית</span></div>
+      <p class="kpi-v">24<small> / 30</small></p>
+      <div class="bar" style="--c:var(--saffron)"><i style="width:80%"></i></div>
+      <p class="kpi-ctx">שילמו · 18 בספטמבר, 19:00</p>
+    </article>
+  </div>
+
+  <div class="two">
+    <!-- היום -->
+    <section class="card">
+      <div class="card-h">
+        <span class="glyph" style="--c:var(--rose);--t:var(--rose-t)"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-clock"/></svg></span>
+        <h3>היום</h3><span class="sp"></span>
+        <span class="pill p-slate np">3 פגישות</span>
+      </div>
+      <div class="card-b">
+        <ol class="day">
+          <li class="day-r" style="--c:var(--rose)">
+            <time>09:00</time><span class="day-rail"><i></i></span>
+            <span class="day-c"><b>שיחת היכרות · נועם ברקוביץ׳</b><span>זום · 20 דק׳ · אישר אתמול</span></span>
+          </li>
+          <li class="day-r" style="--c:var(--acc)">
+            <time>10:30</time><span class="day-rail"><i></i></span>
+            <span class="day-c"><b>מפגש אישי · מיכאל אדרי</b><span>קליניקה, רמת גן · 60 דק׳</span></span>
+          </li>
+          <li class="day-now">
+            <time>11:24</time><span class="day-rail"><i></i></span><span class="day-c"></span>
+          </li>
+          <li class="day-r" style="--c:var(--ember)">
+            <time>14:00</time><span class="day-rail"><i></i></span>
+            <span class="day-c"><b>ניוזלטר: הרשמה נפתחה למחזור 7</b><span>יוצא ל‑312 נמענים · מתוזמן</span></span>
+          </li>
+          <li class="day-r" style="--c:var(--rose)">
+            <time>17:30</time><span class="day-rail"><i></i></span>
+            <span class="day-c"><b>שיחת היכרות · תומר כהן</b><span>טלפון · 20 דק׳</span></span>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- דורש טיפול -->
+    <section class="card">
+      <div class="card-h">
+        <span class="glyph" style="--c:var(--ember);--t:var(--ember-t)"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-alert"/></svg></span>
+        <h3>דורש טיפול</h3><span class="sp"></span>
+        <span class="pill p-ember np">7</span>
+      </div>
+      <div class="card-b">
+        <div class="todo">
+          <div class="todo-r"><span class="av">רש</span><span><b>רותם שגב</b><span class="sub2">שאלה על מחיר המחזור</span></span><span class="sp"></span><span class="pill p-ember np">5 ימים</span></div>
+          <div class="todo-r"><span class="av">יד</span><span><b>יואל דרור</b><span class="sub2">ביקש לחזור אליו</span></span><span class="sp"></span><span class="pill p-saffron np">4 ימים</span></div>
+          <div class="todo-r"><span class="av">אפ</span><span><b>אורי פרץ</b><span class="sub2">מילא שאלון ולא נענה</span></span><span class="sp"></span><span class="pill p-saffron np">3 ימים</span></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:7px;margin-top:12px">
+          <div class="group-row"><span class="glyph" style="--c:var(--rose);--t:var(--rose-t)"><svg width="13" height="13" viewBox="0 0 24 24"><use href="#i-ticket"/></svg></span><b>נרשמו לסדנה ולא שילמו</b><span class="sp"></span><span class="pill p-rose np">4</span></div>
+          <div class="group-row"><span class="glyph" style="--c:var(--iris);--t:var(--iris-t)"><svg width="13" height="13" viewBox="0 0 24 24"><use href="#i-route"/></svg></span><b>מתעניינים שאינם באף מסע</b><span class="sp"></span><span class="pill p-iris np">9</span></div>
+        </div>
+      </div>
+      <div class="card-f">מי שלא נשמע ממנו 3 ימים ומעלה נכנס לרשימה אוטומטית.</div>
+    </section>
+  </div>
+
+  <div class="strip">
+    <div class="stat">
+      <span class="glyph" style="--c:var(--ok);--t:var(--ok-t)"><svg width="15" height="15" viewBox="0 0 24 24"><use href="#i-chat"/></svg></span>
+      <span><b>ערוץ הוואטסאפ תקין</b><span class="mono" dir="ltr">+972 54‑641‑7788</span></span>
+      <span class="sp"></span><span class="pill p-ok np">איכות ירוקה</span>
+    </div>
+    <div class="stat">
+      <span class="glyph" style="--c:var(--iris);--t:var(--iris-t)"><svg width="15" height="15" viewBox="0 0 24 24"><use href="#i-route"/></svg></span>
+      <span><b>61 אנשים במסעות כרגע</b><span>5 מסעות פעילים</span></span>
+    </div>
+    <div class="stat">
+      <span class="glyph" style="--c:var(--azure);--t:var(--azure-t)"><svg width="15" height="15" viewBox="0 0 24 24"><use href="#i-school"/></svg></span>
+      <span><b>27 מתעניינים בקורסים</b><span>8 חדשים השבוע</span></span>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ 02 · מי שיצר קשר ═══════════════════════════════ -->
+<section class="screen" id="s-inbox" role="tabpanel" aria-label="מי שיצר קשר" hidden>
+  <div class="h-page">
+    <div>
+      <h2>מי שיצר קשר</h2>
+      <p>מי שיזם משהו — שלח הודעה, מילא שאלון, נרשם לסדנה או קבע פגישה. לחיצה על שורה פותחת את השיחה המלאה בלי לעזוב את הרשימה.</p>
+    </div>
+    <span class="sp"></span>
+    <button class="btn btn-s"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-filter"/></svg>סינון</button>
+  </div>
+
+  <div class="filters">
+    <button class="chip" aria-pressed="true">הכל <span class="n">24</span></button>
+    <button class="chip" aria-pressed="false">חלון פתוח <span class="n">9</span></button>
+    <button class="chip" aria-pressed="false">לא נענו <span class="n">7</span></button>
+    <button class="chip" aria-pressed="false">ליד חדש <span class="n">11</span></button>
+    <button class="chip" aria-pressed="false">נקבעה פגישה <span class="n">5</span></button>
+    <span class="sp" style="flex:1"></span>
+    <span class="input" style="min-width:190px"><svg width="13" height="13" viewBox="0 0 24 24"><use href="#i-search"/></svg>שם, טלפון או מייל</span>
+  </div>
+
+  <div class="rows">
+    <div class="row unread">
+      <span class="av">רש</span>
+      <span class="row-m">
+        <span class="row-l1"><b>רותם שגב</b><span class="pill p-azure">ליד חדש</span><span class="row-act"><svg width="11" height="11" viewBox="0 0 24 24"><use href="#i-chat"/></svg>שלח הודעה</span></span>
+        <span class="row-prev">היי, ראיתי את הסדנה של ה‑18 — יש עדיין מקומות? ומה בדיוק קורה שם?</span>
+      </span>
+      <span class="row-e"><span class="row-time">לפני 9 דק׳</span><span class="win"><span class="win-t"><i style="width:98%"></i></span>23 שע׳</span></span>
+    </div>
+
+    <div class="row">
+      <span class="av">מא</span>
+      <span class="row-m">
+        <span class="row-l1"><b>מיכאל אדרי</b><span class="pill p-acc">לקוח</span><span class="row-act"><svg width="11" height="11" viewBox="0 0 24 24"><use href="#i-cal"/></svg>קבע פגישה</span></span>
+        <span class="row-prev">מפגש אישי · היום 10:30 · קליניקה רמת גן</span>
+      </span>
+      <span class="row-e"><span class="row-time">לפני שעתיים</span><span class="win"><span class="win-t"><i style="width:88%"></i></span>21 שע׳</span></span>
+    </div>
+
+    <div class="row">
+      <span class="av">אפ</span>
+      <span class="row-m">
+        <span class="row-l1"><b>אורי פרץ</b><span class="pill p-saffron">בטיפול</span><span class="row-act"><svg width="11" height="11" viewBox="0 0 24 24"><use href="#i-note"/></svg>מילא שאלון</span></span>
+        <span class="row-prev">״הכי מטריד אותי הלחץ בחזה לפני שינה״ — 12 תשובות</span>
+      </span>
+      <span class="row-e"><span class="row-time">לפני 3 ימים</span><span class="win shut"><span class="win-t"><i style="width:0"></i></span>סגור</span></span>
+    </div>
+
+    <div class="row">
+      <span class="av">יד</span>
+      <span class="row-m">
+        <span class="row-l1"><b>יואל דרור</b><span class="pill p-azure">ליד חדש</span><span class="row-act"><svg width="11" height="11" viewBox="0 0 24 24"><use href="#i-ticket"/></svg>נרשם לסדנה</span></span>
+        <span class="row-prev">נשימה מעגלית · 18 בספטמבר — טרם שילם</span>
+      </span>
+      <span class="row-e"><span class="row-time">לפני 4 ימים</span><span class="win warn2"><span class="win-t"><i style="width:12%"></i></span>2 שע׳</span></span>
+    </div>
+
+    <div class="row">
+      <span class="av">תכ</span>
+      <span class="row-m">
+        <span class="row-l1"><b>תומר כהן</b><span class="pill p-rose">נקבעה פגישה</span><span class="row-act"><svg width="11" height="11" viewBox="0 0 24 24"><use href="#i-chat"/></svg>שלח הודעה</span></span>
+        <span class="row-prev">מעולה, נתראה היום ב‑17:30 🙏</span>
+      </span>
+      <span class="row-e"><span class="row-time">אתמול</span><span class="win"><span class="win-t"><i style="width:44%"></i></span>10 שע׳</span></span>
+    </div>
+
+    <div class="row">
+      <span class="av">הם</span>
+      <span class="row-m">
+        <span class="row-l1"><b>הלל מזרחי</b><span class="pill p-slate">לא רלוונטי</span><span class="row-act"><svg width="11" height="11" viewBox="0 0 24 24"><use href="#i-chat"/></svg>שלח הודעה</span></span>
+        <span class="row-prev">תודה, כרגע זה לא מתאים לי מבחינת תקציב. אשמח שתעדכנו במחזור הבא</span>
+      </span>
+      <span class="row-e"><span class="row-time">לפני 6 ימים</span><span class="win shut"><span class="win-t"><i style="width:0"></i></span>סגור</span></span>
+    </div>
+  </div>
+
+  <p style="font-size:11.5px;color:var(--ink-3);display:flex;align-items:center;gap:7px">
+    <svg width="13" height="13" viewBox="0 0 24 24" style="color:var(--ok)"><use href="#i-check"/></svg>
+    מד החלון מראה כמה זמן נשאר לענות בטקסט חופשי. כשהוא נסגר — אפשר לשלוח רק תבנית מאושרת, ובתשלום.
+  </p>
+</section>
+
+<!-- ═══════════════ 03 · כרטיס לקוח ═══════════════════════════════ -->
+<section class="screen" id="s-contact" role="tabpanel" aria-label="כרטיס לקוח" hidden>
+  <div class="h-page">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span class="av" style="width:42px;height:42px;border-radius:13px;font-size:15px">רש</span>
+      <div>
+        <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">
+          <h2>רותם שגב</h2>
+          <span class="pill p-azure">ליד חדש</span>
+          <span class="win"><span class="win-t"><i style="width:98%"></i></span>חלון פתוח · 23 שע׳</span>
+        </div>
+        <p class="mono" dir="ltr" style="color:var(--ink-3);font-size:12px;margin-top:2px">+972 52‑880‑4413 · rotem.sh@gmail.com</p>
+      </div>
+    </div>
+    <span class="sp"></span>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-g"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-note"/></svg>הערה</button>
+      <button class="btn btn-s"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-cal"/></svg>קביעת פגישה</button>
+      <button class="btn btn-p"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-route"/></svg>הכנסה למסע</button>
+    </div>
+  </div>
+
+  <div class="two">
+    <!-- שיחה -->
+    <section class="card">
+      <div class="card-h">
+        <span class="glyph" style="--c:var(--ok);--t:var(--ok-t)"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-chat"/></svg></span>
+        <h3>שיחה</h3><span class="sp"></span><span class="pill p-slate np">14 הודעות</span>
+      </div>
+      <div class="card-b" style="display:flex;flex-direction:column;gap:11px">
+        <div class="thread">
+          <span class="day-sep">28 באוגוסט</span>
+          <div class="msg in">היי! הגעתי דרך הריל על נשימה מעגלית. אפשר פרטים?<time>19:42</time></div>
+          <div class="msg out">היי רותם, כיף שהגעת 🙏 המחזור הקרוב נפתח ב‑21 בספטמבר, שישה מפגשים שבועיים בזום + קבוצה סגורה.<time>19:58</time></div>
+          <div class="msg in">נשמע מדויק. כמה זה עולה?<time>20:04</time></div>
+          <span class="sys">נשלח שאלון האבחון · אוטומטית</span>
+          <span class="day-sep">היום</span>
+          <div class="msg in">היי, ראיתי את הסדנה של ה‑18 — יש עדיין מקומות? ומה בדיוק קורה שם?<time>11:15</time></div>
+        </div>
+
+        <div class="reply">
+          <div class="reply-tabs" role="tablist" aria-label="סוג הודעה">
+            <button class="rt" role="tab" aria-selected="true">טקסט חופשי</button>
+            <button class="rt" role="tab" aria-selected="false">תבנית מאושרת</button>
+          </div>
+          <div class="reply-b">
+            <p class="reply-in">כתוב תשובה…</p>
+            <div class="reply-f">
+              <span class="pill p-ok np"><svg width="11" height="11" viewBox="0 0 24 24" style="display:inline"><use href="#i-check"/></svg> החלון פתוח — טקסט חופשי מותר וללא עלות</span>
+              <span class="sp"></span>
+              <button class="btn btn-p btn-xs"><svg width="13" height="13" viewBox="0 0 24 24"><use href="#i-send"/></svg>שליחה</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- פרטים -->
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <section class="card">
+        <div class="card-h"><h3>פרטים</h3><span class="sp"></span><button class="btn btn-g btn-xs">עריכה</button></div>
+        <div class="card-b">
+          <dl style="display:grid;grid-template-columns:auto 1fr;gap:8px 14px;font-size:12.5px;align-items:baseline">
+            <dt style="color:var(--ink-3)">מקור</dt><dd>אינסטגרם · טופס ליד</dd>
+            <dt style="color:var(--ink-3)">תגיות</dt><dd class="tags"><span class="tag">נשימה</span><span class="tag">מחזור 7</span></dd>
+            <dt style="color:var(--ink-3)">הודעה אחרונה</dt><dd class="mono" dir="ltr">04/09/2026 11:15</dd>
+            <dt style="color:var(--ink-3)">מזהה וואטסאפ</dt><dd class="mono" dir="ltr">972528804413</dd>
+            <dt style="color:var(--ink-3)">נוצר</dt><dd class="mono" dir="ltr">28/08/2026</dd>
+          </dl>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-h">
+          <span class="glyph" style="--c:var(--saffron);--t:var(--saffron-t)"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-note"/></svg></span>
+          <h3>שאלון האבחון</h3><span class="sp"></span><span class="pill p-saffron np">28.8</span>
+        </div>
+        <div class="card-b">
+          <dl style="display:grid;gap:9px;font-size:12.5px">
+            <div><dt style="color:var(--ink-3);font-size:11px">מה הכי מטריד אותך עכשיו?</dt><dd style="margin-top:2px">לחץ בחזה לפני שינה, כבר חצי שנה</dd></div>
+            <div><dt style="color:var(--ink-3);font-size:11px">ניסית משהו בעבר?</dt><dd style="margin-top:2px">יוגה, מדיטציה באפליקציה</dd></div>
+          </dl>
+          <div style="display:flex;gap:5px;margin-top:11px;flex-wrap:wrap">
+            <span class="pill p-ember np">מתח כרוני</span><span class="pill p-iris np">שינה</span><span class="pill p-acc np">מוכנות גבוהה</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-h"><h3>הערות פנימיות</h3></div>
+        <div class="card-b">
+          <p style="font-size:12.5px;color:var(--ink-2);line-height:1.7;background:var(--paper);border-radius:10px;padding:10px 12px">
+            דיברנו בטלפון 30.8 — מתלבט בין המחזור לסדנה חד‑פעמית. שווה להציע לו קודם את הסדנה של ה‑18.
+          </p>
+        </div>
+      </section>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ 04 · אנשי קשר ══════════════════════════════════ -->
+<section class="screen" id="s-contacts" role="tabpanel" aria-label="אנשי קשר" hidden>
+  <div class="h-page">
+    <div>
+      <h2>כל אנשי הקשר</h2>
+      <p>1,284 רשומות. סימון שורות פותח פעולות מרוכזות בראש הטבלה.</p>
+    </div>
+    <span class="sp"></span>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-s">ייבוא מאקסל</button>
+      <button class="btn btn-p"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-plus"/></svg>איש קשר חדש</button>
+    </div>
+  </div>
+
+  <div class="filters">
+    <span class="input" style="min-width:210px"><svg width="13" height="13" viewBox="0 0 24 24"><use href="#i-search"/></svg>שם, טלפון או מייל</span>
+    <span class="input">סטטוס: הכל <svg width="12" height="12" viewBox="0 0 24 24" style="transform:rotate(-90deg)"><use href="#i-chev"/></svg></span>
+    <span class="input">תגית: הכל <svg width="12" height="12" viewBox="0 0 24 24" style="transform:rotate(-90deg)"><use href="#i-chev"/></svg></span>
+    <button class="btn btn-g btn-xs">איפוס</button>
+  </div>
+
+  <div class="tbl-wrap">
+    <div class="bulk">
+      <svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-check"/></svg>
+      <span>נבחרו שורות</span>
+      <span class="sp"></span>
+      <button class="btn btn-s btn-xs">שינוי סטטוס</button>
+      <button class="btn btn-s btn-xs">הוספת תגית</button>
+      <button class="btn btn-s btn-xs">הכנסה למסע</button>
+    </div>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr>
+          <th style="width:38px"><input class="cbx" type="checkbox" aria-label="בחירת הכל"></th>
+          <th>שם</th><th>סטטוס</th><th>טלפון</th><th>מקור</th><th>תגיות</th><th>פעילות אחרונה</th><th>נוצר</th>
+        </tr></thead>
+        <tbody>
+          <tr><td><input class="cbx" type="checkbox" checked aria-label="רותם שגב"></td>
+            <td><span class="avc"><span class="av">רש</span><b>רותם שגב</b></span></td>
+            <td><span class="pill p-azure">ליד חדש</span></td>
+            <td class="mono" dir="ltr">052‑880‑4413</td><td>אינסטגרם</td>
+            <td><span class="tags"><span class="tag">נשימה</span><span class="tag">מחזור 7</span></span></td>
+            <td style="color:var(--ink-3)">לפני 9 דק׳</td><td class="mono" dir="ltr">28/08/26</td></tr>
+
+          <tr><td><input class="cbx" type="checkbox" checked aria-label="מיכאל אדרי"></td>
+            <td><span class="avc"><span class="av">מא</span><b>מיכאל אדרי</b></span></td>
+            <td><span class="pill p-acc">לקוח</span></td>
+            <td class="mono" dir="ltr">054‑212‑9077</td><td>המלצה</td>
+            <td><span class="tags"><span class="tag">מחזור 6</span><span class="tag">VIP</span></span></td>
+            <td style="color:var(--ink-3)">לפני שעתיים</td><td class="mono" dir="ltr">14/03/26</td></tr>
+
+          <tr><td><input class="cbx" type="checkbox" aria-label="אורי פרץ"></td>
+            <td><span class="avc"><span class="av">אפ</span><b>אורי פרץ</b></span></td>
+            <td><span class="pill p-saffron">בטיפול</span></td>
+            <td class="mono" dir="ltr">050‑334‑1902</td><td>טופס מטא</td>
+            <td><span class="tags"><span class="tag">שאלון</span></span></td>
+            <td style="color:var(--ink-3)">לפני 3 ימים</td><td class="mono" dir="ltr">21/08/26</td></tr>
+
+          <tr><td><input class="cbx" type="checkbox" aria-label="תומר כהן"></td>
+            <td><span class="avc"><span class="av">תכ</span><b>תומר כהן</b></span></td>
+            <td><span class="pill p-rose">נקבעה פגישה</span></td>
+            <td class="mono" dir="ltr">053‑771‑2288</td><td>אתר</td>
+            <td><span class="tags"><span class="tag">היכרות</span></span></td>
+            <td style="color:var(--ink-3)">אתמול</td><td class="mono" dir="ltr">30/08/26</td></tr>
+
+          <tr><td><input class="cbx" type="checkbox" aria-label="יואל דרור"></td>
+            <td><span class="avc"><span class="av">יד</span><b>יואל דרור</b></span></td>
+            <td><span class="pill p-azure">ליד חדש</span></td>
+            <td class="mono" dir="ltr">058‑605‑4410</td><td>סדנה</td>
+            <td><span class="tags"><span class="tag">לא שילם</span></span></td>
+            <td style="color:var(--ink-3)">לפני 4 ימים</td><td class="mono" dir="ltr">31/08/26</td></tr>
+
+          <tr><td><input class="cbx" type="checkbox" aria-label="הלל מזרחי"></td>
+            <td><span class="avc"><span class="av">הם</span><b>הלל מזרחי</b></span></td>
+            <td><span class="pill p-slate">לא רלוונטי</span></td>
+            <td class="mono" dir="ltr">052‑119‑8843</td><td>אינסטגרם</td>
+            <td><span class="tags"><span class="tag">תקציב</span></span></td>
+            <td style="color:var(--ink-3)">לפני 6 ימים</td><td class="mono" dir="ltr">02/07/26</td></tr>
+
+          <tr><td><input class="cbx" type="checkbox" aria-label="דן אלמוג"></td>
+            <td><span class="avc"><span class="av">דא</span><b>דן אלמוג</b></span></td>
+            <td><span class="pill p-acc">לקוח</span></td>
+            <td class="mono" dir="ltr">054‑880‑1177</td><td>המלצה</td>
+            <td><span class="tags"><span class="tag">מחזור 5</span></span></td>
+            <td style="color:var(--ink-3)">לפני 8 ימים</td><td class="mono" dir="ltr">11/01/26</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="tbl-foot">
+      <span>מוצגות 7 מתוך 1,284</span><span class="sp"></span>
+      <button class="btn btn-g btn-xs">הקודם</button><span class="mono">1 / 184</span><button class="btn btn-g btn-xs">הבא</button>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ 05 · פגישות ════════════════════════════════════ -->
+<section class="screen" id="s-booking" role="tabpanel" aria-label="פגישות" hidden>
+  <div class="h-page">
+    <div>
+      <h2>פגישות</h2>
+      <p>לכל סוג פגישה יש קישור ציבורי משלו. שולחים אותו ללקוח, והוא בוחר מועד מתוך השעות הפנויות שלך.</p>
+    </div>
+    <span class="sp"></span>
+    <button class="btn btn-p"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-plus"/></svg>סוג פגישה חדש</button>
+  </div>
+
+  <div class="two" style="grid-template-columns:1fr 1fr">
+    <section class="card">
+      <div class="card-h"><span class="glyph" style="--c:var(--rose);--t:var(--rose-t)"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-cal"/></svg></span><h3>סוגי פגישות</h3></div>
+      <div style="border-top:1px solid var(--line)">
+        <div class="mt">
+          <span class="mt-dur" style="--c:var(--rose);--t:var(--rose-t)">20<small>דק׳</small></span>
+          <span class="mt-m"><b>שיחת היכרות</b><span>זום · הפסקה 10 דק׳ · <span class="slug mono" dir="ltr">/book/hetkarut</span></span></span>
+          <button class="btn btn-g btn-xs"><svg width="13" height="13" viewBox="0 0 24 24"><use href="#i-copy"/></svg>העתקה</button>
+        </div>
+        <div class="mt">
+          <span class="mt-dur" style="--c:var(--acc);--t:var(--acc-t)">60<small>דק׳</small></span>
+          <span class="mt-m"><b>מפגש אישי</b><span>קליניקה, רמת גן · הפסקה 15 דק׳ · <span class="slug mono" dir="ltr">/book/ishi</span></span></span>
+          <button class="btn btn-g btn-xs"><svg width="13" height="13" viewBox="0 0 24 24"><use href="#i-copy"/></svg>העתקה</button>
+        </div>
+        <div class="mt">
+          <span class="mt-dur" style="--c:var(--iris);--t:var(--iris-t)">90<small>דק׳</small></span>
+          <span class="mt-m"><b>מסע צלילים אישי</b><span>קליניקה · <span class="pill p-slate np" style="font-size:10px">כבוי</span> · <span class="slug mono" dir="ltr">/book/tzlilim</span></span></span>
+          <button class="btn btn-g btn-xs"><svg width="13" height="13" viewBox="0 0 24 24"><use href="#i-copy"/></svg>העתקה</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-h"><span class="glyph" style="--c:var(--rose);--t:var(--rose-t)"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-clock"/></svg></span><h3>זמינות · השבוע</h3><span class="sp"></span><span class="pill p-ok np">יומן גוגל מחובר</span></div>
+      <div class="card-b">
+        <div class="week">
+          <div class="wh"></div><div class="wh">א׳</div><div class="wh">ב׳</div><div class="wh">ג׳</div><div class="wh">ד׳</div><div class="wh">ה׳</div><div class="wh">ו׳</div>
+          <div class="wt">09</div><div class="free"></div><div class="free"></div><div class="bk">נועם</div><div class="free"></div><div class="free"></div><div class="bk">נועם</div>
+          <div class="wt">10</div><div class="free"></div><div class="busy"></div><div class="free"></div><div class="free"></div><div class="busy"></div><div class="bk">מיכאל</div>
+          <div class="wt">11</div><div class="free"></div><div class="busy"></div><div class="free"></div><div class="free"></div><div class="busy"></div><div class="busy"></div>
+          <div class="wt">14</div><div class="busy"></div><div class="free"></div><div class="free"></div><div class="bk">דן</div><div class="free"></div><div class="busy"></div>
+          <div class="wt">16</div><div class="free"></div><div class="free"></div><div class="busy"></div><div class="free"></div><div class="free"></div><div class="busy"></div>
+          <div class="wt">17</div><div class="free"></div><div class="free"></div><div class="busy"></div><div class="free"></div><div class="free"></div><div class="bk">תומר</div>
+        </div>
+        <div style="display:flex;gap:14px;margin-top:11px;font-size:11px;color:var(--ink-3);flex-wrap:wrap">
+          <span style="display:inline-flex;align-items:center;gap:6px"><i style="width:11px;height:11px;border-radius:3px;background:var(--acc-t);display:block"></i>פנוי להזמנה</span>
+          <span style="display:inline-flex;align-items:center;gap:6px"><i style="width:11px;height:11px;border-radius:3px;background:var(--rose-t);display:block"></i>פגישה שנקבעה</span>
+          <span style="display:inline-flex;align-items:center;gap:6px"><i style="width:11px;height:11px;border-radius:3px;background:var(--paper-3);display:block"></i>תפוס ביומן גוגל</span>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section class="tbl-wrap">
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>מתי</th><th>סוג</th><th>עם מי</th><th>מיקום</th><th>סטטוס</th><th></th></tr></thead>
+        <tbody>
+          <tr><td><b>היום</b> <span class="mono" style="color:var(--ink-3)">09:00</span></td><td><span class="pill p-rose">שיחת היכרות</span></td><td><span class="avc"><span class="av">נב</span><b>נועם ברקוביץ׳</b></span></td><td>זום</td><td><span class="pill p-ok np">אושרה</span></td><td><button class="btn btn-g btn-xs">פתיחה</button></td></tr>
+          <tr><td><b>היום</b> <span class="mono" style="color:var(--ink-3)">10:30</span></td><td><span class="pill p-acc">מפגש אישי</span></td><td><span class="avc"><span class="av">מא</span><b>מיכאל אדרי</b></span></td><td>קליניקה</td><td><span class="pill p-ok np">אושרה</span></td><td><button class="btn btn-g btn-xs">פתיחה</button></td></tr>
+          <tr><td><b>היום</b> <span class="mono" style="color:var(--ink-3)">17:30</span></td><td><span class="pill p-rose">שיחת היכרות</span></td><td><span class="avc"><span class="av">תכ</span><b>תומר כהן</b></span></td><td>טלפון</td><td><span class="pill p-warn np">ממתינה לאישור</span></td><td><button class="btn btn-g btn-xs">פתיחה</button></td></tr>
+          <tr><td><span class="mono">ראשון</span> <span class="mono" style="color:var(--ink-3)">14:00</span></td><td><span class="pill p-acc">מפגש אישי</span></td><td><span class="avc"><span class="av">דא</span><b>דן אלמוג</b></span></td><td>קליניקה</td><td><span class="pill p-ok np">אושרה</span></td><td><button class="btn btn-g btn-xs">פתיחה</button></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</section>
+
+<!-- ═══════════════ 06 · מסע לקוח ══════════════════════════════════ -->
+<section class="screen" id="s-journey" role="tabpanel" aria-label="מסע לקוח" hidden>
+  <div class="h-page">
+    <div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <h2>מתעניינים במחזור 7</h2>
+        <span class="pill p-ok">פעיל</span>
+      </div>
+      <p>נכנסים למסע: כל מי שסימן עניין בקורס ״שחרור חסמים — 6 שבועות״. מסע זוכר איפה כל אחד עומד וממשיך משם.</p>
+    </div>
+    <span class="sp"></span>
+    <div style="display:flex;align-items:center;gap:9px">
+      <span style="font-size:12px;color:var(--ink-2)">פעיל</span><span class="toggle"></span>
+      <button class="btn btn-s">שכפול</button>
+    </div>
+  </div>
+
+  <div class="jbar">
+    <button class="btn btn-s btn-xs" id="jAdd"><svg width="12" height="12" viewBox="0 0 24 24"><use href="#i-plus"/></svg>שלב חדש</button>
+    <button class="btn btn-s btn-xs" id="jTidy">סידור אוטומטי</button>
+    <span class="sp"></span>
+    <span class="jhint"><svg width="13" height="13" viewBox="0 0 24 24" style="color:var(--acc)"><use href="#i-route"/></svg>גררו כרטיסייה למקום חדש · משכו חץ מהעיגול שבצד שמאל אל כרטיסייה אחרת · לחצו על × שעל החץ כדי לנתק</span>
+  </div>
+
+  <div class="board" id="jBoard">
+    <div class="board-inner" id="jInner">
+      <svg class="wires" id="jWires" width="1120" height="500" aria-hidden="true">
+        <defs>
+          <marker id="jArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0 1.5 L9 5 L0 8.5 z" fill="var(--line-2)"/>
+          </marker>
+          <marker id="jArrowOn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0 1.5 L9 5 L0 8.5 z" fill="var(--acc)"/>
+          </marker>
+        </defs>
+        <g id="jWireG"></g>
+        <path id="jLive" class="wire-live" d="" style="display:none"></path>
+      </svg>
+
+      <article class="node trigger" data-id="n0" tabindex="0" style="left:795px;top:200px" aria-label="טריגר: מי נכנס למסע">
+        <div class="node-h"><span class="node-ic" style="--c:var(--acc);--t:color-mix(in srgb,var(--surface) 70%,transparent)"><svg width="13" height="13" viewBox="0 0 24 24"><use href="#i-spark"/></svg></span><b>מי נכנס למסע</b></div>
+        <p class="node-msg">כל מי שסימן עניין בקורס ״שחרור חסמים — 6 שבועות״</p>
+        <div class="node-f"><span class="timing">טריגר</span><span class="node-st">61 נכנסו</span></div>
+        <button class="port out" data-port="out" aria-label="חיבור יוצא"></button>
+      </article>
+
+      <article class="node" data-id="n1" tabindex="0" style="left:535px;top:200px" aria-label="שלב: ברוכה הבאה">
+        <div class="node-h"><span class="node-ic" style="--c:var(--ok);--t:var(--ok-t)"><svg width="13" height="13" viewBox="0 0 24 24"><use href="#i-chat"/></svg></span><b>ברוכה הבאה</b></div>
+        <p class="node-msg">היי <span class="var">{{שם}}</span> 🌿 כיף שסימנת עניין. שולח לך את כל הפרטים —</p>
+        <div class="node-f"><span class="pill p-ok np" style="font-size:9.5px">וואטסאפ</span><span class="timing"><svg width="10" height="10" viewBox="0 0 24 24"><use href="#i-clock"/></svg>מיד</span><span class="node-st">ענו 22</span></div>
+        <span class="port in" data-port="in"></span>
+        <button class="port out" data-port="out" aria-label="חיבור יוצא"></button>
+      </article>
+
+      <article class="node cond" data-id="n2" tabindex="0" style="left:275px;top:192px" aria-label="תנאי: ענה תוך 3 ימים">
+        <div class="node-h"><span class="node-ic" style="--c:var(--saffron);--t:var(--saffron-t)"><svg width="13" height="13" viewBox="0 0 24 24"><use href="#i-route"/></svg></span><b>ענה תוך 3 ימים?</b></div>
+        <div class="cond-rows">
+          <span class="cond-row" style="--c:var(--ok)"><i></i>כן — למסלול הקצר</span>
+          <span class="cond-row" style="--c:var(--ember)"><i></i>לא — לתזכורת</span>
+        </div>
+        <span class="port in" data-port="in"></span>
+        <button class="port br yes" data-port="yes" aria-label="חיבור יוצא: כן"></button>
+        <button class="port br no" data-port="no" aria-label="חיבור יוצא: לא"></button>
+      </article>
+
+      <article class="node" data-id="n3" tabindex="0" style="left:15px;top:45px" aria-label="שלב: הזמנה לשיחת היכרות">
+        <div class="node-h"><span class="node-ic" style="--c:var(--rose);--t:var(--rose-t)"><svg width="13" height="13" viewBox="0 0 24 24"><use href="#i-cal"/></svg></span><b>הזמנה לשיחה</b></div>
+        <p class="node-msg"><span class="var">{{שם}}</span>, בא לך 20 דקות לראות אם זה מתאים? הנה היומן שלי 👇</p>
+        <div class="node-f"><span class="pill p-ok np" style="font-size:9.5px">וואטסאפ</span><span class="timing"><svg width="10" height="10" viewBox="0 0 24 24"><use href="#i-clock"/></svg>יום אחרי</span><span class="node-st">קבעו 14</span></div>
+        <span class="port in" data-port="in"></span>
+        <button class="port out" data-port="out" aria-label="חיבור יוצא"></button>
+      </article>
+
+      <article class="node" data-id="n4" tabindex="0" style="left:15px;top:330px" aria-label="שלב: תזכורת עדינה">
+        <div class="node-h"><span class="node-ic" style="--c:var(--ember);--t:var(--ember-t)"><svg width="13" height="13" viewBox="0 0 24 24"><use href="#i-mail"/></svg></span><b>ההרשמה נסגרת</b></div>
+        <p class="node-msg">נשארו שלושה מקומות למחזור שנפתח ביום שני. אם אתה מתלבט — זה הרגע.</p>
+        <div class="node-f"><span class="pill p-ember np" style="font-size:9.5px">מייל</span><span class="timing"><svg width="10" height="10" viewBox="0 0 24 24"><use href="#i-clock"/></svg>יומיים לפני</span><span class="node-st">פתחו 18</span></div>
+        <span class="port in" data-port="in"></span>
+        <button class="port out" data-port="out" aria-label="חיבור יוצא"></button>
+      </article>
+    </div>
+  </div>
+
+  <div class="two" style="grid-template-columns:1fr 1fr">
+      <section class="card">
+        <div class="card-h"><h3>איפה כולם עומדים</h3></div>
+        <div class="card-b">
+          <div class="funnel">
+            <div class="fn"><span class="fn-l">נכנסו למסע</span><span class="fn-t"><i style="width:100%;--c:var(--iris)"></i></span><span class="fn-v">61</span></div>
+            <div class="fn"><span class="fn-l">שלב 2</span><span class="fn-t"><i style="width:88%;--c:var(--iris)"></i></span><span class="fn-v">54</span></div>
+            <div class="fn"><span class="fn-l">שלב 3</span><span class="fn-t"><i style="width:77%;--c:var(--iris)"></i></span><span class="fn-v">47</span></div>
+            <div class="fn"><span class="fn-l">קבעו שיחה</span><span class="fn-t"><i style="width:23%;--c:var(--rose)"></i></span><span class="fn-v">14</span></div>
+            <div class="fn"><span class="fn-l">נרשמו</span><span class="fn-t"><i style="width:13%;--c:var(--acc)"></i></span><span class="fn-v">8</span></div>
+          </div>
+        </div>
+        <div class="card-f">13% מהנכנסים למסע סגרו — לעומת 6% בממוצע במסעות האחרים.</div>
+      </section>
+
+      <section class="card">
+        <div class="card-h"><h3>מסעות אחרים</h3></div>
+        <div class="card-b" style="display:flex;flex-direction:column;gap:7px">
+          <div class="group-row"><b>אחרי סדנה</b><span class="sp"></span><span class="pill p-ok np">פעיל</span><span class="mono" style="font-size:11px;color:var(--ink-3)">17</span></div>
+          <div class="group-row"><b>מי ששתק 7 ימים</b><span class="sp"></span><span class="pill p-ok np">פעיל</span><span class="mono" style="font-size:11px;color:var(--ink-3)">23</span></div>
+          <div class="group-row"><b>לא שילמו לאירוע</b><span class="sp"></span><span class="pill p-ok np">פעיל</span><span class="mono" style="font-size:11px;color:var(--ink-3)">4</span></div>
+          <div class="group-row" style="opacity:.65"><b>ברכת יום הולדת</b><span class="sp"></span><span class="pill p-slate np">כבוי</span><span class="mono" style="font-size:11px;color:var(--ink-3)">0</span></div>
+        </div>
+      </section>
+  </div>
+</section>
+
+<!-- ═══════════════ 07 · ניוזלטר ═══════════════════════════════════ -->
+<section class="screen" id="s-news" role="tabpanel" aria-label="ניוזלטר" hidden>
+  <div class="h-page">
+    <div>
+      <h2>הודעה חדשה</h2>
+      <p>מייל אחד שיוצא לרשימה. מי שהוסר מרשימת התפוצה לא יקבל אותו — אבל ימשיך לקבל מסעות, תזכורות פגישה והודעות אישיות.</p>
+    </div>
+    <span class="sp"></span>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-s">שמירת טיוטה</button>
+      <button class="btn btn-p"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-clock"/></svg>תזמון לשליחה</button>
+    </div>
+  </div>
+
+  <div class="two" style="grid-template-columns:1fr 1fr">
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <section class="card">
+        <div class="card-h"><h3>תוכן</h3><span class="sp"></span><span class="pill p-slate np">4 בלוקים</span></div>
+        <div class="card-b" style="display:flex;flex-direction:column;gap:12px">
+          <div class="field"><label>נושא המייל</label><span class="input" style="color:var(--ink)">ההרשמה למחזור 7 נפתחה 🌿</span></div>
+          <div class="blocks">
+            <div class="blk"><span class="blk-grip"><svg width="15" height="15" viewBox="0 0 24 24"><use href="#i-grip"/></svg></span><span class="blk-c"><span class="blk-t">כותרת</span>שישה שבועות לשחרור מה שתקוע</span></div>
+            <div class="blk"><span class="blk-grip"><svg width="15" height="15" viewBox="0 0 24 24"><use href="#i-grip"/></svg></span><span class="blk-c"><span class="blk-t">פסקה</span>המחזור הקרוב נפתח ב‑21 בספטמבר. שישה מפגשים שבועיים בזום, קבוצה סגורה, והקלטות של כל תרגול.</span></div>
+            <div class="blk"><span class="blk-grip"><svg width="15" height="15" viewBox="0 0 24 24"><use href="#i-grip"/></svg></span><span class="blk-c"><span class="blk-t">תמונה</span>circle-breath-cover.jpg</span></div>
+            <div class="blk"><span class="blk-grip"><svg width="15" height="15" viewBox="0 0 24 24"><use href="#i-grip"/></svg></span><span class="blk-c"><span class="blk-t">כפתור</span>שמירת מקום · ‎/course/mahzor-7</span></div>
+          </div>
+          <button class="step-add"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-plus"/></svg>הוספת בלוק</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-h"><span class="glyph" style="--c:var(--ember);--t:var(--ember-t)"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-users"/></svg></span><h3>למי זה יוצא</h3><span class="sp"></span><span class="pill p-ember np">312 נמענים</span></div>
+        <div class="card-b">
+          <div class="aud">
+            <div class="aud-r on"><svg width="14" height="14" viewBox="0 0 24 24" style="color:var(--acc)"><use href="#i-check"/></svg><b>ליד חדש</b><span class="sp"></span><span class="aud-n">148</span></div>
+            <div class="aud-r on"><svg width="14" height="14" viewBox="0 0 24 24" style="color:var(--acc)"><use href="#i-check"/></svg><b>בטיפול</b><span class="sp"></span><span class="aud-n">96</span></div>
+            <div class="aud-r on"><svg width="14" height="14" viewBox="0 0 24 24" style="color:var(--acc)"><use href="#i-check"/></svg><b>לקוח</b><span class="sp"></span><span class="aud-n">68</span></div>
+            <div class="aud-r"><span style="width:14px"></span><b>לא רלוונטי</b><span class="sp"></span><span class="aud-n">241</span></div>
+          </div>
+          <p style="font-size:11.5px;color:var(--ink-3);margin-top:10px">‎31 נמענים הוסרו מרשימת התפוצה ולא ייספרו.</p>
+        </div>
+      </section>
+    </div>
+
+    <section class="card">
+      <div class="card-h"><h3>תצוגה מקדימה</h3><span class="sp"></span>
+        <button class="btn btn-g btn-xs">מובייל</button><button class="btn btn-s btn-xs">דסקטופ</button>
+      </div>
+      <div class="card-b">
+        <div class="mailprev">
+          <p style="font-size:10.5px;color:var(--ink-4);font-family:var(--font-mono)" dir="ltr">from: guy@shichrur.co.il</p>
+          <h4>שישה שבועות לשחרור מה שתקוע</h4>
+          <p>המחזור הקרוב נפתח ב‑21 בספטמבר. שישה מפגשים שבועיים בזום, קבוצה סגורה, והקלטות של כל תרגול.</p>
+          <div class="mp-img">circle-breath-cover.jpg</div>
+          <p>בכל מפגש אנחנו לוקחים כלי אחד — נשימה מעגלית, ויסות דרך קול, עבודה עם הגוף — ומתרגלים אותו עד שהוא נשאר איתך גם אחרי.</p>
+          <span class="mp-btn">שמירת מקום</span>
+          <p class="mp-foot">קיבלת את המייל כי נרשמת לרשימה · הסרה מרשימת התפוצה</p>
+        </div>
+      </div>
+      <div class="card-f">מתוזמן ל‑<b style="color:var(--ink)">היום 14:00</b> · שעון ישראל</div>
+    </section>
+  </div>
+</section>
+
+<!-- ═══════════════ 08 · אירועים ═══════════════════════════════════ -->
+<section class="screen" id="s-events" role="tabpanel" aria-label="אירועים" hidden>
+  <div class="h-page">
+    <div>
+      <h2>אירועים</h2>
+      <p>כל אירוע מקבל דף הרשמה משלו בכתובת ציבורית, ותזכורות בוואטסאפ למי ששילם.</p>
+    </div>
+    <span class="sp"></span>
+    <button class="btn btn-p"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-plus"/></svg>אירוע חדש</button>
+  </div>
+
+  <section class="card" style="padding:0">
+    <div class="ev">
+      <span class="ev-d"><span class="m">ספט׳</span><span class="d">18</span></span>
+      <span class="ev-m"><b>סדנת נשימה מעגלית</b><span>19:00 · סטודיו אורגה, תל אביב · <span class="slug mono" dir="ltr">/event/neshima-18</span></span></span>
+      <span class="ev-n">
+        <div style="--c:var(--acc)"><b>24</b><span>שילמו</span></div>
+        <div style="--c:var(--rose)"><b>4</b><span>לא שילמו</span></div>
+        <div style="--c:var(--saffron)"><b>39</b><span>מתעניינים</span></div>
+      </span>
+      <span class="pill p-acc np">פעיל</span>
+    </div>
+    <div class="ev">
+      <span class="ev-d"><span class="m">אוק׳</span><span class="d">02</span></span>
+      <span class="ev-m"><b>מסע צלילים · ערב שיא</b><span>20:30 · יער בן שמן · <span class="slug mono" dir="ltr">/event/tzlilim-oct</span></span></span>
+      <span class="ev-n">
+        <div style="--c:var(--acc)"><b>7</b><span>שילמו</span></div>
+        <div style="--c:var(--rose)"><b>2</b><span>לא שילמו</span></div>
+        <div style="--c:var(--saffron)"><b>18</b><span>מתעניינים</span></div>
+      </span>
+      <span class="pill p-acc np">פעיל</span>
+    </div>
+    <div class="ev" style="opacity:.62">
+      <span class="ev-d"><span class="m">יולי</span><span class="d">24</span></span>
+      <span class="ev-m"><b>סדנת נשימה · מחזור קיץ</b><span>19:00 · סטודיו אורגה</span></span>
+      <span class="ev-n">
+        <div style="--c:var(--ink-3)"><b>31</b><span>שילמו</span></div>
+        <div style="--c:var(--ink-3)"><b>0</b><span>לא שילמו</span></div>
+        <div style="--c:var(--ink-3)"><b>44</b><span>מתעניינים</span></div>
+      </span>
+      <span class="pill p-slate np">עבר</span>
+    </div>
+  </section>
+
+  <div class="two" style="grid-template-columns:.8fr 1.2fr">
+    <section class="card">
+      <div class="card-h"><span class="glyph" style="--c:var(--saffron);--t:var(--saffron-t)"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-ticket"/></svg></span><h3>סדנת נשימה מעגלית</h3></div>
+      <div class="card-b" style="display:flex;flex-direction:column;gap:14px">
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink-3);margin-bottom:6px"><span>תפוסה</span><span><b style="color:var(--ink)">24</b> מתוך 30</span></div>
+          <div class="cap"><span class="cap-t"><i style="width:80%;background:var(--acc)"></i><i style="width:13%;background:var(--rose)"></i></span></div>
+          <div style="display:flex;gap:13px;margin-top:8px;font-size:11px;color:var(--ink-3);flex-wrap:wrap">
+            <span style="display:inline-flex;align-items:center;gap:5px"><i style="width:8px;height:8px;border-radius:2px;background:var(--acc);display:block"></i>שילמו 24</span>
+            <span style="display:inline-flex;align-items:center;gap:5px"><i style="width:8px;height:8px;border-radius:2px;background:var(--rose);display:block"></i>שריון זמני 4</span>
+            <span style="display:inline-flex;align-items:center;gap:5px"><i style="width:8px;height:8px;border-radius:2px;background:var(--paper-3);display:block"></i>פנוי 2</span>
+          </div>
+        </div>
+        <div class="funnel">
+          <div class="fn"><span class="fn-l">מתעניינים</span><span class="fn-t"><i style="width:100%;--c:var(--saffron)"></i></span><span class="fn-v">39</span></div>
+          <div class="fn"><span class="fn-l">נרשמו</span><span class="fn-t"><i style="width:72%;--c:var(--rose)"></i></span><span class="fn-v">28</span></div>
+          <div class="fn"><span class="fn-l">שילמו</span><span class="fn-t"><i style="width:62%;--c:var(--acc)"></i></span><span class="fn-v">24</span></div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-s btn-xs"><svg width="12" height="12" viewBox="0 0 24 24"><use href="#i-copy"/></svg>קישור הרשמה</button>
+          <button class="btn btn-s btn-xs">מסע למתעניינים</button>
+          <button class="btn btn-s btn-xs">תזכורת למי ששילם</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="tbl-wrap">
+      <div class="tbl-scroll">
+        <table>
+          <thead><tr><th>נרשם</th><th>שלב</th><th>סכום</th><th>נרשם ב־</th><th></th></tr></thead>
+          <tbody>
+            <tr><td><span class="avc"><span class="av">יד</span><b>יואל דרור</b></span></td><td><span class="pill p-rose">נרשם, לא שילם</span></td><td class="mono">₪180</td><td class="mono" dir="ltr">31/08 14:02</td><td><button class="btn btn-g btn-xs">תזכורת</button></td></tr>
+            <tr><td><span class="avc"><span class="av">דא</span><b>דן אלמוג</b></span></td><td><span class="pill p-acc">שילם</span></td><td class="mono">₪180</td><td class="mono" dir="ltr">29/08 09:41</td><td><button class="btn btn-g btn-xs">קבלה</button></td></tr>
+            <tr><td><span class="avc"><span class="av">מא</span><b>מיכאל אדרי</b></span></td><td><span class="pill p-acc">שילם</span></td><td class="mono">₪180</td><td class="mono" dir="ltr">27/08 20:15</td><td><button class="btn btn-g btn-xs">קבלה</button></td></tr>
+            <tr><td><span class="avc"><span class="av">נב</span><b>נועם ברקוביץ׳</b></span></td><td><span class="pill p-acc">שילם</span></td><td class="mono">₪180</td><td class="mono" dir="ltr">26/08 11:30</td><td><button class="btn btn-g btn-xs">קבלה</button></td></tr>
+            <tr><td><span class="avc"><span class="av">אפ</span><b>אורי פרץ</b></span></td><td><span class="pill p-saffron">מתעניין</span></td><td class="mono" style="color:var(--ink-4)">—</td><td class="mono" dir="ltr">21/08 18:55</td><td><button class="btn btn-g btn-xs">הודעה</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="tbl-foot"><span>28 נרשמים · 39 מתעניינים</span><span class="sp"></span><button class="btn btn-g btn-xs">ייצוא לאקסל</button></div>
+    </section>
+  </div>
+</section>
+
+<!-- ═══════════════ 09 · וואטסאפ ═══════════════════════════════════ -->
+<section class="screen" id="s-whatsapp" role="tabpanel" aria-label="וואטסאפ" hidden>
+  <div class="h-page">
+    <div>
+      <h2>ערוץ הוואטסאפ</h2>
+      <p>מצב המספר אצל Meta: איכות, תקרה יומית, וכמה כבר נשלח היום.</p>
+    </div>
+    <span class="sp"></span>
+    <span class="pill p-ok">מחובר · <span class="mono" dir="ltr">+972 54‑641‑7788</span></span>
+  </div>
+
+  <div class="strip">
+    <section class="card"><div class="card-b" style="padding:15px 16px">
+      <p class="kpi-lbl" style="margin-bottom:8px">איכות המספר</p>
+      <p style="font-family:var(--font-dis);font-size:22px;font-weight:500;color:var(--ok);letter-spacing:-.02em">ירוקה</p>
+      <p style="font-size:11.5px;color:var(--ink-3);margin-top:5px;line-height:1.6">אין דיווחי ספאם. אפשר להמשיך לשלוח תבניות כרגיל.</p>
+    </div></section>
+
+    <section class="card"><div class="card-b" style="padding:15px 16px">
+      <p class="kpi-lbl" style="margin-bottom:10px">נשלחו היום</p>
+      <div class="gauge">
+        <svg width="54" height="54" viewBox="0 0 54 54" aria-label="84 מתוך 250">
+          <circle cx="27" cy="27" r="22" fill="none" stroke="var(--paper-3)" stroke-width="6"/>
+          <circle cx="27" cy="27" r="22" fill="none" stroke="var(--acc)" stroke-width="6" stroke-linecap="round"
+                  stroke-dasharray="138.2" stroke-dashoffset="91.8" transform="rotate(-90 27 27)"/>
+        </svg>
+        <span class="quota"><b>84<small> / 250</small></b><span>34% מהתקרה היומית</span></span>
+      </div>
+    </div></section>
+
+    <section class="card"><div class="card-b" style="padding:15px 16px">
+      <p class="kpi-lbl" style="margin-bottom:8px">תקרת Meta</p>
+      <p style="font-family:var(--font-dis);font-size:22px;font-weight:500;letter-spacing:-.02em">1,000<span style="font-size:13px;color:var(--ink-3)"> ביום</span></p>
+      <p style="font-size:11.5px;color:var(--ink-3);margin-top:5px;line-height:1.6">התקרה שלנו (250) נמוכה בכוונה — היא הבלם שלנו, לא של Meta.</p>
+    </div></section>
+  </div>
+
+  <section class="card">
+    <div class="card-h"><span class="glyph" style="--c:var(--warn);--t:var(--warn-t)"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-pause"/></svg></span><h3>בלמים על השליחה האוטומטית</h3></div>
+    <div class="card-b" style="display:flex;flex-direction:column;gap:11px">
+      <div class="group-row"><b>שליחה אוטומטית</b><span style="font-size:11.5px;color:var(--ink-3)">הקרון רץ כל 15 דקות</span><span class="sp"></span><span class="pill p-ok np">פעילה</span><span class="toggle"></span></div>
+      <div class="group-row"><b>שעות שקט</b><span style="font-size:11.5px;color:var(--ink-3)">לא נשלח בין <span class="mono">21:00</span> ל‑<span class="mono">08:00</span></span><span class="sp"></span><span class="toggle"></span></div>
+      <div class="group-row"><b>תקרה יומית</b><span class="sp"></span><span class="slider" style="width:180px"><span class="slider-t"><i style="width:25%"></i><b style="inset-inline-start:75%"></b></span><span class="mono" style="font-size:12px">250</span></span></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-h"><h3>חלון 24 השעות — מה מותר לשלוח למי</h3></div>
+    <div class="card-b">
+      <p style="font-size:12.5px;color:var(--ink-2);line-height:1.7;margin-bottom:12px">זה הכלל היחיד שקובע הכול. בכל רגע, כל איש קשר נמצא באחד משני המצבים:</p>
+      <div class="rulebox">
+        <div class="rule open2">
+          <h4><span class="win" style="padding:1px 8px"><span class="win-t"><i style="width:80%"></i></span></span>חלון פתוח</h4>
+          <dl>
+            <dt>מתי</dt><dd>הלקוח כתב ב‑24 השעות האחרונות</dd>
+            <dt>מה מותר</dt><dd>כל טקסט חופשי</dd>
+            <dt>עלות</dt><dd style="color:var(--ok)">חינם</dd>
+          </dl>
+        </div>
+        <div class="rule">
+          <h4><span class="win shut" style="padding:1px 8px"><span class="win-t"><i style="width:0"></i></span></span>חלון סגור</h4>
+          <dl>
+            <dt>מתי</dt><dd>לא כתב, או שמעולם לא כתב</dd>
+            <dt>מה מותר</dt><dd>רק תבנית שאושרה מראש</dd>
+            <dt>עלות</dt><dd>מחויב לפי הודעה</dd>
+          </dl>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--ink-2);line-height:1.7;margin-top:12px;background:var(--warn-t);color:var(--warn);border-radius:10px;padding:10px 12px;display:flex;gap:8px">
+        <svg width="15" height="15" viewBox="0 0 24 24" style="flex-shrink:0;margin-top:2px"><use href="#i-alert"/></svg>
+        <span>מסע מעקב פונה מעצם טבעו למי שלא ענה — כלומר כמעט תמיד מחוץ לחלון. לכל שלב כזה חייבת להיות תבנית מאושרת, אחרת השליחה תיכשל בשקט.</span>
+      </p>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-h"><h3>תבניות מאושרות</h3><span class="sp"></span><button class="btn btn-s btn-xs"><svg width="12" height="12" viewBox="0 0 24 24"><use href="#i-plus"/></svg>תבנית חדשה</button></div>
+    <div class="tbl-scroll" style="border-top:1px solid var(--line)">
+      <table>
+        <thead><tr><th>שם</th><th>מזהה ב־Meta</th><th>קטגוריה</th><th>מצב</th><th>נשלחו החודש</th></tr></thead>
+        <tbody>
+          <tr><td><b>תזכורת לפגישה</b></td><td class="mono" dir="ltr">appointment_reminder_he</td><td>שירות</td><td><span class="pill p-ok">אושרה</span></td><td class="mono">96</td></tr>
+          <tr><td><b>הזמנה לשיחת היכרות</b></td><td class="mono" dir="ltr">intro_call_invite_he</td><td>שיווק</td><td><span class="pill p-ok">אושרה</span></td><td class="mono">47</td></tr>
+          <tr><td><b>ההרשמה נסגרת</b></td><td class="mono" dir="ltr">closing_soon_he</td><td>שיווק</td><td><span class="pill p-warn">בבדיקה</span></td><td class="mono" style="color:var(--ink-4)">—</td></tr>
+          <tr><td><b>ברכת יום הולדת</b></td><td class="mono" dir="ltr">birthday_he</td><td>שיווק</td><td><span class="pill p-bad">נדחתה</span></td><td class="mono" style="color:var(--ink-4)">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</section>
+
+<!-- ═══════════════ 10 · הגדרות ════════════════════════════════════ -->
+<section class="screen" id="s-settings" role="tabpanel" aria-label="הגדרות" hidden>
+  <div class="h-page">
+    <div>
+      <h2>הגדרות</h2>
+      <p>מה שנוגעים בו פעם בחודש, מרוכז במקום אחד. שעות הזמינות נשארו תחת פגישות, ומצב המספר תחת וואטסאפ.</p>
+    </div>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tb" role="tab" aria-selected="true">סטטוסים</button>
+    <button class="tb" role="tab" aria-selected="false">שדות</button>
+    <button class="tb" role="tab" aria-selected="false">בלמי שליחה</button>
+    <button class="tb" role="tab" aria-selected="false">טפסי מטא</button>
+  </div>
+
+  <div class="two" style="grid-template-columns:1fr 1fr">
+    <section class="card">
+      <div class="card-h"><h3>סטטוסים</h3><span class="sp"></span><button class="btn btn-s btn-xs"><svg width="12" height="12" viewBox="0 0 24 24"><use href="#i-plus"/></svg>סטטוס חדש</button></div>
+      <div style="border-top:1px solid var(--line)">
+        <div class="st"><span class="st-grip"><svg width="15" height="15" viewBox="0 0 24 24"><use href="#i-grip"/></svg></span><span class="sw-color" style="--c:var(--azure)"></span><b>ליד חדש</b><span class="n">148</span><button class="btn btn-g btn-xs">עריכה</button></div>
+        <div class="st"><span class="st-grip"><svg width="15" height="15" viewBox="0 0 24 24"><use href="#i-grip"/></svg></span><span class="sw-color" style="--c:var(--saffron)"></span><b>בטיפול</b><span class="n">96</span><button class="btn btn-g btn-xs">עריכה</button></div>
+        <div class="st"><span class="st-grip"><svg width="15" height="15" viewBox="0 0 24 24"><use href="#i-grip"/></svg></span><span class="sw-color" style="--c:var(--rose)"></span><b>נקבעה פגישה</b><span class="n">31</span><button class="btn btn-g btn-xs">עריכה</button></div>
+        <div class="st"><span class="st-grip"><svg width="15" height="15" viewBox="0 0 24 24"><use href="#i-grip"/></svg></span><span class="sw-color" style="--c:var(--acc)"></span><b>לקוח</b><span class="n">68</span><button class="btn btn-g btn-xs">עריכה</button></div>
+        <div class="st"><span class="st-grip"><svg width="15" height="15" viewBox="0 0 24 24"><use href="#i-grip"/></svg></span><span class="sw-color" style="--c:var(--slate)"></span><b>לא רלוונטי</b><span class="n">241</span><button class="btn btn-g btn-xs">עריכה</button></div>
+      </div>
+      <div class="card-f">גרירה משנה את הסדר שבו הסטטוסים מופיעים בכל רשימה במערכת.</div>
+    </section>
+
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <section class="card">
+        <div class="card-h"><h3>שדות בכרטיס הלקוח</h3></div>
+        <div style="border-top:1px solid var(--line)">
+          <div class="st"><span class="st-grip"><svg width="15" height="15" viewBox="0 0 24 24"><use href="#i-grip"/></svg></span><b>שם מלא</b><span class="pill p-slate np">טקסט</span><span class="pill p-acc np">בטבלה</span></div>
+          <div class="st"><span class="st-grip"><svg width="15" height="15" viewBox="0 0 24 24"><use href="#i-grip"/></svg></span><b>טלפון</b><span class="pill p-slate np">טלפון</span><span class="pill p-acc np">בטבלה</span></div>
+          <div class="st"><span class="st-grip"><svg width="15" height="15" viewBox="0 0 24 24"><use href="#i-grip"/></svg></span><b>מקור הליד</b><span class="pill p-slate np">רשימה</span><span class="pill p-acc np">בטבלה</span></div>
+          <div class="st"><span class="st-grip"><svg width="15" height="15" viewBox="0 0 24 24"><use href="#i-grip"/></svg></span><b>תאריך לידה</b><span class="pill p-slate np">תאריך</span></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-h"><span class="glyph" style="--c:var(--azure);--t:var(--azure-t)"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-mail"/></svg></span><h3>טפסי מטא מחוברים</h3></div>
+        <div class="card-b" style="display:flex;flex-direction:column;gap:7px">
+          <div class="group-row"><b>מחזור 7 — טופס ליד</b><span class="sp"></span><span class="mono" style="font-size:11px;color:var(--ink-3)">62 לידים</span><span class="pill p-ok np">מסונכרן</span></div>
+          <div class="group-row"><b>סדנת נשימה ספטמבר</b><span class="sp"></span><span class="mono" style="font-size:11px;color:var(--ink-3)">39 לידים</span><span class="pill p-ok np">מסונכרן</span></div>
+          <div class="group-row" style="border-color:color-mix(in srgb,var(--warn) 40%,transparent)"><b>קמפיין צלילים (ישן)</b><span class="sp"></span><span class="pill p-warn np">אין הרשאה</span></div>
+        </div>
+      </section>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ 11 · מערכת העיצוב ══════════════════════════════ -->
+<section class="screen" id="s-system" role="tabpanel" aria-label="מערכת העיצוב" hidden>
+  <div class="h-page">
+    <div>
+      <h2>מערכת העיצוב</h2>
+      <p>כל מסך במוקאפ בנוי מהאסימונים האלה בלבד. הם מוגדרים פעם אחת ומשתנים יחד — כולל במעבר בין מצב בהיר לכהה.</p>
+    </div>
+  </div>
+
+  <section>
+    <div class="sec-lbl" style="margin-bottom:11px">בסיס ומבטא</div>
+    <div class="swatches">
+      <div class="sws"><div class="chip2" style="--c:var(--paper)"></div><div class="meta"><b>נייר</b><code dir="ltr">--paper</code></div></div>
+      <div class="sws"><div class="chip2" style="--c:var(--surface);box-shadow:inset 0 0 0 1px var(--line)"></div><div class="meta"><b>משטח</b><code dir="ltr">--surface</code></div></div>
+      <div class="sws"><div class="chip2" style="--c:var(--ink)"></div><div class="meta"><b>דיו</b><code dir="ltr">--ink</code></div></div>
+      <div class="sws"><div class="chip2" style="--c:var(--acc)"></div><div class="meta"><b>ורדיגריס</b><code dir="ltr">--acc</code></div></div>
+      <div class="sws"><div class="chip2" style="--c:var(--acc-t)"></div><div class="meta"><b>ורדיגריס רך</b><code dir="ltr">--acc-t</code></div></div>
+      <div class="sws"><div class="chip2" style="--c:var(--line)"></div><div class="meta"><b>קו שיער</b><code dir="ltr">--line</code></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-lbl" style="margin-bottom:11px">שש קבוצות — בהירות נתפסת אחידה</div>
+    <div class="swatches">
+      <div class="sws"><div class="chip2" style="--c:var(--acc)"></div><div class="meta"><b>לקוחות</b><code dir="ltr">--acc</code></div></div>
+      <div class="sws"><div class="chip2" style="--c:var(--rose)"></div><div class="meta"><b>פגישות</b><code dir="ltr">--rose</code></div></div>
+      <div class="sws"><div class="chip2" style="--c:var(--iris)"></div><div class="meta"><b>אוטומציה</b><code dir="ltr">--iris</code></div></div>
+      <div class="sws"><div class="chip2" style="--c:var(--ember)"></div><div class="meta"><b>ניוזלטר</b><code dir="ltr">--ember</code></div></div>
+      <div class="sws"><div class="chip2" style="--c:var(--saffron)"></div><div class="meta"><b>אירועים</b><code dir="ltr">--saffron</code></div></div>
+      <div class="sws"><div class="chip2" style="--c:var(--azure)"></div><div class="meta"><b>קורסים</b><code dir="ltr">--azure</code></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-lbl" style="margin-bottom:11px">מצב — נפרד מהמבטא, אף פעם לא מתחרה בו</div>
+    <div class="demo-grid">
+      <span class="pill p-ok">תקין</span><span class="pill p-warn">דורש תשומת לב</span><span class="pill p-bad">תקלה</span>
+      <span class="win"><span class="win-t"><i style="width:80%"></i></span>19 שע׳</span>
+      <span class="win warn2"><span class="win-t"><i style="width:12%"></i></span>2 שע׳</span>
+      <span class="win shut"><span class="win-t"><i style="width:0"></i></span>סגור</span>
+    </div>
+  </section>
+
+  <div class="two" style="grid-template-columns:1fr 1fr">
+    <section class="card">
+      <div class="card-h"><h3>סולם טיפוגרפי</h3></div>
+      <div class="card-b">
+        <div class="typerow"><span class="spec" dir="ltr">Rubik 500 · 26/1.25 · ‑2.5%</span><span style="font-family:var(--font-dis);font-size:26px;font-weight:500;letter-spacing:-.025em">בוקר טוב, גיא</span></div>
+        <div class="typerow"><span class="spec" dir="ltr">Rubik 500 · 21/1.25</span><span style="font-family:var(--font-dis);font-size:21px;font-weight:500;letter-spacing:-.02em">כותרת מסך</span></div>
+        <div class="typerow"><span class="spec" dir="ltr">Plex Hebrew 600 · 14</span><span style="font-weight:600">כותרת כרטיס</span></div>
+        <div class="typerow"><span class="spec" dir="ltr">Plex Hebrew 400 · 13/1.6</span><span style="font-size:13px">גוף הטקסט — מה שקוראים באמת</span></div>
+        <div class="typerow"><span class="spec" dir="ltr">Plex Hebrew 500 · 10.5 · +9%</span><span style="font-size:10.5px;letter-spacing:.09em;color:var(--ink-4);font-weight:500">תווית מקטע</span></div>
+        <div class="typerow"><span class="spec" dir="ltr">Plex Mono 400 · 12</span><span class="mono" dir="ltr">+972 54‑641‑7788 · 04/09/26</span></div>
+      </div>
+      <div class="card-f">מונו לכל נתון שנקרא משמאל לימין — טלפונים, כתובות, חותמות זמן. זה מה שמונע מהמספרים להישבר ב‑RTL.</div>
+    </section>
+
+    <section class="card">
+      <div class="card-h"><h3>רכיבים</h3></div>
+      <div class="card-b" style="display:flex;flex-direction:column;gap:14px">
+        <div><p class="blk-t">כפתורים</p><div class="demo-grid"><button class="btn btn-p">פעולה ראשית</button><button class="btn btn-s">משנית</button><button class="btn btn-g">שקופה</button><button class="btn btn-s btn-xs">קטנה</button></div></div>
+        <div><p class="blk-t">תוויות סטטוס</p><div class="demo-grid"><span class="pill p-azure">ליד חדש</span><span class="pill p-saffron">בטיפול</span><span class="pill p-rose">נקבעה פגישה</span><span class="pill p-acc">לקוח</span><span class="pill p-slate">לא רלוונטי</span></div></div>
+        <div><p class="blk-t">שדות</p><div class="demo-grid"><span class="input" style="min-width:150px">שם מלא</span><span class="input">סטטוס: הכל <svg width="12" height="12" viewBox="0 0 24 24" style="transform:rotate(-90deg)"><use href="#i-chev"/></svg></span></div></div>
+        <div><p class="blk-t">גובה ורמות</p><div class="demo-grid">
+          <span style="background:var(--paper);border-radius:10px;padding:9px 14px;font-size:12px">שטוח</span>
+          <span style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px 14px;font-size:12px;box-shadow:var(--shadow-1)">מורם</span>
+          <span style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px 14px;font-size:12px;box-shadow:var(--shadow-2)">צף</span>
+        </div></div>
+      </div>
+      <div class="card-f">שלוש רמות גובה בלבד. רשימה היא שורות מופרדות בקו שיער, לא ערימת כרטיסים.</div>
+    </section>
+  </div>
+</section>
+
+        </div><!-- /canvas -->
+      </div><!-- /main -->
+    </div><!-- /app -->
+  </div><!-- /chrome -->
+  </div><!-- /stage -->
+
+  <!-- ══ הערות עיצוב ══════════════════════════════════════════════ -->
+  <h2 class="notes-h">מה השתנה במסך הזה</h2>
+  <div class="notes" id="notes"></div>
+
+  <footer class="doc-foot">
+    <span class="brandmark" style="width:24px;height:24px;border-radius:7px"><svg width="13" height="13" viewBox="0 0 24 24"><use href="#i-spark"/></svg></span>
+    <span>פטינה · מוקאפ עיצוב ל‑CRM · ספטמבר 2026</span>
+    <span class="sp"></span>
+    <span>הנתונים לדוגמה בלבד — לא נתוני אמת מהמערכת.</span>
+  </footer>
+</div>
+
+<script>
+(function(){
+  var NOTES = {
+    home: [
+      {k:"היררכיה", c:"var(--acc)", t:"ארבעה מספרים, ואז הכול", p:"המדדים תופסים את השורה העליונה בגודל אחד וברור. מתחתם המסך נחלק לשניים בלבד: מה קורה היום, ומה נופל בין הכיסאות. אין שורה שלישית של כרטיסים מתחרים."},
+      {k:"מכשיר חדש", c:"var(--rose)", t:"ציר זמן במקום רשימה", p:"״היום״ הפך לציר אמיתי עם קו ״עכשיו״ בכתום. פגישה שכבר עברה נמצאת מעל הקו, ומה שנשאר להיום מתחתיו — בלי לקרוא שעה‑שעה."},
+      {k:"צבע", c:"var(--saffron)", t:"הגוון מזהה, לא מקשט", p:"לכל אזור במערכת גוון קבוע: פגישות ורוד, אוטומציה סגול, אירועים זעפרן. הגוון חוזר בכרטיס, באייקון ובסרגל הצד — כך שהעין יודעת איפה היא עוד לפני שקראה."}
+    ],
+    inbox: [
+      {k:"מכשיר חדש", c:"var(--ok)", t:"מד חלון 24 השעות", p:"המושג הכי חשוב במערכת קיבל סוף‑סוף מכשיר: פס קטן שמראה כמה זמן נשאר לענות בחינם. ירוק פתוח, ענבר נגמר, אפור סגור — נקרא במבט אחד לאורך כל הרשימה."},
+      {k:"צפיפות", c:"var(--acc)", t:"שורה אחת לכל אדם", p:"במקום כרטיס בגובה חמש שורות, כל פנייה היא שורת שיחה: שם, מה עשתה, שורית מההודעה, ומתי. עשרים אנשים נכנסים למסך אחד."},
+      {k:"מצב", c:"var(--iris)", t:"מי שטרם נענה בולט", p:"שורה שלא טופלה מקבלת רקע ורדיגריס עדין. זה ההבדל היחיד — אין נקודות, אין מונים, ואין צורך לסמן ״נקרא״."}
+    ],
+    contact: [
+      {k:"פריסה", c:"var(--acc)", t:"השיחה היא העמוד", p:"קודם הפרטים תפסו חצי מסך והשיחה נדחקה למטה. עכשיו השיחה היא העמודה הרחבה, והפרטים יושבים לצידה — כי מה שקוראים בפועל זו ההתכתבות."},
+      {k:"בטיחות", c:"var(--ok)", t:"התיבה יודעת מה מותר", p:"מתחת לתיבת התשובה כתוב במפורש מה החוק ברגע הזה: חלון פתוח, טקסט חופשי, ללא עלות. כשהחלון נסגר הלשונית מתחלפת לתבניות מאושרות בלבד."},
+      {k:"הקשר", c:"var(--saffron)", t:"השאלון עולה למעלה", p:"התשובות מהשאלון הן הסיבה שיודעים מה להגיד לו. הן כרטיס משלהן עם תגיות שנגזרו מהן, ולא עוד בלוק טקסט בתחתית העמוד."}
+    ],
+    contacts: [
+      {k:"קריאות", c:"var(--acc)", t:"טבלה שאפשר לסרוק", p:"כותרות קטנות ומרווחות, שורות בגובה נשימה, וכל נתון LTR באות מונו כדי שהטלפונים לא יישברו מימין לשמאל."},
+      {k:"פעולה", c:"var(--iris)", t:"סימון פותח סרגל", p:"ברגע שמסמנים שורה, סרגל פעולות מרוכזות נפתח בראש הטבלה — שינוי סטטוס, תגית, הכנסה למסע. נסו לסמן שורה כאן."},
+      {k:"מצב", c:"var(--rose)", t:"סטטוס הוא צבע קבוע", p:"אותם חמישה סטטוסים, אותם חמישה גוונים, בכל מסך במערכת. ״ליד חדש״ תמיד תכלת — גם בטבלה, גם ברשימת השיחות, גם בכרטיס."}
+    ],
+    booking: [
+      {k:"מכשיר חדש", c:"var(--rose)", t:"שבוע במבט אחד", p:"רשת הזמינות מראה בבת אחת מה פנוי להזמנה, מה כבר נקבע ומה תפוס ביומן גוגל. עד היום זה היה שלוש רשימות נפרדות."},
+      {k:"היררכיה", c:"var(--acc)", t:"המשך נקרא לפני השם", p:"כל סוג פגישה נפתח בריבוע הזמן — 20, 60, 90 — כי זה מה שמחפשים בפועל כשמחליטים איזה קישור לשלוח."},
+      {k:"פרטים", c:"var(--iris)", t:"הקישור הציבורי גלוי", p:"ה‑slug מוצג באות מונו ליד השם, עם כפתור העתקה צמוד. הוא הדבר שבאמת שולחים ללקוח."}
+    ],
+    journey: [
+      {k:"לוח חי", c:"var(--iris)", t:"כרטיסיות שזזות, חצים שנמשכים", p:"גררו כרטיסייה לאן שתרצו — למעלה, למטה, ימינה, שמאלה. משכו חץ מהעיגול שבצד שמאל של כרטיסייה אל כרטיסייה אחרת כדי לחבר, ולחצו על ה‑× שעל החץ כדי לנתק. גרירה על רקע ריק מזיזה את הלוח כולו."},
+      {k:"למה לוח", c:"var(--saffron)", t:"מסע מתפצל, רשימה לא", p:"״ענה תוך 3 ימים?״ שולח לשני מסלולים שונים. ברשימה אנכית אי אפשר להראות את זה בכלל — על לוח זה פשוט שתי כרטיסיות זו מעל זו, וכל אחת עם החץ שלה."},
+      {k:"כיוון", c:"var(--acc)", t:"הזרימה מימין לשמאל", p:"הטריגר יושב בימין וכל שלב ממשיך שמאלה — כיוון הקריאה בעברית. לכן נמל היציאה נמצא בצד שמאל של כל כרטיסייה, והכניסה בצד ימין."}
+    ],
+    news: [
+      {k:"פריסה", c:"var(--ember)", t:"עורך ותצוגה זה לצד זה", p:"בונים משמאל, רואים מימין. אין ״תצוגה מקדימה״ שנפתחת בחלון נפרד ומאבדת את ההקשר."},
+      {k:"בהירות", c:"var(--acc)", t:"הקהל נספר תוך כדי", p:"כל סטטוס שמסמנים מוסיף את המספר שלו לסך הנמענים למעלה. מי שהוסר מרשימת התפוצה מנוכה במפורש, ולא נעלם בשקט."},
+      {k:"תוכן", c:"var(--iris)", t:"בלוקים במקום עורך חופשי", p:"כותרת, פסקה, תמונה, כפתור — ארבעה סוגים שנגררים לסדר. המייל יוצא תמיד מעוצב, בלי לגעת ב‑HTML."}
+    ],
+    events: [
+      {k:"מכשיר חדש", c:"var(--saffron)", t:"תפוסה בפס אחד", p:"הפס מחלק את הקיבולת לשלושה: מי ששילם, מי ששריין ולא שילם, ומה שנשאר פנוי. זה המספר שבודקים חמש פעמים ביום לפני סדנה."},
+      {k:"היררכיה", c:"var(--rose)", t:"שלושה מספרים לכל אירוע", p:"שילמו, לא שילמו, מתעניינים — תמיד באותו סדר ובאותו מקום בשורה, כך שאפשר להשוות בין אירועים בלי לקרוא."},
+      {k:"פעולה", c:"var(--acc)", t:"מהמספר לפעולה", p:"מתחת למשפך יושבים בדיוק שלושת הדברים שעושים איתו: קישור הרשמה, מסע למתעניינים, תזכורת למי ששילם."}
+    ],
+    whatsapp: [
+      {k:"בהירות", c:"var(--ok)", t:"הכלל מוסבר, לא רק מוצג", p:"שני מצבי החלון הפכו לשני כרטיסים מקבילים עם אותם שלושה שדות — מתי, מה מותר, כמה עולה. אותו מבנה בשניהם, כדי שההשוואה תהיה מיידית."},
+      {k:"מכשיר חדש", c:"var(--acc)", t:"טבעת המכסה היומית", p:"‎84 מתוך 250 כטבעת ולא כמספר יבש. כשהיא מתמלאת רואים את זה לפני שהשליחה נעצרת."},
+      {k:"בטיחות", c:"var(--warn)", t:"הבלמים במקום אחד", p:"מתג ההשהיה, שעות השקט והתקרה היומית יושבים יחד. מתג שחוסם שליחה בשקט חייב להיות במקום שרואים אותו."}
+    ],
+    settings: [
+      {k:"סדר", c:"var(--slate)", t:"ארבע לשוניות, לא שבעה דפים", p:"כל מה שנוגעים בו פעם בחודש נמצא כאן. מה שמשתמשים בו יומיומית — זמינות, מצב המספר — נשאר במקום שבו עובדים."},
+      {k:"עקביות", c:"var(--acc)", t:"הצבע נבחר פעם אחת", p:"הסטטוס מקבל את גוונו כאן, וכל המערכת מצייתת. אין מקום שני שבו מגדירים איך ״לקוח״ נראית."},
+      {k:"מצב", c:"var(--warn)", t:"תקלה נראית בשורה", p:"טופס מטא שאיבד הרשאה מסומן בענבר ברשימה עצמה, במקום להיכשל בשקט ולהפסיק להביא לידים."}
+    ],
+    system: [
+      {k:"בסיס", c:"var(--acc)", t:"אסימונים, לא צבעים", p:"אף מסך לא מכיל ערך צבע כתוב. הכול עובר דרך משתנים — ולכן המעבר בין מצב בהיר לכהה הוא החלפה של רשימה אחת."},
+      {k:"ריסון", c:"var(--iris)", t:"מבטא אחד, שש זהויות", p:"ורדיגריס הוא הצבע היחיד שאומר ״זו הפעולה״. שישה גוונים נוספים אומרים ״זה האזור״, ושלושה אומרים ״זה המצב״. הם לא מתערבבים."},
+      {k:"נגישות", c:"var(--ok)", t:"ניגודיות בשני המצבים", p:"כל צמד טקסט‑על‑רקע נבדק בבהיר ובכהה. הגוונים הרכים מכוילים כך שהטקסט עליהם עובר את הסף גם כשהוא קטן."}
+    ]
+  };
+
+  var URLS = {home:"crm.local /",inbox:"crm.local /active",contact:"crm.local /contacts/rotem-segev",contacts:"crm.local /contacts",booking:"crm.local /booking",journey:"crm.local /journeys/mahzor-7",news:"crm.local /newsletter",events:"crm.local /events",whatsapp:"crm.local /whatsapp",settings:"crm.local /settings",system:"crm.local /design"};
+  var CRUMB = {home:["בית"],inbox:["לקוחות","מי שיצר קשר"],contact:["לקוחות","רותם שגב"],contacts:["לקוחות","כל אנשי הקשר"],booking:["פגישות","סוגי פגישות"],journey:["אוטומציה","מתעניינים במחזור 7"],news:["ניוזלטר","הודעה חדשה"],events:["אירועים","כל האירועים"],whatsapp:["מערכת","וואטסאפ"],settings:["מערכת","הגדרות"],system:["מערכת","מערכת העיצוב"]};
+
+  var tabs   = Array.prototype.slice.call(document.querySelectorAll('.sw'));
+  var navs   = Array.prototype.slice.call(document.querySelectorAll('.nav-i'));
+  var subs   = Array.prototype.slice.call(document.querySelectorAll('.sub a'));
+  var notes  = document.getElementById('notes');
+  var crumb  = document.getElementById('crumb');
+  var urlEl  = document.getElementById('url');
+
+  function show(key){
+    document.querySelectorAll('.screen').forEach(function(s){ s.hidden = (s.id !== 's-' + key); });
+    tabs.forEach(function(t){ t.setAttribute('aria-selected', String(t.dataset.s === key)); });
+
+    navs.forEach(function(n){
+      var on = n.dataset.s === key;
+      if (on) { n.setAttribute('aria-current','page'); } else { n.removeAttribute('aria-current'); }
+      var li = n.closest('li');
+      if (li) { li.classList.toggle('open', on && !!li.querySelector('.sub')); }
+    });
+    // בתוך הקבוצה הפתוחה בלבד, והראשונה מבין הלשוניות התואמות
+    subs.forEach(function(a){ a.removeAttribute('aria-current'); });
+    var openList = document.querySelector('li.open .sub');
+    if (openList) {
+      var hit = openList.querySelector('a[data-s="' + key + '"]');
+      if (hit) hit.setAttribute('aria-current','page');
+    }
+
+    var parts = CRUMB[key] || ['בית'];
+    crumb.innerHTML = parts.map(function(p,i){
+      return i === parts.length - 1 ? '<b>' + p + '</b>' : p + ' <span style="opacity:.5">›</span>';
+    }).join(' ');
+    urlEl.textContent = URLS[key] || 'crm.local /';
+
+    notes.innerHTML = (NOTES[key] || []).map(function(n){
+      return '<article class="note" style="--c:' + n.c + '"><span class="note-k">' + n.k +
+             '</span><b>' + n.t + '</b><p>' + n.p + '</p></article>';
+    }).join('');
+
+    // לוח המסע מודד מיקומים אמיתיים ולכן חייב לצייר מחדש ברגע שהוא נראה
+    document.dispatchEvent(new CustomEvent('screenshown', { detail: key }));
+  }
+
+  tabs.forEach(function(t){ t.addEventListener('click', function(){ show(t.dataset.s); }); });
+  navs.concat(subs).forEach(function(a){
+    a.addEventListener('click', function(e){ e.preventDefault(); show(a.dataset.s); });
+  });
+
+  // ניווט בחצים בין המסכים, כמו ב-tablist אמיתי
+  document.querySelector('.switch').addEventListener('keydown', function(e){
+    var i = tabs.indexOf(document.activeElement);
+    if (i < 0) return;
+    var next = e.key === 'ArrowLeft' ? i + 1 : e.key === 'ArrowRight' ? i - 1 : -1;
+    if (next < 0 || next >= tabs.length) return;
+    e.preventDefault();
+    tabs[next].focus();
+    show(tabs[next].dataset.s);
+  });
+
+  // לשוניות דמו בתוך המסכים
+  document.querySelectorAll('.reply-tabs, .tabs').forEach(function(group){
+    group.addEventListener('click', function(e){
+      var b = e.target.closest('[role="tab"]');
+      if (!b) return;
+      group.querySelectorAll('[role="tab"]').forEach(function(x){ x.setAttribute('aria-selected', String(x === b)); });
+    });
+  });
+  document.querySelectorAll('.filters').forEach(function(group){
+    group.addEventListener('click', function(e){
+      var b = e.target.closest('.chip');
+      if (!b) return;
+      group.querySelectorAll('.chip').forEach(function(x){ x.setAttribute('aria-pressed', String(x === b)); });
+    });
+  });
+
+  show('home');
+})();
+</script>
+
+<script>
+/* ══ לוח המסע ══════════════════════════════════════════════════════
+   כרטיסיות נגררות על קנבס, וחוטים נמשכים מנמל היציאה (שמאל) אל
+   כרטיסייה אחרת. הזרימה מימין לשמאל — כיוון הקריאה בעברית — ולכן
+   נמל היציאה בשמאל הכרטיס והכניסה בימין.
+   ══════════════════════════════════════════════════════════════════ */
+(function(){
+  var board = document.getElementById('jBoard');
+  if (!board) return;
+  var inner = document.getElementById('jInner');
+  var wireG = document.getElementById('jWireG');
+  var live  = document.getElementById('jLive');
+  var CANVAS_W = 1120, CANVAS_H = 500, CONTENT_R = 1000, GRID = 10, SEQ = 5;
+
+  var links = [
+    {f:'n0', p:'out', t:'n1'},
+    {f:'n1', p:'out', t:'n2'},
+    {f:'n2', p:'yes', t:'n3'},
+    {f:'n2', p:'no',  t:'n4'}
+  ];
+  var HOME = {};
+  Array.prototype.forEach.call(inner.querySelectorAll('.node'), function(n){
+    HOME[n.dataset.id] = { x: parseFloat(n.style.left), y: parseFloat(n.style.top) };
+  });
+  var HOME_LINKS = links.map(function(l){ return {f:l.f, p:l.p, t:l.t}; });
+
+  var pan = { x: 0, y: 0 };
+
+  function node(id){ return inner.querySelector('.node[data-id="' + id + '"]'); }
+
+  /* מרכז נמל, בקואורדינטות הקנבס */
+  function portAt(id, name){
+    var n = node(id); if (!n) return null;
+    var p = n.querySelector('.port[data-port="' + name + '"]');
+    if (!p) return null;
+    return {
+      x: n.offsetLeft + p.offsetLeft + p.offsetWidth / 2,
+      y: n.offsetTop + p.offsetTop + p.offsetHeight / 2
+    };
+  }
+
+  /* עקומה שנעה שמאלה: נקודות הבקרה נשענות על המרחק האופקי, כך שחוט
+     כמעט-אנכי לא מתקפל על עצמו. */
+  /* חצי מהמרווח האופקי לכל היותר — מעבר לזה נקודות הבקרה מצטלבות
+     והחוט מתקפל על עצמו במקום לזרום שמאלה. */
+  function curveDepth(sx, tx){
+    return Math.max(24, Math.min(Math.abs(sx - tx) * 0.5, 90));
+  }
+  function curve(sx, sy, tx, ty){
+    var d = curveDepth(sx, tx);
+    return 'M ' + sx + ' ' + sy + ' C ' + (sx - d) + ' ' + sy + ', ' + (tx + d) + ' ' + ty + ', ' + tx + ' ' + ty;
+  }
+  function midOf(sx, sy, tx, ty){
+    var d = curveDepth(sx, tx);
+    return {
+      x: (sx + 3 * (sx - d) + 3 * (tx + d) + tx) / 8,
+      y: (sy + 3 * sy + 3 * ty + ty) / 8
+    };
+  }
+
+  function draw(){
+    var out = '';
+    links.forEach(function(l, i){
+      var s = portAt(l.f, l.p), t = portAt(l.t, 'in');
+      if (!s || !t) return;
+      var d = curve(s.x, s.y, t.x, t.y), m = midOf(s.x, s.y, t.x, t.y);
+      out += '<g class="wireg" data-i="' + i + '">' +
+               '<path class="wire-hit" d="' + d + '"></path>' +
+               '<path class="wire" d="' + d + '" marker-end="url(#jArrow)"></path>' +
+               '<g class="wire-x" transform="translate(' + m.x + ',' + m.y + ')" role="button" tabindex="0" aria-label="ניתוק החיבור">' +
+                 '<circle r="8"></circle>' +
+                 '<path d="M-3.2 -3.2 L3.2 3.2 M3.2 -3.2 L-3.2 3.2" fill="none"></path>' +
+               '</g>' +
+             '</g>';
+    });
+    // בנייה דרך DOMParser ולא innerHTML: SVG שנכתב כמחרוזת חייב להיווצר
+    // במרחב השמות הנכון, אחרת הצורות נוצרות אבל לא מצוירות.
+    var doc = new DOMParser().parseFromString(
+      '<svg xmlns="http://www.w3.org/2000/svg">' + out + '</svg>', 'image/svg+xml');
+    while (wireG.firstChild) wireG.removeChild(wireG.firstChild);
+    Array.prototype.forEach.call(doc.documentElement.childNodes, function(k){
+      wireG.appendChild(document.importNode(k, true));
+    });
+  }
+
+  function applyPan(){
+    var maxX = 0, minX = Math.min(0, board.clientWidth - CANVAS_W);
+    var maxY = 0, minY = Math.min(0, board.clientHeight - CANVAS_H);
+    pan.x = Math.max(minX, Math.min(maxX, pan.x));
+    pan.y = Math.max(minY, Math.min(maxY, pan.y));
+    inner.style.setProperty('--px', pan.x + 'px');
+    inner.style.setProperty('--py', pan.y + 'px');
+  }
+
+  /* ── גרירת כרטיסייה ─────────────────────────────────────────── */
+  var drag = null, wire = null, panning = null;
+
+  inner.addEventListener('pointerdown', function(e){
+    var port = e.target.closest('.port.out, .port.br');
+    if (port){
+      e.preventDefault(); e.stopPropagation();
+      var host = port.closest('.node');
+      wire = { from: host.dataset.id, port: port.dataset.port, el: port };
+      port.classList.add('hot');
+      live.style.display = '';
+      inner.setPointerCapture(e.pointerId);
+      return;
+    }
+    var n = e.target.closest('.node');
+    if (n){
+      e.preventDefault();
+      drag = { el: n, px: e.clientX, py: e.clientY, ox: parseFloat(n.style.left), oy: parseFloat(n.style.top) };
+      n.classList.add('dragging');
+      n.focus({ preventScroll: true });
+      inner.setPointerCapture(e.pointerId);
+    }
+  });
+
+  board.addEventListener('pointerdown', function(e){
+    if (e.target.closest('.node') || e.target.closest('.wireg')) return;
+    panning = { px: e.clientX, py: e.clientY, ox: pan.x, oy: pan.y };
+    board.classList.add('panning');
+    board.setPointerCapture(e.pointerId);
+  });
+
+  window.addEventListener('pointermove', function(e){
+    if (drag){
+      var w = drag.el.offsetWidth, h = drag.el.offsetHeight;
+      var x = Math.max(0, Math.min(CANVAS_W - w, drag.ox + (e.clientX - drag.px)));
+      var y = Math.max(0, Math.min(CANVAS_H - h, drag.oy + (e.clientY - drag.py)));
+      drag.el.style.left = x + 'px';
+      drag.el.style.top  = y + 'px';
+      draw();
+      return;
+    }
+    if (wire){
+      var r = inner.getBoundingClientRect();
+      var s = portAt(wire.from, wire.port);
+      live.setAttribute('d', curve(s.x, s.y, e.clientX - r.left, e.clientY - r.top));
+      var over = document.elementFromPoint(e.clientX, e.clientY);
+      var hit = over && over.closest ? over.closest('.node') : null;
+      Array.prototype.forEach.call(inner.querySelectorAll('.node'), function(n){
+        n.classList.toggle('target', n === hit && hit.dataset.id !== wire.from);
+      });
+      return;
+    }
+    if (panning){
+      pan.x = panning.ox + (e.clientX - panning.px);
+      pan.y = panning.oy + (e.clientY - panning.py);
+      applyPan();
+    }
+  });
+
+  window.addEventListener('pointerup', function(e){
+    if (drag){
+      // הצמדה לרשת בשחרור — הלוח נשאר מסודר בלי לכוון פיקסלים
+      drag.el.style.left = Math.round(parseFloat(drag.el.style.left) / GRID) * GRID + 'px';
+      drag.el.style.top  = Math.round(parseFloat(drag.el.style.top) / GRID) * GRID + 'px';
+      drag.el.classList.remove('dragging');
+      drag = null; draw();
+    }
+    if (wire){
+      var over = document.elementFromPoint(e.clientX, e.clientY);
+      var hit = over && over.closest ? over.closest('.node') : null;
+      if (hit && hit.dataset.id !== wire.from && hit.querySelector('.port.in')){
+        var dup = links.some(function(l){ return l.f === wire.from && l.p === wire.port && l.t === hit.dataset.id; });
+        // נמל יציאה מחזיק חיבור אחד — חיבור חדש מחליף את הקודם
+        if (!dup){
+          links = links.filter(function(l){ return !(l.f === wire.from && l.p === wire.port); });
+          links.push({ f: wire.from, p: wire.port, t: hit.dataset.id });
+        }
+      }
+      wire.el.classList.remove('hot');
+      live.style.display = 'none';
+      Array.prototype.forEach.call(inner.querySelectorAll('.node'), function(n){ n.classList.remove('target'); });
+      wire = null; draw();
+    }
+    if (panning){ panning = null; board.classList.remove('panning'); }
+  });
+
+  /* ── ניתוק חיבור ────────────────────────────────────────────── */
+  function cut(g){
+    var i = parseInt(g.closest('.wireg').dataset.i, 10);
+    links.splice(i, 1);
+    draw();
+  }
+  wireG.addEventListener('click', function(e){
+    var x = e.target.closest('.wire-x');
+    if (x) cut(x);
+  });
+  wireG.addEventListener('keydown', function(e){
+    var x = e.target.closest('.wire-x');
+    if (x && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); cut(x); }
+  });
+
+  /* ── מקלדת: הזזת כרטיסייה בחצים ─────────────────────────────── */
+  inner.addEventListener('keydown', function(e){
+    var n = e.target.closest('.node');
+    if (!n) return;
+    var step = e.shiftKey ? 1 : GRID;
+    var dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
+    var dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
+    if (!dx && !dy) return;
+    e.preventDefault();
+    n.style.left = Math.max(0, Math.min(CANVAS_W - n.offsetWidth, parseFloat(n.style.left) + dx)) + 'px';
+    n.style.top  = Math.max(0, Math.min(CANVAS_H - n.offsetHeight, parseFloat(n.style.top) + dy)) + 'px';
+    draw();
+  });
+
+  /* ── כלים ───────────────────────────────────────────────────── */
+  document.getElementById('jTidy').addEventListener('click', function(){
+    Array.prototype.forEach.call(inner.querySelectorAll('.node'), function(n){
+      var h = HOME[n.dataset.id];
+      if (h){ n.style.left = h.x + 'px'; n.style.top = h.y + 'px'; }
+      else { n.remove(); }
+    });
+    links = HOME_LINKS.map(function(l){ return {f:l.f, p:l.p, t:l.t}; });
+    pan.x = Math.min(0, board.clientWidth - CONTENT_R); pan.y = 0;
+    applyPan(); draw();
+  });
+
+  document.getElementById('jAdd').addEventListener('click', function(){
+    var id = 'n' + (SEQ++);
+    var el = document.createElement('article');
+    el.className = 'node';
+    el.dataset.id = id;
+    el.tabIndex = 0;
+    el.setAttribute('aria-label', 'שלב חדש');
+    el.style.left = Math.round((-pan.x + 40) / GRID) * GRID + 'px';
+    el.style.top  = Math.round((-pan.y + 40) / GRID) * GRID + 'px';
+    el.innerHTML =
+      '<div class="node-h"><span class="node-ic" style="--c:var(--iris);--t:var(--iris-t)">' +
+        '<svg width="13" height="13" viewBox="0 0 24 24"><use href="#i-chat"/></svg></span>' +
+        '<b>שלב חדש</b></div>' +
+      '<p class="node-msg">כתבו כאן את ההודעה שתצא בשלב הזה.</p>' +
+      '<div class="node-f"><span class="timing">ללא תזמון</span></div>' +
+      '<span class="port in" data-port="in"></span>' +
+      '<button class="port out" data-port="out" aria-label="חיבור יוצא"></button>';
+    inner.appendChild(el);
+    el.focus({ preventScroll: true });
+    draw();
+  });
+
+  /* המסך מוסתר בטעינה, ומידות אמיתיות קיימות רק כשהוא נראה */
+  document.addEventListener('screenshown', function(e){
+    if (e.detail !== 'journey') return;
+    if (!board.dataset.ready){
+      board.dataset.ready = '1';
+      pan.x = Math.min(0, board.clientWidth - CONTENT_R);
+      applyPan();
+    }
+    draw();
+  });
+  window.addEventListener('resize', function(){ applyPan(); draw(); });
+})();
+</script>
