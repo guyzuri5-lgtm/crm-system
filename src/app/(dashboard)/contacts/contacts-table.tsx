@@ -35,6 +35,8 @@ type BulkResult = { ok: true; affected: number } | { ok: false; error: string };
 export function ContactsTable({
   columns,
   rows,
+  total,
+  offset,
   statusOptions,
   onSetStatus,
   onBulkDelete,
@@ -43,6 +45,10 @@ export function ContactsTable({
 }: {
   columns: TableColumn[];
   rows: TableRow[];
+  /** כמה רשומות תואמות את הסינון בסך הכול — לא כמה יש בעמוד הזה. */
+  total: number;
+  /** כמה רשומות קדמו לעמוד הזה, כדי לנסח "מציג 101–200". */
+  offset: number;
   statusOptions: StatusOption[];
   onSetStatus: (contactId: string, status: string) => Promise<SetStatusResult>;
   onBulkDelete: (ids: string[]) => Promise<BulkResult>;
@@ -291,8 +297,16 @@ export function ContactsTable({
         </div>
 
         <div className="tbl-foot">
+          {/*
+            הסך הכול הוא של הסינון ולא של העמוד. "100 רשומות" על עמוד ראשון
+            מתוך שמונה הוא מספר שקרי — מי שקורא אותו חושב שאלה כל אנשי הקשר.
+          */}
           <span>
-            {rows.length === 1 ? "רשומה אחת" : `${rows.length.toLocaleString("he-IL")} רשומות`}
+            {total > rows.length
+              ? `מציג ${(offset + 1).toLocaleString("he-IL")}–${(offset + rows.length).toLocaleString("he-IL")} מתוך ${total.toLocaleString("he-IL")}`
+              : total === 1
+                ? "רשומה אחת"
+                : `${total.toLocaleString("he-IL")} רשומות`}
             {someSelected && ` · ${selected.size} מסומנות`}
           </span>
           <span className="flex-1" />

@@ -14,6 +14,19 @@ import {
 } from "./actions";
 import { ImportForm } from "./import-form";
 
+/**
+ * כמה שורות בעמוד.
+ *
+ * עד עכשיו לא היה עימוד כלל, והעמוד רינדר את *כל* אנשי הקשר בבת אחת. ב-724
+ * רשומות זה כבר 1.2 מגה-בייט של HTML ו-14,533 אלמנטים בעמוד אחד, וזה גדל
+ * ליניארית בלי גבול — כל ייבוא אקסל מוסיף לזה. מאה שורות הן יותר ממה שמישהו
+ * סורק בעין, ומשאירות את הדף מהיר גם אחרי שהרשימה תוכפל.
+ *
+ * הסינון והחיפוש רצים במסד ולא על העמוד הנוכחי, ולכן חיפוש עדיין מוצא אדם
+ * שיושב ברשומה ה-700.
+ */
+const PAGE_SIZE = 100;
+
 export default async function ContactsPage(props: PageProps<"/contacts">) {
   await verifyTeamMember();
 
@@ -26,10 +39,18 @@ export default async function ContactsPage(props: PageProps<"/contacts">) {
   const status = typeof statusParam === "string" && statusNames.has(statusParam) ? statusParam : "";
   const q = typeof qParam === "string" ? qParam : "";
 
+  // עמוד לא תקין (אות, מספר שלילי, אפס) נופל ל-1 ולא למסך שגיאה — זו כתובת
+  // שמישהו עלול לערוך ביד או לשמור במועדפים.
+  const pageParam = searchParams.page;
+  const parsedPage = Number(typeof pageParam === "string" ? pageParam : 1);
+  const page = Number.isFinite(parsedPage) && parsedPage >= 1 ? Math.floor(parsedPage) : 1;
+  const offset = (page - 1) * PAGE_SIZE;
+
   let query = supabaseAdmin()
     .from("contacts")
-    .select("*")
-    .order("created_at", { ascending: false });
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .range(offset, offset + PAGE_SIZE - 1);
 
   if (status) query = query.eq("status", status);
   if (q) {
@@ -39,7 +60,25 @@ export default async function ContactsPage(props: PageProps<"/contacts">) {
     );
   }
 
-  const { data: contacts, error } = await query;
+  const { data: contacts, error, count } = await query;
+
+  const total = count ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  /**
+   * כתובת לעמוד אחר, עם החיפוש והסינון הנוכחיים.
+   *
+   * טופס הסינון שולח רק q ו-status, ולכן חיפוש חדש מאפס את העמוד מעצמו — וזה
+   * הנכון: אחרי סינון, "עמוד 4" של הרשימה הקודמת כבר לא אומר כלום.
+   */
+  const pageHref = (target: number) => {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (status) params.set("status", status);
+    if (target > 1) params.set("page", String(target));
+    const qs = params.toString();
+    return qs ? `/contacts?${qs}` : "/contacts";
+  };
 
   // האפשרויות ל-StatusPicker נשלחות פעם אחת מהשרת ומשותפות לכל השורות, במקום
   // שכל שורה תשלוף אותן בעצמה.
@@ -178,12 +217,47 @@ export default async function ContactsPage(props: PageProps<"/contacts">) {
       <ContactsTable
         columns={columns.map((f) => ({ key: f.key, label: f.label, type: f.input_type }))}
         rows={rows}
+        total={total}
+        offset={offset}
         statusOptions={pickerOptions}
         onSetStatus={setContactStatusAction}
         onBulkDelete={bulkDeleteContactsAction}
         onBulkSetStatus={bulkSetStatusAction}
         onBulkAddTag={bulkAddTagAction}
       />
+
+      {/*
+        העימוד מוצג רק כשיש יותר מעמוד אחד. קישורים ולא כפתורים: זו ניווט,
+        והוא צריך לעבוד עם פתיחה בלשונית חדשה, עם כפתור "אחורה" ועם שמירה
+        במועדפים — שלושת אלה נשברים בכפתור שמריץ JavaScript.
+      */}
+      {pageCount > 1 && (
+        <nav className="flex items-center justify-center gap-2 text-sm" aria-label="עימוד">
+          {page > 1 ? (
+            <Link href={pageHref(page - 1)} className="btn-secondary" rel="prev">
+              הקודם
+            </Link>
+          ) : (
+            <span className="btn-secondary pointer-events-none opacity-40" aria-hidden="true">
+              הקודם
+            </span>
+          )}
+
+          <span className="px-2 text-[var(--muted)]">
+            עמוד {page.toLocaleString("he-IL")} מתוך {pageCount.toLocaleString("he-IL")}
+          </span>
+
+          {page < pageCount ? (
+            <Link href={pageHref(page + 1)} className="btn-secondary" rel="next">
+              הבא
+            </Link>
+          ) : (
+            <span className="btn-secondary pointer-events-none opacity-40" aria-hidden="true">
+              הבא
+            </span>
+          )}
+        </nav>
+      )}
     </div>
   );
 }
