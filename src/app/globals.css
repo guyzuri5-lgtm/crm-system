@@ -319,8 +319,12 @@ body {
   .card-h {
     @apply flex items-center gap-2.5 px-4 pt-3.5 pb-3;
   }
+  /* card-title לכותרת כרטיס שעומדת לבדה, card-h h2 לכותרת בתוך פס כותרת —
+     אותה טיפוגרפיה בשתיהן. בלי זה חלק מהכרטיסים נשמעים חזק מהאחרים בלי
+     סיבה: 16px/500 מול 14px/600. */
   .card-h h2,
-  .card-h h3 {
+  .card-h h3,
+  .card-title {
     @apply text-sm font-semibold;
   }
   .card-b {
@@ -623,4 +627,36 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ── לוח המסע ──────────────────────────────────────────────────────────── */
+/* ה-× לניתוק מופיע רק בריחוף על החץ. גלוי תמיד הוא רעש על לוח עם עשרה
+   חצים; נסתר לגמרי לא מתגלה לעולם. focus-visible מחזיר אותו למקלדת. */
+.wire-x {
+  opacity: 0;
+  transition: opacity 0.14s ease-out;
+}
+.wire:hover .wire-x,
+.wire-x:focus-visible {
+  opacity: 1;
+}
+.wire-x:hover circle {
+  stroke: var(--danger);
+}
+.wire-x:hover path {
+  stroke: var(--danger);
+}
+
+/* תווית התזמון על כרטיסיית מסע. */
+.timing-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 100px;
+  padding: 1px 8px;
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--muted);
+  background-color: color-mix(in srgb, var(--surface) 70%, transparent);
 }

@@ -139,7 +139,7 @@ export default async function WhatsAppPage() {
 
       {/* ── בלמים ───────────────────────────────────────────────────── */}
       <section className="card">
-        <h2 className="font-medium">בלמים על השליחה האוטומטית</h2>
+        <h2 className="card-title">בלמים על השליחה האוטומטית</h2>
         <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">
           {settings.paused ? (
             <>
@@ -162,7 +162,7 @@ export default async function WhatsAppPage() {
 
       {/* ── חלון 24 השעות ───────────────────────────────────────────── */}
       <section className="card">
-        <h2 className="font-medium">חלון 24 השעות — מה מותר לשלוח למי</h2>
+        <h2 className="card-title">חלון 24 השעות — מה מותר לשלוח למי</h2>
         <p className="mt-2 text-sm leading-relaxed text-[var(--muted)]">
           זה הכלל היחיד שקובע הכול. בכל רגע, כל איש קשר נמצא באחד משני מצבים:
         </p>

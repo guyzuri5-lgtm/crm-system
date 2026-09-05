@@ -148,7 +148,7 @@ export function NewsletterEditor({
       <div className="flex flex-col gap-4">
       {/* ── קהל ─────────────────────────────────────────────────────── */}
       <section className="card flex flex-col gap-3">
-        <h2 className="font-medium">למי שולחים</h2>
+        <h2 className="card-title">למי שולחים</h2>
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
@@ -206,7 +206,7 @@ export function NewsletterEditor({
       {/* ── תוכן ────────────────────────────────────────────────────── */}
       <section className="card flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-medium">התוכן</h2>
+          <h2 className="card-title">התוכן</h2>
           <div className="flex flex-wrap gap-1">
             {(["text", "image", "youtube"] as const).map((type) => (
               <button

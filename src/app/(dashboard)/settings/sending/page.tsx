@@ -18,7 +18,7 @@ export default async function SendingSettingsPage() {
 
   return (
     <section className="card">
-      <h2 className="font-medium">בלמים על השליחה האוטומטית</h2>
+      <h2 className="card-title">בלמים על השליחה האוטומטית</h2>
 
       {degraded && (
         <p className="mt-3 rounded-lg bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger)]">

@@ -123,7 +123,7 @@ export default async function AvailabilityCalendarPage({
         {/* ── לוח החודש ─────────────────────────────────────────────── */}
         <section className="card">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-medium">{monthLabel(cursorYear, cursorMonth)}</h2>
+            <h2 className="card-title">{monthLabel(cursorYear, cursorMonth)}</h2>
             <div className="flex gap-1">
               <Link href={monthHref(prevMonth)} className="btn-ghost px-2" aria-label="חודש קודם">
                 →
@@ -214,7 +214,7 @@ export default async function AvailabilityCalendarPage({
             <p className="text-sm text-[var(--muted)]">בחרו יום מהלוח כדי לערוך אותו.</p>
           ) : (
             <>
-              <h2 className="font-medium">
+              <h2 className="card-title">
                 {new Intl.DateTimeFormat("he-IL", {
                   weekday: "long",
                   day: "numeric",
@@ -306,7 +306,7 @@ export default async function AvailabilityCalendarPage({
 
       {/* ── ברירת המחדל השבועית ───────────────────────────────────── */}
       <section className="card">
-        <h2 className="font-medium">שעות שבועיות קבועות</h2>
+        <h2 className="card-title">שעות שבועיות קבועות</h2>
         <p className="mt-1 mb-4 text-sm text-[var(--muted)]">
           ברירת המחדל שחלה על כל יום שלא הוגדר לו משהו אחר ביומן למעלה.
         </p>

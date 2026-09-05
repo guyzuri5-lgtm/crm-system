@@ -48,7 +48,7 @@ export function EventReminders({
   return (
     <div className="card flex flex-col gap-4">
       <div>
-        <h2 className="font-medium">תזכורות בוואטסאפ</h2>
+        <h2 className="card-title">תזכורות בוואטסאפ</h2>
         <p className="mt-1 text-sm text-[var(--muted)]">
           יוצאות רק למי ששילמה. הטקסט הוא של התבנית המאושרת — כאן בוחרים איזו, ומתי.
         </p>

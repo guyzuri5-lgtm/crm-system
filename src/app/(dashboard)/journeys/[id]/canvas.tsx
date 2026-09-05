@@ -95,7 +95,9 @@ export function JourneyCanvas({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // מיקום של כרטיסיית טיוטה: מופיעה מיד על המשטח, נשמרת למסד רק ב"הוסף".
   const [draft, setDraft] = useState<{ x: number; y: number } | null>(null);
-  const [, startTransition] = useTransition();
+  // הדגל נדרש לכפתור הסידור האוטומטי: הוא שומר עשרה מיקומים ברצף, ולחיצה
+  // שנייה באמצע הייתה מייצרת שתי סדרות כתיבה מתחרות.
+  const [pending, startTransition] = useTransition();
 
   // נקודת ההתחלה של הגרירה, כדי להבחין בין לחיצה לגרירה. בלי הסף הזה כל
   // ניסיון להזיז כרטיסייה היה גם פותח את הפאנל, וכל לחיצה הייתה נחשבת גרירה
@@ -177,6 +179,71 @@ export function JourneyCanvas({
     });
   }
 
+  /** ניתוק חיבור מה-× שעל החץ. אותה פעולה שהפאנל הצדדי מריץ, בלחיצה אחת. */
+  function cutEdge(id: string) {
+    startTransition(async () => {
+      const data = new FormData();
+      data.set("id", id);
+      data.set("journey_id", journeyId);
+      await deleteEdgeAction(data);
+    });
+  }
+
+  /**
+   * סידור אוטומטי: מחזיר את הלוח לפריסה שממנה קל להתחיל.
+   *
+   * הזרימה בעברית היא מימין לשמאל, ולכן כל דור מתרחק שמאלה מהכניסה. הסדר
+   * נגזר מהגרף עצמו — מרחק בקפיצות מהכניסה — ולא מסדר היצירה במסד, שאין לו
+   * שום קשר למבנה. צומת מנותק נופל לשורה אחרונה משלו, כדי שיהיה גלוי ולא
+   * ייערם על אחרים.
+   */
+  function autoLayout() {
+    const GAP_X = CARD_W + 70;
+    const GAP_Y = CARD_H + 34;
+
+    // מרחק מהכניסה, ברוחב תחילה.
+    const depth = new Map<string, number>();
+    let frontier = [ENTRY_ID];
+    let level = 0;
+    const seen = new Set<string>([ENTRY_ID]);
+    while (frontier.length && level < 40) {
+      const next: string[] = [];
+      for (const id of frontier) {
+        for (const e of edges) {
+          if ((e.fromId ?? ENTRY_ID) !== id || seen.has(e.toId)) continue;
+          seen.add(e.toId);
+          depth.set(e.toId, level + 1);
+          next.push(e.toId);
+        }
+      }
+      frontier = next;
+      level += 1;
+    }
+
+    const orphanLevel = level + 1;
+    const rows = new Map<number, number>();
+    const next: Record<string, { x: number; y: number }> = {};
+
+    for (const node of nodes) {
+      const d = depth.get(node.id) ?? orphanLevel;
+      const row = rows.get(d) ?? 0;
+      rows.set(d, row + 1);
+      next[node.id] = { x: entryPos.x + d * GAP_X, y: entryPos.y + row * GAP_Y };
+    }
+
+    setPositions(next);
+    startTransition(async () => {
+      for (const [id, p] of Object.entries(next)) {
+        const data = new FormData();
+        data.set("id", id);
+        data.set("journey_id", journeyId);
+        data.set("pos_x", String(p.x));
+        data.set("pos_y", String(p.y));
+        await moveNodeAction(data);
+      }
+    });
+  }
+
   function connectTo(targetId: string) {
     if (!connectFrom || connectFrom === targetId) {
       setConnectFrom(null);
@@ -234,6 +301,14 @@ export function JourneyCanvas({
   return (
     <div className="flex flex-col gap-3">
       <div>
+        <button
+          onClick={autoLayout}
+          disabled={pending || !nodes.length}
+          className="btn-secondary text-sm"
+          title="מחזיר את הכרטיסיות לפריסה לפי סדר הזרימה"
+        >
+          סידור אוטומטי
+        </button>
         <button onClick={() => openDraft(freeSpot())} className="btn-primary text-sm">
           + כרטיסייה חדשה
         </button>
@@ -285,7 +360,15 @@ export function JourneyCanvas({
             if (!a || !b) return null;
             const conditional = edge.condition !== "always";
             return (
-              <g key={edge.id}>
+              <g key={edge.id} className="wire pointer-events-auto">
+                {/* פס שקוף ורחב: קו של 1.8 פיקסלים כמעט בלתי אפשרי לרחף מעליו. */}
+                <path
+                  d={curve(a.x, a.y, b.x, b.y)}
+                  fill="none"
+                  stroke="transparent"
+                  strokeWidth={18}
+                  className="cursor-pointer"
+                />
                 <path
                   d={curve(a.x, a.y, b.x, b.y)}
                   fill="none"
@@ -293,7 +376,34 @@ export function JourneyCanvas({
                   strokeWidth={1.8}
                   strokeDasharray={conditional ? "5 4" : undefined}
                   markerEnd={conditional ? "url(#ah-c)" : "url(#ah)"}
+                  className="pointer-events-none"
                 />
+
+                {/* × לניתוק, על אמצע החץ. עד עכשיו ניתוק דרש לבחור כרטיסייה
+                    ולמצוא את החץ ברשימה בפאנל — שלוש פעולות במקום אחת. */}
+                <g
+                  className="wire-x cursor-pointer"
+                  role="button"
+                  tabIndex={0}
+                  aria-label="ניתוק החיבור"
+                  transform={`translate(${(a.x + b.x) / 2}, ${(a.y + b.y) / 2})`}
+                  onClick={() => cutEdge(edge.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      cutEdge(edge.id);
+                    }
+                  }}
+                >
+                  <circle r={9} fill="var(--surface)" stroke="var(--border-strong)" />
+                  <path
+                    d="M-3.2 -3.2 L3.2 3.2 M3.2 -3.2 L-3.2 3.2"
+                    stroke="var(--muted)"
+                    strokeWidth={1.8}
+                    strokeLinecap="round"
+                    fill="none"
+                  />
+                </g>
                 {conditional && (
                   <text
                     x={(a.x + b.x) / 2}
@@ -350,12 +460,25 @@ export function JourneyCanvas({
                   : "border-[var(--ok)]/40 bg-[var(--ok-soft)]"
               }`}
             >
-              <p className="text-[10px] text-[var(--subtle)]">
-                {timingLabel(node)}
-                {" · "}
-                {node.channel === "email" ? "מייל" : "וואטסאפ"}
-              </p>
-              <p className="mt-0.5 line-clamp-2 text-sm leading-snug font-medium break-words">
+              {/* ריבוע הערוץ פותח את הכרטיסייה: בלוח של עשר כרטיסיות, "מייל
+                  או וואטסאפ" נקרא מצורה וצבע מהר יותר מאשר ממילה. */}
+              <div className="flex items-center gap-2">
+                <span
+                  className="glyph size-[22px] rounded-[7px]"
+                  style={
+                    {
+                      "--glyph-color":
+                        node.channel === "email" ? "var(--nav-blue)" : "var(--ok)",
+                      "--glyph-bg": "color-mix(in srgb, var(--surface) 65%, transparent)",
+                    } as CSSProperties
+                  }
+                  title={node.channel === "email" ? "מייל" : "וואטסאפ"}
+                >
+                  <ChannelIcon channel={node.channel} />
+                </span>
+                <span className="timing-chip">{timingLabel(node)}</span>
+              </div>
+              <p className="mt-1.5 line-clamp-2 text-sm leading-snug font-medium break-words">
                 {node.label || node.templateName}
               </p>
 
@@ -400,7 +523,7 @@ export function JourneyCanvas({
       {draft && (
         <div className="rounded-2xl border-2 border-dashed border-[var(--primary)] bg-[var(--surface)] p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <h3 className="font-medium">כרטיסייה חדשה</h3>
+            <h3 className="card-title">כרטיסייה חדשה</h3>
             <button
               onClick={() => setDraft(null)}
               className="text-sm text-[var(--muted)] hover:underline"
@@ -425,7 +548,7 @@ export function JourneyCanvas({
       {selected && (
         <div className="rounded-2xl border-2 border-[var(--primary)] bg-[var(--surface)] p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <h3 className="font-medium">{selected.label || selected.templateName}</h3>
+            <h3 className="card-title">{selected.label || selected.templateName}</h3>
             <button
               onClick={() => setSelectedId(null)}
               className="text-sm text-[var(--muted)] hover:underline"
@@ -617,4 +740,30 @@ function curve(sx: number, sy: number, tx: number, ty: number): string {
   const depth = Math.max(24, Math.min(Math.abs(dx) * 0.5, 90));
   const dir = Math.sign(dx) || 1;
   return `M ${sx} ${sy} C ${sx + dir * depth} ${sy}, ${tx - dir * depth} ${ty}, ${tx} ${ty}`;
+}
+
+/** אייקון הערוץ בריבוע שעל הכרטיסייה. */
+function ChannelIcon({ channel }: { channel: string }) {
+  return (
+    <svg
+      width={12}
+      height={12}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {channel === "email" ? (
+        <>
+          <rect x="2" y="4.5" width="20" height="15" rx="2" />
+          <path d="m22 7-9 5.7a2 2 0 0 1-2 0L2 7" />
+        </>
+      ) : (
+        <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.2A8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4z" />
+      )}
+    </svg>
+  );
 }

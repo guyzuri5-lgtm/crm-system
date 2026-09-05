@@ -210,7 +210,7 @@ function PendingInbox({ rows }: { rows: Awaited<ReturnType<typeof listPending>> 
   if (rows.length === 0) {
     return (
       <section className="border-t border-[var(--border)] pt-6">
-        <h2 className="font-medium">תיבת ה-webhooks</h2>
+        <h2 className="card-title">תיבת ה-webhooks</h2>
         <p className="mt-1 text-sm text-[var(--muted)]">
           אין כרגע לידים או תשלומים שממתינים לטיפול.
         </p>

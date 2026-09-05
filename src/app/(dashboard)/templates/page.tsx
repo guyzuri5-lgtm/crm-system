@@ -130,7 +130,7 @@ export default async function TemplatesPage({
 
       {canManage && (
         <section className="card">
-          <h2 className="font-medium">תבנית חדשה ב-Meta</h2>
+          <h2 className="card-title">תבנית חדשה ב-Meta</h2>
           <p className="mt-1 mb-4 text-sm leading-relaxed text-[var(--muted)]">
             יוצר את התבנית אצל Meta ורושם אותה כאן, בפעולה אחת. כותבים את הנוסח פעם
             אחת עם המציינים הרגילים — Meta מקבלת את הגרסה הממוספרת שלה אוטומטית,
@@ -211,7 +211,7 @@ export default async function TemplatesPage({
       )}
 
       <section className="card">
-        <h2 className="font-medium">תבנית מייל חדשה</h2>
+        <h2 className="card-title">תבנית מייל חדשה</h2>
         <p className="mt-1 mb-4 text-sm leading-relaxed text-[var(--muted)]">
           נוסח שמור למייל — לשימוש במסעות, בכללי אוטומציה ובשליחה מכרטיס איש קשר.
           לוואטסאפ אין כאן תבנית בכוונה: בתוך חלון 24 השעות כותבים לו ישירות בכרטיס

@@ -26,7 +26,7 @@ export default async function BookingSettingsPage() {
     <div className="flex flex-col gap-6">
       {/* ── חסימות ידניות ─────────────────────────────────────────── */}
       <section className="card">
-        <h2 className="font-medium">חסימות ידניות</h2>
+        <h2 className="card-title">חסימות ידניות</h2>
         <p className="mt-1 mb-4 text-sm text-[var(--muted)]">
           חלונות שבהם לא תהיה זמינות, גם אם הם בתוך שעות העבודה — חופשה, נסיעה,
           יום שכולו עמוס.
@@ -88,7 +88,7 @@ export default async function BookingSettingsPage() {
 
       {/* ── כרטיס המארח בדף ההזמנה ────────────────────────────────── */}
       <section className="card">
-        <h2 className="font-medium">התמונה שלך בדף ההזמנה</h2>
+        <h2 className="card-title">התמונה שלך בדף ההזמנה</h2>
         <p className="mt-1 mb-4 text-sm text-[var(--muted)]">
           מוצגת ללקוח בראש דף קביעת הפגישה, יחד עם השם והתפקיד שמולאו למטה.
           בלי תמונה הדף נראה בדיוק כפי שנראה עד היום.
