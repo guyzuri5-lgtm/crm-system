@@ -64,8 +64,15 @@ export default async function ContactsPage(props: PageProps<"/contacts">) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold">אנשי קשר</h1>
+      <div className="h-page">
+        <div>
+          <h1>כל אנשי הקשר</h1>
+          <p>
+            כל מי שנמצא במערכת, כולל מי שיובא מאקסל ומעולם לא כתב. סימון שורות פותח פעולות
+            מרוכזות בראש הטבלה.
+          </p>
+        </div>
+        <span className="flex-1" />
         <div className="flex items-center gap-1">
           <Link href="/settings/fields" className="btn-ghost">
             ניהול שדות
@@ -131,7 +138,16 @@ export default async function ContactsPage(props: PageProps<"/contacts">) {
         </div>
       </details>
 
-      <form className="flex flex-wrap items-end gap-3 text-sm">
+      <form className="flex flex-wrap items-end gap-2.5 text-sm">
+        <label className="field-label">
+          חיפוש
+          <input
+            name="q"
+            defaultValue={q}
+            placeholder="שם, טלפון או מייל"
+            className="input min-w-[15rem]"
+          />
+        </label>
         <label className="field-label">
           סטטוס
           <select name="status" defaultValue={status} className="input">
@@ -142,10 +158,6 @@ export default async function ContactsPage(props: PageProps<"/contacts">) {
               </option>
             ))}
           </select>
-        </label>
-        <label className="field-label">
-          חיפוש (שם / טלפון / מייל)
-          <input name="q" defaultValue={q} className="input" />
         </label>
         <button type="submit" className="btn-secondary">
           סנן
@@ -164,7 +176,7 @@ export default async function ContactsPage(props: PageProps<"/contacts">) {
       )}
 
       <ContactsTable
-        columns={columns.map((f) => ({ key: f.key, label: f.label }))}
+        columns={columns.map((f) => ({ key: f.key, label: f.label, type: f.input_type }))}
         rows={rows}
         statusOptions={pickerOptions}
         onSetStatus={setContactStatusAction}

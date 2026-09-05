@@ -3,12 +3,19 @@
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { StatusPicker, type StatusOption, type SetStatusResult } from "@/components/status-picker";
+import { Avatar } from "@/components/avatar";
 import { statusLabel } from "@/lib/status-colors";
+import type { FieldInputType } from "@/lib/supabase/database.types";
 
 export interface TableColumn {
   key: string;
   label: string;
+  /** קובע איך התא נקרא: נתון LTR באות מונו, תגיות כשבבים, שאר כטקסט. */
+  type: FieldInputType;
 }
+
+/** נתון שנקרא משמאל לימין חייב אות מונו, אחרת הספרות נשברות בתוך שורה עברית. */
+const LTR_TYPES = new Set<FieldInputType>(["phone", "email", "url", "date", "number"]);
 
 export interface TableRow {
   id: string;
@@ -85,9 +92,24 @@ export function ContactsTable({
 
   return (
     <div className="flex flex-col gap-3">
-      {someSelected && (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--primary-soft)] px-4 py-3 text-sm">
-          <span className="font-medium">נבחרו {selected.size}</span>
+      {message && (
+        <p
+          className={`rounded-lg px-3 py-2 text-sm ${
+            message.tone === "ok"
+              ? "bg-[var(--ok-soft)] text-[var(--ok)]"
+              : "bg-[var(--danger-soft)] text-[var(--danger)]"
+          }`}
+        >
+          {message.text}
+        </p>
+      )}
+
+      {/* overflow-hidden על המסגרת, וגלילה על העוטף הפנימי בלבד: אחרת סרגל
+          הפעולות והתחתית היו נגללים לצדדים יחד עם הטבלה. */}
+      <div className="table-wrap overflow-hidden">
+        {someSelected && (
+          <div className="bulk-bar">
+            <span className="font-semibold text-[var(--primary)]">נבחרו {selected.size}</span>
 
           <button type="button" className="btn-ghost" onClick={() => setSelected(new Set())}>
             ביטול בחירה
@@ -163,29 +185,17 @@ export function ContactsTable({
               מחיקה
             </button>
           )}
-        </div>
-      )}
+          </div>
+        )}
 
-      {message && (
-        <p
-          className={`rounded-lg px-3 py-2 text-sm ${
-            message.tone === "ok"
-              ? "bg-emerald-50 text-emerald-700"
-              : "bg-[var(--danger-soft)] text-[var(--danger)]"
-          }`}
-        >
-          {message.text}
-        </p>
-      )}
-
-      <div className="table-wrap">
+        <div className="overflow-x-auto">
         <table className="w-full min-w-[720px] text-sm">
           <thead className="border-b border-[var(--border)]">
             <tr>
               <th className="th w-10">
                 <input
                   type="checkbox"
-                  className="size-4 align-middle"
+                  className="cbx"
                   checked={allSelected}
                   onChange={toggleAll}
                   aria-label="בחירת הכל"
@@ -209,36 +219,61 @@ export function ContactsTable({
                 <td className="td">
                   <input
                     type="checkbox"
-                    className="size-4 align-middle"
+                    className="cbx"
                     checked={selected.has(row.id)}
                     onChange={() => toggle(row.id)}
                     aria-label="בחירת איש קשר"
                   />
                 </td>
-                {columns.map((col, i) => (
-                  <td
-                    key={col.key}
-                    className={`td ${col.key === "full_name" ? "" : "text-[var(--muted)]"}`}
-                  >
-                    {col.key === "status" ? (
-                      <StatusPicker
-                        contactId={row.id}
-                        status={row.status}
-                        options={statusOptions}
-                        onSelect={onSetStatus}
-                      />
-                    ) : col.key === "full_name" ? (
-                      <Link
-                        href={`/contacts/${row.id}`}
-                        className="font-medium text-[var(--foreground)] hover:text-[var(--primary)]"
-                      >
-                        {row.cells[i] ?? "—"}
-                      </Link>
-                    ) : (
-                      (row.cells[i] ?? "—")
-                    )}
-                  </td>
-                ))}
+                {columns.map((col, i) => {
+                  const value = row.cells[i];
+                  const ltr = LTR_TYPES.has(col.type);
+                  return (
+                    <td
+                      key={col.key}
+                      className={`td ${col.key === "full_name" ? "" : "text-[var(--muted)]"}`}
+                    >
+                      {col.key === "status" ? (
+                        <StatusPicker
+                          contactId={row.id}
+                          status={row.status}
+                          options={statusOptions}
+                          onSelect={onSetStatus}
+                        />
+                      ) : col.key === "full_name" ? (
+                        <span className="avc">
+                          <Avatar name={value || "?"} />
+                          <Link
+                            href={`/contacts/${row.id}`}
+                            className="font-medium text-[var(--foreground)] hover:text-[var(--primary)]"
+                          >
+                            {value ?? "—"}
+                          </Link>
+                        </span>
+                      ) : col.key === "tags" && value ? (
+                        // התגיות מגיעות כמחרוזת מופרדת בפסיקים; כשבבים נפרדים
+                        // אפשר לסרוק בעין איזו תגית חוזרת על פני כמה שורות.
+                        <span className="inline-flex flex-wrap gap-1">
+                          {value
+                            .split(",")
+                            .map((t) => t.trim())
+                            .filter(Boolean)
+                            .map((t) => (
+                              <span key={t} className="tag">
+                                {t}
+                              </span>
+                            ))}
+                        </span>
+                      ) : ltr && value ? (
+                        <span className="data" dir="ltr">
+                          {value}
+                        </span>
+                      ) : (
+                        (value ?? "—")
+                      )}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
             {!rows.length && (
@@ -253,6 +288,16 @@ export function ContactsTable({
             )}
           </tbody>
         </table>
+        </div>
+
+        <div className="tbl-foot">
+          <span>
+            {rows.length === 1 ? "רשומה אחת" : `${rows.length.toLocaleString("he-IL")} רשומות`}
+            {someSelected && ` · ${selected.size} מסומנות`}
+          </span>
+          <span className="flex-1" />
+          <span>סימון שורות פותח פעולות מרוכזות בראש הטבלה</span>
+        </div>
       </div>
     </div>
   );

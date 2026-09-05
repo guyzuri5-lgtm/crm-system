@@ -450,6 +450,57 @@ body {
     @apply mt-1 max-w-[60ch] text-[12.5px] leading-relaxed;
     color: var(--muted);
   }
+
+  /* ── תיבת סימון ──────────────────────────────────────────────────── */
+  /* תיבת הדפדפן מגיעה בכחול המערכת ולא מקבלת עיצוב. בטבלה של מאה שורות
+     היא הצבע הכי בולט במסך, ומושכת את העין לעמודה שאין בה שום מידע. */
+  .cbx {
+    @apply grid size-[15px] shrink-0 cursor-pointer appearance-none place-items-center rounded
+      border-[1.5px] align-middle transition-[background-color,border-color] duration-150;
+    border-color: var(--border-strong);
+    background-color: var(--surface);
+  }
+  .cbx:checked {
+    border-color: var(--primary);
+    background-color: var(--primary);
+  }
+  /* וי מזווית ישרה: שתי מסגרות שנשארות, מסובבות. הצדדים פיזיים ולא לוגיים —
+     סימן וי לא מתהפך בין עברית לאנגלית. */
+  .cbx:checked::after {
+    content: "";
+    @apply h-[5px] w-2 border-[1.8px] border-t-0 border-r-0;
+    border-color: var(--on-primary);
+    transform: rotate(-45deg) translate(1px, -1px);
+  }
+
+  /* ── תגית ────────────────────────────────────────────────────────── */
+  .tag {
+    @apply inline-block rounded px-[7px] py-px text-[10.5px] whitespace-nowrap;
+    color: var(--muted);
+    background-color: var(--surface-sunken);
+  }
+
+  /* ── סרגל פעולות מרוכזות ─────────────────────────────────────────── */
+  /* יושב בתוך מסגרת הטבלה ולא מעליה: הוא שייך לשורות שסומנו, ומרחף מעליהן
+     כפס נפרד היה נראה כמו הודעת מערכת שאינה קשורה. */
+  .bulk-bar {
+    @apply flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-4 py-2.5 text-[12.5px];
+    background-color: var(--primary-soft);
+    border-color: color-mix(in srgb, var(--primary) 18%, var(--primary-soft));
+  }
+
+  /* ── תחתית טבלה ──────────────────────────────────────────────────── */
+  .tbl-foot {
+    @apply flex flex-wrap items-center gap-x-3 gap-y-1 border-t px-4 py-2.5 text-[11.5px];
+    border-color: var(--border);
+    background-color: var(--background);
+    color: var(--subtle);
+  }
+
+  /* ── אווטר עם שם ─────────────────────────────────────────────────── */
+  .avc {
+    @apply inline-flex items-center gap-2.5;
+  }
 }
 
 /* טבעת פוקוס אחידה לכל מה שמקבל מיקוד מהמקלדת. עד עכשיו כל דפדפן צייר
