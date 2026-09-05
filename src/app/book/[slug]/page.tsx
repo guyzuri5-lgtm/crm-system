@@ -47,7 +47,7 @@ export default async function BookPage({ params }: PageProps<"/book/[slug]">) {
               width={128}
               height={128}
               priority
-              className="size-16 shrink-0 rounded-full object-cover shadow-sm ring-2 ring-white sm:size-20"
+              className="size-16 shrink-0 rounded-full object-cover shadow-sm ring-2 ring-[var(--surface)] sm:size-20"
             />
           )}
 

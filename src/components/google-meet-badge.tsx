@@ -24,7 +24,7 @@ export function GoogleMeetLogo({ className = "size-5" }: { className?: string })
 
 export function GoogleMeetChip() {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-[#1f1f1f] ring-1 ring-inset ring-[var(--border-strong)]">
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--surface)] px-2.5 py-1 text-xs font-semibold text-[var(--foreground)] ring-1 ring-inset ring-[var(--border-strong)]">
       <GoogleMeetLogo className="size-3.5" />
       Google Meet
     </span>
@@ -33,12 +33,15 @@ export function GoogleMeetChip() {
 
 export function GoogleMeetCard({ note }: { note?: string }) {
   return (
-    <div className="flex items-start gap-3 rounded-xl border border-[#dadce0] bg-white p-3.5">
+    <div className="flex items-start gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3.5">
+      {/* הלוח הבהיר היחיד שנשאר: הלוגו של גוגל צבעוני ודורש רקע בהיר.
+          הכרטיס עצמו עבר למשטחי המערכת — הוא היה לבן קבוע, ושורת ההסבר
+          שבו לקחה את צבעה מ---muted, כלומר אפור בהיר על לבן במצב כהה (2.38). */}
       <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg bg-[#f1f3f4]">
         <GoogleMeetLogo className="size-5" />
       </span>
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-[#1f1f1f]">
+        <p className="text-sm font-semibold text-[var(--foreground)]">
           הפגישה תתקיים בשיחת וידאו ב-<span dir="ltr">Google Meet</span>
         </p>
         <p className="mt-0.5 text-xs leading-relaxed text-[var(--muted)]">
