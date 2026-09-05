@@ -1,4 +1,5 @@
 import { verifyTeamMember } from "@/lib/dal";
+import { SendingPausedNotice } from "@/components/sending-paused-notice";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { audienceLabel } from "@/lib/newsletter";
 import { formatDateTime } from "@/lib/booking/timezone";
@@ -36,6 +37,8 @@ export default async function ScheduledPage() {
           מה שממתין לשליחה, ומה שנמצא באמצעה. אפשר לבטל כל עוד השליחה לא התחילה.
         </p>
       </div>
+
+      <SendingPausedNotice />
 
       {!newsletters.length ? (
         <div className="card text-sm text-[var(--muted)]">אין ניוזלטרים מתוזמנים.</div>

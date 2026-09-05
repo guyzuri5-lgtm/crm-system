@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SendingPausedNotice } from "@/components/sending-paused-notice";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { verifyTeamMember } from "@/lib/dal";
 import { listStatuses } from "@/lib/statuses";
@@ -78,6 +79,8 @@ export default async function JourneysPage({ searchParams }: PageProps<"/journey
           ביום הפגישה — כך שמסע אחד יכול לערבב את שלושתם.
         </p>
       </div>
+
+      <SendingPausedNotice />
 
       <section className="card">
         <h2 className="mb-4 font-medium">מסע חדש</h2>
