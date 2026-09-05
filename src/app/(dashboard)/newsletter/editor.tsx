@@ -1,6 +1,8 @@
 "use client";
 
 import Image from "next/image";
+import type { CSSProperties } from "react";
+import { NewsletterPreview } from "./preview";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { statusColorClasses, statusLabel } from "@/lib/status-colors";
@@ -48,11 +50,14 @@ export function NewsletterEditor({
   allCount,
   statusOptions,
   initial,
+  from,
 }: {
   allCount: number;
   statusOptions: StatusOption[];
   /** תוכן פותח, כשמגיעים לכאן מ"שכפל" בהיסטוריה. */
   initial?: { subject: string; blocks: NewsletterBlock[]; statuses: string[] };
+  /** כתובת השולח, לשורת ה-from בתצוגה המקדימה. ציבורית ממילא. */
+  from?: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -132,7 +137,15 @@ export function NewsletterEditor({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    /*
+      בונים מימין, רואים משמאל. עד עכשיו הדרך היחידה לדעת מה יוצא הייתה
+      "שלח טיוטה לעצמי" — לצאת מהמסך, לפתוח תיבת דואר, ולחזור.
+
+      sticky על התצוגה: העורך ארוך יותר ממנה, וגלילה למטה כדי לערוך בלוק
+      שלישי לא אמורה להעלים את מה שבודקים.
+    */
+    <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+      <div className="flex flex-col gap-4">
       {/* ── קהל ─────────────────────────────────────────────────────── */}
       <section className="card flex flex-col gap-3">
         <h2 className="font-medium">למי שולחים</h2>
@@ -421,6 +434,39 @@ export function NewsletterEditor({
             {notice.text}
           </p>
         )}
+      </section>
+      </div>
+
+      <section className="card flex flex-col gap-3 p-0 lg:sticky lg:top-4">
+        <div className="card-h">
+          <span
+            className="glyph"
+            style={
+              { "--glyph-color": "var(--nav-coral)", "--glyph-bg": "var(--nav-coral-soft)" } as CSSProperties
+            }
+          >
+            <svg
+              width={14}
+              height={14}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="2" y="4.5" width="20" height="15" rx="2" />
+              <path d="m22 7-9 5.7a2 2 0 0 1-2 0L2 7" />
+            </svg>
+          </span>
+          <h2>תצוגה מקדימה</h2>
+          <span className="flex-1" />
+          <span className="pill">{blocks.length} בלוקים</span>
+        </div>
+        <div className="card-b">
+          <NewsletterPreview subject={subject} blocks={blocks} from={from} />
+        </div>
       </section>
     </div>
   );

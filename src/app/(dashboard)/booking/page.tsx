@@ -1,4 +1,5 @@
 import { ActionForm } from "@/components/action-form";
+import { WeekAvailability } from "./week-availability";
 import { verifyTeamMember } from "@/lib/dal";
 import { listStatuses } from "@/lib/statuses";
 import { listEventTypes } from "@/lib/booking/data";
@@ -43,6 +44,10 @@ export default async function EventTypesPage() {
           הזמינות שהוגדרה כאן בלבד — בלי לדעת מה כבר תפוס ביומן.
         </div>
       )}
+
+      {/* רשת הזמינות לצד סוגי הפגישות: שתי השאלות שנשאלות במסך הזה הן
+          "איזה קישור לשלוח" ו"מתי אני בכלל פנוי", וקודם הן ישבו בשני מסכים. */}
+      <WeekAvailability />
 
       {/* ── סוג פגישה חדש ─────────────────────────────────────────── */}
       <details className="card">

@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { WindowMeter } from "@/components/window-meter";
 import Link from "next/link";
 import { verifyTeamMember } from "@/lib/dal";
 import { getWhatsAppSettings, countWhatsAppSentToday } from "@/lib/whatsapp-throttle";
@@ -166,37 +167,53 @@ export default async function WhatsAppPage() {
           זה הכלל היחיד שקובע הכול. בכל רגע, כל איש קשר נמצא באחד משני מצבים:
         </p>
 
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[var(--border)]">
-                <th className="th">מצב</th>
-                <th className="th">מתי</th>
-                <th className="th">מה מותר</th>
-                <th className="th">עלות</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="border-b border-[var(--border)]">
-                <td className="td font-medium text-[var(--ok)]">חלון פתוח</td>
-                <td className="td">הלקוח כתב ב-24 השעות האחרונות</td>
-                <td className="td">כל טקסט חופשי</td>
-                <td className="td">חינם</td>
-              </tr>
-              <tr>
-                <td className="td font-medium text-[var(--muted)]">חלון סגור</td>
-                <td className="td">לא כתב, או שמעולם לא כתב</td>
-                <td className="td">רק תבנית מאושרת</td>
-                <td className="td">מחויב</td>
-              </tr>
-            </tbody>
-          </table>
+        {/*
+          שני כרטיסים ולא טבלה בת שתי שורות. אותם שלושה שדות בשניהם ובאותו
+          סדר — מתי, מה מותר, כמה עולה — כדי שההשוואה תהיה מיידית ולא תדרוש
+          לרוץ עם העין לאורך שורה.
+        */}
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <WindowRule
+            open
+            title="חלון פתוח"
+            when="הלקוח כתב ב-24 השעות האחרונות"
+            allowed="כל טקסט חופשי"
+            cost="חינם"
+            costTone="var(--ok)"
+          />
+          <WindowRule
+            open={false}
+            title="חלון סגור"
+            when="לא כתב, או שמעולם לא כתב"
+            allowed="רק תבנית שאושרה מראש ב-Meta"
+            cost="מחויב לפי הודעה"
+          />
         </div>
 
-        <p className="mt-4 text-sm leading-relaxed text-[var(--muted)]">
-          כרטיס הלקוח מציג את המצב הנוכחי ומאפשר רק את מה שחוקי בו. כלל אוטומציה של
-          מעקב פונה מעצם טבעו למי שלא ענה — כלומר כמעט תמיד מחוץ לחלון — ולכן{" "}
-          <strong>לכל כלל כזה חייבת להיות תבנית מאושרת</strong>, אחרת השליחה תיכשל.
+        <p
+          className="mt-4 flex items-start gap-2.5 rounded-xl px-3.5 py-3 text-[13px] leading-relaxed"
+          style={{ backgroundColor: "var(--warn-soft)", color: "var(--warn)" }}
+        >
+          <svg
+            width={15}
+            height={15}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+            className="mt-0.5 shrink-0"
+          >
+            <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+            <path d="M12 9.5v4M12 17.2h.01" />
+          </svg>
+          <span>
+            כלל אוטומציה או מסע מעקב פונים מעצם טבעם למי שלא ענה — כלומר כמעט תמיד מחוץ
+            לחלון. <strong>לכל שלב כזה חייבת להיות תבנית מאושרת</strong>, אחרת השליחה
+            תיכשל בשקט.
+          </span>
         </p>
       </section>
     </div>
@@ -233,5 +250,54 @@ function QuotaRing({ value, max }: { value: number; max: number }) {
         transform="rotate(-90 27 27)"
       />
     </svg>
+  );
+}
+
+/**
+ * כרטיס אחד משני מצבי החלון. אותו מבנה בשניהם — זה כל העניין: מה שמשתנה
+ * ביניהם הוא התוכן, לא הצורה, ולכן ההבדל נקרא מיד.
+ */
+function WindowRule({
+  open,
+  title,
+  when,
+  allowed,
+  cost,
+  costTone,
+}: {
+  open: boolean;
+  title: string;
+  when: string;
+  allowed: string;
+  cost: string;
+  costTone?: string;
+}) {
+  return (
+    <div
+      className="flex flex-col gap-2.5 rounded-xl border p-3.5"
+      style={
+        open
+          ? {
+              backgroundColor: "color-mix(in srgb, var(--ok-soft) 55%, var(--surface))",
+              borderColor: "color-mix(in srgb, var(--ok) 35%, transparent)",
+            }
+          : { backgroundColor: "var(--surface)", borderColor: "var(--border)" }
+      }
+    >
+      <h3 className="flex items-center gap-2 text-[13px] font-semibold">
+        <WindowMeter openWindow={open} hoursLeft={open ? 19 : 0} />
+        {title}
+      </h3>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-2.5 gap-y-1 text-xs">
+        <dt className="text-[var(--muted)]">מתי</dt>
+        <dd>{when}</dd>
+        <dt className="text-[var(--muted)]">מה מותר</dt>
+        <dd>{allowed}</dd>
+        <dt className="text-[var(--muted)]">עלות</dt>
+        <dd className="font-medium" style={costTone ? { color: costTone } : undefined}>
+          {cost}
+        </dd>
+      </dl>
+    </div>
   );
 }

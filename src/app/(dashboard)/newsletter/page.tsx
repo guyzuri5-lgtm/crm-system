@@ -77,7 +77,14 @@ export default async function NewsletterPage({
         </div>
       </div>
 
-      <NewsletterEditor allCount={allCount} statusOptions={statusOptions} initial={initial} />
+      <NewsletterEditor
+        allCount={allCount}
+        statusOptions={statusOptions}
+        initial={initial}
+        // הכתובת שממנה יוצא המייל. ציבורית מעצם טבעה — היא מופיעה בכל מייל
+        // שנשלח — ולכן אין בעיה להראות אותה בתצוגה המקדימה.
+        from={process.env.POSTMARK_FROM}
+      />
     </div>
   );
 }
