@@ -127,10 +127,15 @@ export async function ActiveList({ mode }: { mode: ActiveMode }) {
         statusName: status ? statusLabel(status.name) : null,
         statusClasses: statusColorClasses(status?.color),
         summaryLabel: type ? ACTIVITY_LABELS[type] : "—",
+        activityType: type,
         timeLabel: relativeTime(at),
         preview: a.last_inbound_text,
         openWindow: isWithin24HourWindow(contact.last_incoming_message_at),
         hoursLeft: Math.floor(windowRemainingMs(contact.last_incoming_message_at) / 3_600_000),
+        // הדבר האחרון שקרה הגיע מהלקוח, כלומר איש לא ענה מאז. בלשונית
+        // "נשלח אליהם" אין פנייה של לקוח בכלל, ולכן הסימון לא חל שם.
+        unanswered:
+          mode === "inbound" && a.last_any_at !== null && a.last_any_at === a.last_customer_at,
         inboundCount: a.inbound_count,
         canSend: Boolean(contact.phone || contact.whatsapp_id),
         notes: contact.notes,
@@ -160,10 +165,33 @@ export async function ActiveList({ mode }: { mode: ActiveMode }) {
   }
 
   return (
-    <div className="flex flex-col gap-1.5">
-      {rows.map((row) => (
-        <ContactRow key={row.contactId} row={row} templates={templates} onSend={sendReplyAction} />
-      ))}
+    <div className="flex flex-col gap-3">
+      {/* מכולה אחת עם קווי שיער במקום כרטיס לכל אדם: רשימה נקראת כרשימה,
+          וכרטיסים נפרדים הפכו כל שורה ליחידה שדורשת תשומת לב משלה. */}
+      <div className="card overflow-hidden p-0">
+        {rows.map((row) => (
+          <ContactRow key={row.contactId} row={row} templates={templates} onSend={sendReplyAction} />
+        ))}
+      </div>
+
+      <p className="flex items-start gap-2 text-[11.5px] leading-relaxed text-[var(--muted)]">
+        <svg
+          width={13}
+          height={13}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2.1}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          className="mt-0.5 shrink-0 text-[var(--ok)]"
+        >
+          <path d="m4.5 12.5 5 5 10-11" />
+        </svg>
+        מד החלון מראה כמה זמן נשאר לענות בטקסט חופשי. כשהוא נסגר אפשר לשלוח רק תבנית שאושרה
+        מראש ב-Meta, והיא מחויבת בתשלום.
+      </p>
     </div>
   );
 }

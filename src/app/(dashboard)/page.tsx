@@ -16,6 +16,7 @@ import { countAudience } from "@/lib/newsletter";
 import { statusToken } from "@/lib/status-colors";
 import { MetricTile, type MetricTileProps } from "@/components/metric-tile";
 import { DayTimeline, type DayItem } from "@/components/day-timeline";
+import { Avatar } from "@/components/avatar";
 import { BOOKING_LOCATION_LABELS } from "@/lib/supabase/database.types";
 import type { Contact } from "@/lib/supabase/database.types";
 
@@ -89,13 +90,6 @@ function bookedRecently(iso: string, now: Date): string | null {
   if (days === 0) return "נקבע היום";
   if (days === 1) return "נקבע אתמול";
   return null;
-}
-
-/** שתי אותיות ראשונות משתי המילים הראשונות בשם, לאווטר. */
-function initials(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  if (!words.length) return "?";
-  return words.slice(0, 2).map((word) => [...word][0]).join("");
 }
 
 /**
@@ -658,9 +652,7 @@ export default async function DashboardPage() {
                       key={contact.id}
                       className="flex items-center gap-2.5 border-b border-[var(--border)] py-2.5 last:border-b-0"
                     >
-                      <span className="av" aria-hidden="true">
-                        {initials(name)}
-                      </span>
+                      <Avatar name={name} />
                       <span className="min-w-0 flex-1">
                         <Link
                           href={`/contacts/${contact.id}`}

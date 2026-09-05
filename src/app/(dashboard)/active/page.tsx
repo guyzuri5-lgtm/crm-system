@@ -18,12 +18,14 @@ export default async function ActivePage({
 
   return (
     <div className="flex flex-col gap-5">
-      <div>
-        <h1 className="text-xl font-semibold">מי שיצר קשר</h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">
-          מי שיזם משהו — שלח הודעה, מילא שאלון, נרשם לאירוע, קבע או ביטל פגישה. לחיצה על שורה
-          פותחת את השיחה המלאה.
-        </p>
+      <div className="h-page">
+        <div>
+          <h1>מי שיצר קשר</h1>
+          <p>
+            מי שיזם משהו — שלח הודעה, מילא שאלון, נרשם לאירוע, קבע או ביטל פגישה. לחיצה על שורה
+            פותחת את השיחה המלאה בלי לעזוב את הרשימה.
+          </p>
+        </div>
       </div>
 
       <ActiveList mode="inbound" />

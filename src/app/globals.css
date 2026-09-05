@@ -412,6 +412,39 @@ body {
     @apply h-px;
     background: linear-gradient(to left, var(--danger), transparent);
   }
+
+  /* ── שורת רשימת השיחות ───────────────────────────────────────────── */
+  /* מי שטרם נענה מקבל גוון ורדיגריס עדין. זה ההבדל היחיד בין שורה שטופלה
+     לשורה שלא — בלי נקודות, בלי מונים, ובלי צורך לסמן "נקרא" ידנית.
+     הרקע יושב במחלקה ולא בסגנון inline, כדי שה-hover יוכל לגבור עליו. */
+  .inbox-row {
+    background-color: var(--surface);
+  }
+  .inbox-row:hover {
+    background-color: var(--background);
+  }
+  .inbox-row[data-unanswered] {
+    background-color: color-mix(in srgb, var(--primary-soft) 45%, var(--surface));
+  }
+  .inbox-row[data-unanswered]:hover {
+    background-color: color-mix(in srgb, var(--primary-soft) 72%, var(--surface));
+  }
+
+  /* ── כותרת מסך ───────────────────────────────────────────────────── */
+  /* Rubik במשקל בינוני: כותרת מסך היא שלט, לא צעקה. הפסקה מתחתיה חסומה
+     ב-60 תווים — שורה ארוכה מזה מאבדת את העין בדרך חזרה לתחילת השורה. */
+  .h-page {
+    @apply flex flex-wrap items-start gap-x-3.5 gap-y-2;
+  }
+  .h-page h1 {
+    @apply text-[21px] leading-tight font-medium;
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+  .h-page p {
+    @apply mt-1 max-w-[60ch] text-[12.5px] leading-relaxed;
+    color: var(--muted);
+  }
 }
 
 /* טבעת פוקוס אחידה לכל מה שמקבל מיקוד מהמקלדת. עד עכשיו כל דפדפן צייר
