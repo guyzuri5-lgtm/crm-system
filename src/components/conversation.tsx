@@ -162,13 +162,23 @@ function Bubble({ message, side }: { message: ConversationMessage; side: "in" | 
 
   return (
     <div className={`flex ${incoming ? "justify-start" : "justify-end"}`}>
+      {/*
+        הנכנסת לבנה עם מסגרת, היוצאת מלאה בצבע המבטא — בדיוק ההרגל מוואטסאפ,
+        רק שבעברית הצדדים הפוכים. הפינה החדה בראש הבועה מצביעה לכיוון שממנו
+        היא הגיעה.
+      */}
       <div
         className={[
-          "max-w-[85%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed",
+          "max-w-[85%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed shadow-[var(--shadow-1)]",
           incoming
-            ? "rounded-ss-sm bg-white ring-1 ring-inset ring-[var(--border)]"
-            : "rounded-se-sm bg-[var(--primary-soft)]",
+            ? "rounded-ss-sm ring-1 ring-inset ring-[var(--border)]"
+            : "rounded-se-sm",
         ].join(" ")}
+        style={
+          incoming
+            ? { backgroundColor: "var(--surface)" }
+            : { backgroundColor: "var(--primary)", color: "var(--on-primary)" }
+        }
       >
         {/*
           מייל מסומן במפורש. המערכת שומרת ממנו רק את הכותרת ולא את הגוף, ובלי
@@ -176,7 +186,10 @@ function Bubble({ message, side }: { message: ConversationMessage; side: "in" | 
           שנשלחה — והיא לא.
         */}
         {isEmail && (
-          <span className="mb-1 flex items-center gap-1.5 text-xs font-medium text-[var(--muted)]">
+          <span
+            className="mb-1 flex items-center gap-1.5 text-xs font-medium"
+            style={{ color: "inherit", opacity: 0.75 }}
+          >
             <svg
               width="12"
               height="12"
@@ -197,8 +210,11 @@ function Bubble({ message, side }: { message: ConversationMessage; side: "in" | 
 
         <p className="whitespace-pre-wrap">{message.content || "—"}</p>
 
+        {/* בבועה היוצאת השעה יורשת את הצבע ומתעמעמת: --subtle נקבע מול נייר
+            בהיר, ועל רקע מלא הוא כמעט נעלם. */}
         <span
-          className={`mt-0.5 block text-[11px] text-[var(--subtle)] ${incoming ? "text-start" : "text-end"}`}
+          className={`mt-0.5 block text-[11px] ${incoming ? "text-start text-[var(--subtle)]" : "text-end"}`}
+          style={incoming ? undefined : { color: "inherit", opacity: 0.7 }}
         >
           {timeFmt.format(new Date(message.created_at))}
         </span>
