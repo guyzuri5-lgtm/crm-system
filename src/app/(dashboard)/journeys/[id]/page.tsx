@@ -1,4 +1,5 @@
 import { formatDate } from "@/lib/dates";
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -87,6 +88,34 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
     : { data: [] };
   const contactById = new Map((contactsRaw ?? []).map((c) => [c.id, c]));
 
+  // כמה אנשים עומדים בכל כרטיסייה. שאילתה נפרדת ולא ספירה מתוך enrollments
+  // שלמעלה: זו מוגבלת ל-50 שורות לצורך הרשימה, וספירה ממנה הייתה משקרת
+  // ברגע שיש יותר. שתי עמודות בלבד, ולכן היא זולה גם במסע גדול.
+  const { data: standingRaw } = await db
+    .from("journey_enrollments")
+    .select("current_step_id")
+    .eq("journey_id", id)
+    .eq("state", "active");
+
+  const standingByStep = new Map<string, number>();
+  for (const row of standingRaw ?? []) {
+    const key = row.current_step_id;
+    if (key) standingByStep.set(key, (standingByStep.get(key) ?? 0) + 1);
+  }
+  const totalActive = (standingRaw ?? []).length;
+
+  // שאר המסעות, לצד המשפך. מסע נערך כמעט תמיד מתוך השוואה לאחרים — "כמה
+  // אנשים במסע הזה לעומת ההוא" — ועד עכשיו זה דרש לחזור לרשימה ולחזור.
+  const [{ data: otherRaw }, { data: otherCountsRaw }] = await Promise.all([
+    db.from("journeys").select("id, name, active").neq("id", id).order("name"),
+    db.from("journey_enrollments").select("journey_id").eq("state", "active"),
+  ]);
+  const activeByJourney = new Map<string, number>();
+  for (const row of otherCountsRaw ?? []) {
+    activeByJourney.set(row.journey_id, (activeByJourney.get(row.journey_id) ?? 0) + 1);
+  }
+  const otherJourneys = (otherRaw ?? []) as { id: string; name: string; active: boolean }[];
+
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -169,6 +198,10 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
             timing: s.timing,
             dayOffset: s.day_offset,
             dayAtMinutes: s.day_at_minutes,
+            // שורית מגוף התבנית, חתוכה. הכרטיסייה בלעדיה אומרת מתי ובאיזה
+            // ערוץ אבל לא מה יוצא, וזו השאלה שבגללה פותחים מסע.
+            preview: templateById.get(s.template_id)?.body?.slice(0, 120),
+            standing: standingByStep.get(s.id) ?? 0,
           }))}
           templates={templates.map((t) => ({
             id: t.id,
@@ -186,6 +219,82 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
           }))}
         />
       </section>
+
+      {/* ── איפה כולם עומדים ───────────────────────────────────────────── */}
+      {/*
+        הלוח מראה את המבנה; המשפך מראה מה קורה בו בפועל. שני מסעות יכולים
+        להיראות זהים על הלוח ולהתנהג הפוך לגמרי, וההפרש בין שלב לשלב הוא
+        מה שמגלה איפה אנשים נתקעים.
+      */}
+      <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+      {totalActive > 0 && (
+        <section className="card flex flex-col p-0">
+          <div className="card-h">
+            <h2>איפה כולם עומדים</h2>
+            <span className="flex-1" />
+            <span className="pill">{totalActive} פעילים</span>
+          </div>
+          <div className="card-b flex flex-col gap-2.5">
+            {steps.map((step) => {
+              const n = standingByStep.get(step.id) ?? 0;
+              return (
+                <div key={step.id} className="fn-row">
+                  <span className="fn-label truncate">{stepLabelById.get(step.id)}</span>
+                  <span className="fn-track">
+                    <i
+                      style={{
+                        width: `${totalActive ? Math.round((n / totalActive) * 100) : 0}%`,
+                        backgroundColor: "var(--nav-purple)",
+                      }}
+                    />
+                  </span>
+                  <span className="fn-value">{n}</span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="card-f">
+            נספרים רק צירופים פעילים. מי שסיים, נעצר או ענה כבר אינו כאן.
+          </div>
+        </section>
+      )}
+
+      {otherJourneys.length > 0 && (
+        <section className="card flex flex-col p-0">
+          <div className="card-h">
+            <h2>מסעות אחרים</h2>
+            <span className="flex-1" />
+            <Link href="/journeys" className="btn-ghost text-xs">
+              לרשימה
+            </Link>
+          </div>
+          <div className="card-b flex flex-col gap-2">
+            {otherJourneys.map((other) => (
+              <Link
+                key={other.id}
+                href={`/journeys/${other.id}`}
+                className={`group-row ${other.active ? "" : "opacity-65"}`}
+              >
+                <b className="min-w-0 flex-1 truncate font-semibold">{other.name}</b>
+                <span
+                  className="pill"
+                  style={
+                    other.active
+                      ? ({ "--pill-color": "var(--ok)", "--pill-bg": "var(--ok-soft)" } as CSSProperties)
+                      : undefined
+                  }
+                >
+                  {other.active ? "פעיל" : "כבוי"}
+                </span>
+                <span className="data text-[11px] text-[var(--subtle)]">
+                  {activeByJourney.get(other.id) ?? 0}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+      </div>
 
       {/* ── מסע לדוגמה: הבדיקה האחרונה לפני שמדליקים ─────────────────── */}
       <JourneySimulation

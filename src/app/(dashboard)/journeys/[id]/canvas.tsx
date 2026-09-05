@@ -49,6 +49,10 @@ export interface CanvasNode {
   timing: StepTiming;
   dayOffset: number;
   dayAtMinutes: number;
+  /** שורית מגוף התבנית. הכרטיסייה בלעדיה אומרת מתי ובאיזה ערוץ, אבל לא מה. */
+  preview?: string;
+  /** כמה אנשים עומדים כאן כרגע. */
+  standing?: number;
 }
 
 /** התבניות הזמינות לבחירה בפאנל, עם התוכן להצגה. */
@@ -69,7 +73,9 @@ export interface CanvasEdge {
 }
 
 const CARD_W = 190;
-const CARD_H = 84;
+// גובה שמכיל שורת מטא, כותרת ושתי שורות מההודעה. היה 84 לפני שהתצוגה
+// המקדימה נכנסה, ואז הטקסט גלש אל מחוץ לכרטיס.
+const CARD_H = 116;
 const ENTRY_ID = "__entry__";
 
 export function JourneyCanvas({
@@ -422,11 +428,20 @@ export function JourneyCanvas({
 
         {/* ── כניסה ── */}
         <div
-          style={{ left: entryPos.x, top: entryPos.y, width: CARD_W, height: CARD_H }}
           onClick={() => connectFrom && connectTo(ENTRY_ID)}
-          className="absolute flex flex-col justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 shadow-sm"
+          className="absolute flex flex-col justify-center rounded-2xl border-2 px-4 shadow-sm"
+          style={{
+            left: entryPos.x,
+            top: entryPos.y,
+            width: CARD_W,
+            height: CARD_H,
+            // הכניסה בגוון המבטא: היא לא שלב אלא נקודת הפתיחה, וזה ההבדל
+            // היחיד שצריך להיקרא בלוח שכולו כרטיסיות.
+            backgroundColor: "var(--primary-soft)",
+            borderColor: "color-mix(in srgb, var(--primary) 30%, transparent)",
+          }}
         >
-          <p className="text-[11px] text-[var(--subtle)]">נכנסים למסע</p>
+          <p className="text-[10px] font-semibold text-[var(--primary)]">נכנסים למסע</p>
           <p className="mt-0.5 text-sm leading-snug font-medium">{entryLabel}</p>
           <button
             onClick={(e) => {
@@ -450,7 +465,7 @@ export function JourneyCanvas({
               style={{ left: p.x, top: p.y, width: CARD_W, height: CARD_H }}
               onPointerDown={(e) => onPointerDown(e, node)}
               onClick={() => isTarget && connectTo(node.id)}
-              className={`absolute flex flex-col justify-center rounded-2xl border-2 px-4 shadow-sm select-none ${
+              className={`absolute flex flex-col rounded-2xl border-2 px-3 py-2.5 shadow-sm select-none ${
                 drag?.id === node.id ? "cursor-grabbing" : "cursor-grab"
               } ${isTarget ? "ring-2 ring-[var(--warn)]/50" : ""} ${
                 selectedId === node.id ? "ring-2 ring-[var(--primary)]" : ""
@@ -460,11 +475,15 @@ export function JourneyCanvas({
                   : "border-[var(--ok)]/40 bg-[var(--ok-soft)]"
               }`}
             >
-              {/* ריבוע הערוץ פותח את הכרטיסייה: בלוח של עשר כרטיסיות, "מייל
-                  או וואטסאפ" נקרא מצורה וצבע מהר יותר מאשר ממילה. */}
+              {/*
+                שלוש שורות, כמו במוקאפ: מי אני, מה אני אומר, ומתי ואיך.
+                הכותרת עם ריבוע הערוץ למעלה — בלוח של עשר כרטיסיות "מייל או
+                וואטסאפ" נקרא מצורה וצבע מהר יותר מאשר ממילה — ההודעה עצמה
+                באמצע, והמטא בתחתית.
+              */}
               <div className="flex items-center gap-2">
                 <span
-                  className="glyph size-[22px] rounded-[7px]"
+                  className="glyph size-[22px] shrink-0 rounded-[7px]"
                   style={
                     {
                       "--glyph-color":
@@ -472,16 +491,52 @@ export function JourneyCanvas({
                       "--glyph-bg": "color-mix(in srgb, var(--surface) 65%, transparent)",
                     } as CSSProperties
                   }
-                  title={node.channel === "email" ? "מייל" : "וואטסאפ"}
+                  aria-hidden="true"
                 >
                   <ChannelIcon channel={node.channel} />
                 </span>
-                <span className="timing-chip">{timingLabel(node)}</span>
+                <b className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">
+                  {node.label || node.templateName}
+                </b>
               </div>
-              <p className="mt-1.5 line-clamp-2 text-sm leading-snug font-medium break-words">
-                {node.label || node.templateName}
-              </p>
 
+              {node.preview && (
+                <p
+                  className="mt-1.5 line-clamp-2 rounded-lg px-2 py-1 text-[10.5px] leading-snug break-words"
+                  style={{
+                    backgroundColor: "color-mix(in srgb, var(--surface) 62%, transparent)",
+                    color: "var(--muted)",
+                  }}
+                >
+                  {node.preview}
+                </p>
+              )}
+
+              <div className="mt-auto flex items-center gap-1.5 pt-1.5">
+                <span
+                  className="pill text-[9.5px]"
+                  style={
+                    {
+                      "--pill-color": node.channel === "email" ? "var(--nav-blue)" : "var(--ok)",
+                      "--pill-bg": "color-mix(in srgb, var(--surface) 70%, transparent)",
+                    } as CSSProperties
+                  }
+                >
+                  {node.channel === "email" ? "מייל" : "וואטסאפ"}
+                </span>
+                <span className="timing-chip">
+                  <ClockIcon />
+                  {timingLabel(node)}
+                </span>
+                {typeof node.standing === "number" && node.standing > 0 && (
+                  <span
+                    className="data mr-auto text-[9.5px] text-[var(--subtle)]"
+                    title={`${node.standing} אנשים עומדים כאן כרגע`}
+                  >
+                    {node.standing}
+                  </span>
+                )}
+              </div>
               <button
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
@@ -764,6 +819,26 @@ function ChannelIcon({ channel }: { channel: string }) {
       ) : (
         <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.2A8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4z" />
       )}
+    </svg>
+  );
+}
+
+/** שעון קטן לתווית התזמון. */
+function ClockIcon() {
+  return (
+    <svg
+      width={9}
+      height={9}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.4}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5.3l3.2 2" />
     </svg>
   );
 }
