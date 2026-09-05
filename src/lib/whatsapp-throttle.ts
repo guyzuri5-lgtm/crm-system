@@ -36,7 +36,21 @@ const FALLBACK_SETTINGS: WhatsAppSettings = {
  * ההגדרות. אם המיגרציה 0010 עוד לא הורצה, מוחזרות ברירות המחדל השמרניות
  * במקום להפיל את הקרון — עדיף שהוא ירוץ מווסת מדי מאשר שלא ירוץ בכלל.
  */
-export async function getWhatsAppSettings(): Promise<WhatsAppSettings> {
+export interface WhatsAppSettingsRead {
+  settings: WhatsAppSettings;
+  /**
+   * הקריאה למסד נכשלה, והערכים שמוחזרים הם ברירת מחדל ולא מה ששמור.
+   *
+   * הדגל הזה נוסף אחרי שמסך "בלמי שליחה" הציג תיבת השהיה **לא מסומנת** בזמן
+   * ש-paused היה true במסד: הקריאה נפלה, הפולבק החזיר paused: false, והמסך
+   * הציג אותו כאילו הוא האמת. מסך בטיחות שמראה "פעיל" כשהמערכת עצורה גרוע
+   * מכך שלא יוצג כלום — ולכן מי שמציג ערכים למשתמש חייב לדעת מאיפה הם באו.
+   */
+  degraded: boolean;
+}
+
+/** הקריאה הגולמית, כולל האם היא הצליחה. למסכים שמציגים את הערכים למשתמש. */
+export async function readWhatsAppSettings(): Promise<WhatsAppSettingsRead> {
   const { data, error } = await supabaseAdmin()
     .from("whatsapp_settings")
     .select("*")
@@ -44,9 +58,13 @@ export async function getWhatsAppSettings(): Promise<WhatsAppSettings> {
 
   if (error || !data) {
     if (error) console.error("[whatsapp] failed to read whatsapp_settings:", error.message);
-    return FALLBACK_SETTINGS;
+    return { settings: FALLBACK_SETTINGS, degraded: true };
   }
-  return data;
+  return { settings: data, degraded: false };
+}
+
+export async function getWhatsAppSettings(): Promise<WhatsAppSettings> {
+  return (await readWhatsAppSettings()).settings;
 }
 
 /**

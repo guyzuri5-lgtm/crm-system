@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { verifyTeamMember } from "@/lib/dal";
-import { getWhatsAppSettings, countWhatsAppSentToday } from "@/lib/whatsapp-throttle";
+import { readWhatsAppSettings, countWhatsAppSentToday } from "@/lib/whatsapp-throttle";
 import { saveWhatsAppSettingsAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +8,10 @@ export const dynamic = "force-dynamic";
 export default async function SendingSettingsPage() {
   await verifyTeamMember();
 
-  const settings = await getWhatsAppSettings();
+  // readWhatsAppSettings ולא getWhatsAppSettings: המסך הזה חייב להבדיל בין
+  // הערכים השמורים לבין ברירות מחדל שהוחזרו אחרי קריאה שנכשלה. הצגת פולבק
+  // כאילו הוא האמת היא בדיוק איך שהמסך הראה "לא מושהה" בזמן שהשליחה עצורה.
+  const { settings, degraded } = await readWhatsAppSettings();
   // כישלון בספירה אינו סיבה להפיל את הדף — זה גם הדף שבו משהים שליחה כשמשהו
   // משתבש, וחסימת הגישה אליו בדיוק אז היא התנהגות גרועה.
   const sentToday = await countWhatsAppSentToday().catch(() => null);
@@ -16,6 +19,15 @@ export default async function SendingSettingsPage() {
   return (
     <section className="card">
       <h2 className="font-medium">בלמים על השליחה האוטומטית</h2>
+
+      {degraded && (
+        <p className="mt-3 rounded-lg bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger)]">
+          <strong>קריאת ההגדרות מהמסד נכשלה.</strong> מה שמוצג למטה הוא ברירת מחדל ולא
+          המצב האמיתי — ייתכן שהשליחה מושהית גם אם התיבה נראית ריקה. רעננו את הדף לפני
+          שמסתמכים על מה שכתוב כאן, ואל תשמרו בינתיים: שמירה תדרוס את הערכים השמורים
+          בברירות המחדל האלה.
+        </p>
+      )}
       <p className="mt-1 mb-4 text-sm leading-relaxed text-[var(--muted)]">
         בניגוד לערוץ הלא רשמי, כאן אין סיכון שהמספר ייחסם — Cloud API הוא הערוץ המאושר
         של Meta. התקרה כאן היא בלם <strong>עלות</strong>: כל תבנית שנמסרת מחויבת, ולולאה
