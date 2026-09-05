@@ -556,16 +556,17 @@ export async function runJourneys(
       continue;
     }
 
-    const throttled = step.channel === "whatsapp";
-    if (throttled) {
-      const allowed = budget.canSend();
-      if (!allowed.ok) {
-        // לא break: שלב מייל של מסע אחר אינו מווסת, ואין סיבה לעצור אותו
-        // בגלל תקרת הוואטסאפ.
-        summary.stopped ??= allowed.reason;
-        summary.skipped += 1;
-        continue;
-      }
+    // שלוש סיבות, ולא כולן חלות על כל ערוץ:
+    //   paused      — חלה על הכול. המתג אומר "שום דבר לא יוצא מעצמו", ושלב
+    //                 מייל של מסע הוא בדיוק שליחה אוטומטית.
+    //   time_budget — חלה על הכול. הפונקציה עומדת להיקטע, בלי קשר לערוץ.
+    //   daily_limit — וואטסאפ בלבד. היא סופרת הודעות שמטא מחייבת עליהן, ואין
+    //                 סיבה לעצור בגללה שלב מייל של מסע אחר.
+    const allowed = budget.canSend();
+    if (!allowed.ok && (allowed.reason !== "daily_limit" || step.channel === "whatsapp")) {
+      summary.stopped ??= allowed.reason;
+      summary.skipped += 1;
+      continue;
     }
 
     const result = await sendMessageToContact({
@@ -587,7 +588,8 @@ export async function runJourneys(
     }
 
     summary.sent += 1;
-    if (throttled) budget.countSent();
+    // רק וואטסאפ נספר מול התקרה היומית — היא מודדת את מה שמטא מחייבת עליו.
+    if (step.channel === "whatsapp") budget.countSent();
 
     // נרשם רק אחרי הצלחה — זה מה שהופך קטיעה באמצע ריצה לבטוחה.
     await db

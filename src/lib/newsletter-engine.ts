@@ -1,4 +1,5 @@
 import "server-only";
+import { isSendingPaused } from "@/lib/whatsapp-throttle";
 
 import { supabaseAdmin } from "./supabase/admin";
 import { sendMessageToContact } from "./send";
@@ -24,7 +25,7 @@ export interface NewsletterRunSummary {
   completed: number;
   /** כמה נמענים נשארו לריצה הבאה */
   remaining: number;
-  stopped: "run_limit" | "time_budget" | null;
+  stopped: "paused" | "run_limit" | "time_budget" | null;
   errors: { newsletterId: string; contactId: string; error: string }[];
 }
 
@@ -57,6 +58,13 @@ export async function runNewsletters(
     stopped: null,
     errors: [],
   };
+
+  // ההשהיה נבדקת לפני כל שאילתה: כשהמתג דלוק אין מה לשלוף, ובוודאי אין מה
+  // לייצר רשומות נמענים — הן היו נשארות תלויות עד שהמתג יכובה.
+  if (await isSendingPaused()) {
+    summary.stopped = "paused";
+    return summary;
+  }
 
   // גם sending ולא רק scheduled: ניוזלטר שנקטע באמצע בגלל התקרה כבר אינו
   // מתוזמן, והוא חייב להימצא שוב בריצה הבאה כדי להמשיך מאותו מקום.

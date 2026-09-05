@@ -1,4 +1,5 @@
 import "server-only";
+import { isSendingPaused } from "@/lib/whatsapp-throttle";
 
 import { supabaseAdmin } from "./supabase/admin";
 import { sendMessageToContact } from "./send";
@@ -30,7 +31,7 @@ import type {
 export interface EventReminderSummary {
   sent: number;
   failed: number;
-  stopped: "run_limit" | "time_budget" | null;
+  stopped: "paused" | "run_limit" | "time_budget" | null;
   errors: { eventId: string; contactId: string; reminderId: string; error: string }[];
 }
 
@@ -66,6 +67,13 @@ export async function runEventReminders(
   const deadline = now.getTime() + budgetMs;
 
   const summary: EventReminderSummary = { sent: 0, failed: 0, stopped: null, errors: [] };
+
+  // ההשהיה נבדקת ראשונה. תזכורת פגישה יוצאת בוואטסאפ או במייל לפי התבנית,
+  // ובשני המקרים היא שליחה אוטומטית — כלומר בדיוק מה שהמתג אמור לעצור.
+  if (await isSendingPaused()) {
+    summary.stopped = "paused";
+    return summary;
+  }
 
   // כל ההגדרות הפעילות, עם האירוע והתבנית שלהן. שאילתה אחת ולא אחת לכל
   // אירוע: מספר ההגדרות קטן מטבעו, וזה חוסך סיבוב לכל אירוע פעיל.
