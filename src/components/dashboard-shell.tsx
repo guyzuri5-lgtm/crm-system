@@ -202,6 +202,7 @@ const GROUPS: NavGroup[] = [
       { href: "/newsletter", label: "הודעה חדשה" },
       { href: "/newsletter/scheduled", label: "מתוזמנים" },
       { href: "/newsletter/history", label: "היסטוריה" },
+      { href: "/newsletter/unsubscribed", label: "הסרות" },
     ],
   },
   {
