@@ -75,7 +75,9 @@ export interface CanvasEdge {
 const CARD_W = 190;
 // גובה שמכיל שורת מטא, כותרת ושתי שורות מההודעה. היה 84 לפני שהתצוגה
 // המקדימה נכנסה, ואז הטקסט גלש אל מחוץ לכרטיס.
-const CARD_H = 116;
+// נמדד ולא נוחש: כותרת (22) + הודעה בשתי שורות (48) + מטא (18), עם
+// gap של 6 ופדינג 10 למעלה ולמטה = 122. 116 חתך את השורה האחרונה.
+const CARD_H = 122;
 const ENTRY_ID = "__entry__";
 
 export function JourneyCanvas({
@@ -382,7 +384,7 @@ export function JourneyCanvas({
                   strokeWidth={1.8}
                   strokeDasharray={conditional ? "5 4" : undefined}
                   markerEnd={conditional ? "url(#ah-c)" : "url(#ah)"}
-                  className="pointer-events-none"
+                  className="j-wire-line pointer-events-none"
                 />
 
                 {/* × לניתוק, על אמצע החץ. עד עכשיו ניתוק דרש לבחור כרטיסייה
@@ -429,17 +431,9 @@ export function JourneyCanvas({
         {/* ── כניסה ── */}
         <div
           onClick={() => connectFrom && connectTo(ENTRY_ID)}
-          className="absolute flex flex-col justify-center rounded-2xl border-2 px-4 shadow-sm"
-          style={{
-            left: entryPos.x,
-            top: entryPos.y,
-            width: CARD_W,
-            height: CARD_H,
-            // הכניסה בגוון המבטא: היא לא שלב אלא נקודת הפתיחה, וזה ההבדל
-            // היחיד שצריך להיקרא בלוח שכולו כרטיסיות.
-            backgroundColor: "var(--primary-soft)",
-            borderColor: "color-mix(in srgb, var(--primary) 30%, transparent)",
-          }}
+          data-entry
+          className="j-node absolute flex flex-col justify-center"
+          style={{ left: entryPos.x, top: entryPos.y, width: CARD_W, height: CARD_H }}
         >
           <p className="text-[10px] font-semibold text-[var(--primary)]">נכנסים למסע</p>
           <p className="mt-0.5 text-sm leading-snug font-medium">{entryLabel}</p>
@@ -465,14 +459,10 @@ export function JourneyCanvas({
               style={{ left: p.x, top: p.y, width: CARD_W, height: CARD_H }}
               onPointerDown={(e) => onPointerDown(e, node)}
               onClick={() => isTarget && connectTo(node.id)}
-              className={`absolute flex flex-col rounded-2xl border-2 px-3 py-2.5 shadow-sm select-none ${
+              data-target={isTarget ? "true" : undefined}
+              data-selected={selectedId === node.id ? "true" : undefined}
+              className={`j-node absolute flex flex-col select-none ${
                 drag?.id === node.id ? "cursor-grabbing" : "cursor-grab"
-              } ${isTarget ? "ring-2 ring-[var(--warn)]/50" : ""} ${
-                selectedId === node.id ? "ring-2 ring-[var(--primary)]" : ""
-              } ${
-                node.channel === "email"
-                  ? "border-[var(--nav-blue)]/40 bg-[var(--nav-blue-soft)]"
-                  : "border-[var(--ok)]/40 bg-[var(--ok-soft)]"
               }`}
             >
               {/*
@@ -488,7 +478,10 @@ export function JourneyCanvas({
                     {
                       "--glyph-color":
                         node.channel === "email" ? "var(--nav-blue)" : "var(--ok)",
-                      "--glyph-bg": "color-mix(in srgb, var(--surface) 65%, transparent)",
+                      "--glyph-bg":
+                        node.channel === "email"
+                          ? "var(--nav-blue-soft)"
+                          : "var(--ok-soft)",
                     } as CSSProperties
                   }
                   aria-hidden="true"
@@ -501,15 +494,7 @@ export function JourneyCanvas({
               </div>
 
               {node.preview && (
-                <p
-                  className="mt-1.5 line-clamp-2 rounded-lg px-2 py-1 text-[10.5px] leading-snug break-words"
-                  style={{
-                    backgroundColor: "color-mix(in srgb, var(--surface) 62%, transparent)",
-                    color: "var(--muted)",
-                  }}
-                >
-                  {node.preview}
-                </p>
+                <p className="j-msg line-clamp-2 break-words">{node.preview}</p>
               )}
 
               <div className="mt-auto flex items-center gap-1.5 pt-1.5">
@@ -518,7 +503,10 @@ export function JourneyCanvas({
                   style={
                     {
                       "--pill-color": node.channel === "email" ? "var(--nav-blue)" : "var(--ok)",
-                      "--pill-bg": "color-mix(in srgb, var(--surface) 70%, transparent)",
+                      "--pill-bg":
+                        node.channel === "email"
+                          ? "var(--nav-blue-soft)"
+                          : "var(--ok-soft)",
                     } as CSSProperties
                   }
                 >
@@ -537,17 +525,20 @@ export function JourneyCanvas({
                   </span>
                 )}
               </div>
+              {/* נמל כניסה: סימון בלבד, אין מה ללחוץ עליו. */}
+              <span className="j-port j-port-in" aria-hidden />
+
               <button
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation();
                   setConnectFrom(node.id);
                 }}
-                title="משוך חץ מכאן"
-                className="absolute top-1/2 -right-2.5 size-5 -translate-y-1/2 rounded-full border border-[var(--border)] bg-[var(--surface)] text-[10px] leading-none text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
-              >
-                →
-              </button>
+                data-hot={connectFrom === node.id ? "true" : undefined}
+                title="משוך חץ מכאן אל כרטיסייה אחרת"
+                aria-label="חיבור יוצא"
+                className="j-port j-port-out"
+              />
 
               <form
                 action={deleteNodeAction}

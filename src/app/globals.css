@@ -660,3 +660,92 @@ body {
   color: var(--muted);
   background-color: color-mix(in srgb, var(--surface) 70%, transparent);
 }
+
+/* ── כרטיסיית מסע ──────────────────────────────────────────────────────── */
+/* לבנה עם מסגרת דקה, ורק ריבוע האייקון צבוע. כרטיס שכולו צבוע בגוון הערוץ
+   הופך את הלוח לשדה של כתמים, ומה שאמור להבדיל — הערוץ — מפסיק להבדיל
+   כי הכול צבוע. */
+.j-node {
+  border-radius: 14px;
+  padding: 10px 11px;
+  gap: 6px;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-1);
+  transition:
+    box-shadow 0.16s,
+    border-color 0.16s;
+}
+.j-node:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-2);
+}
+.j-node[data-target="true"] {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+.j-node[data-selected="true"] {
+  border-color: var(--primary);
+}
+/* הכניסה: גוון המבטא ובלי מסגרת. היא לא שלב אלא נקודת הפתיחה. */
+.j-node[data-entry] {
+  background-color: var(--primary-soft);
+  border-color: transparent;
+}
+.j-node[data-entry] .j-msg {
+  background-color: color-mix(in srgb, var(--surface) 60%, transparent);
+}
+
+/* גוף ההודעה בתוך הכרטיסייה. */
+.j-msg {
+  border-radius: 8px;
+  padding: 7px 9px;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--muted);
+  background-color: var(--background);
+}
+
+/* נמל חיבור. עיגול על שפת הכרטיס ולא כפתור בתוכו: הוא מסמן *מאיפה* החוט
+   יוצא, וזו האמירה היחידה שלו. */
+.j-port {
+  position: absolute;
+  top: 50%;
+  width: 13px;
+  height: 13px;
+  margin-top: -6.5px;
+  padding: 0;
+  border-radius: 50%;
+  background-color: var(--surface);
+  border: 2px solid var(--border-strong);
+  transition:
+    border-color 0.14s,
+    background-color 0.14s,
+    transform 0.14s;
+}
+/* הזרימה בעברית מימין לשמאל: הכניסה בימין הכרטיס והיציאה בשמאלו. */
+.j-port-in {
+  right: -7px;
+}
+.j-port-out {
+  left: -7px;
+  cursor: crosshair;
+}
+.j-port-out:hover,
+.j-port-out[data-hot="true"] {
+  border-color: var(--primary);
+  background-color: var(--primary);
+  transform: scale(1.3);
+}
+/* שטח פגיעה נדיב: 13 פיקסלים קשה לפגוע בהם, בעכבר ובוודאי במגע. */
+.j-port-out::after {
+  content: "";
+  position: absolute;
+  inset: -9px;
+  border-radius: 50%;
+}
+
+/* החוט מתחזק בריחוף, כדי שיהיה ברור על איזה חץ ה-× יושב. */
+.wire:hover .j-wire-line {
+  stroke: var(--primary);
+}
