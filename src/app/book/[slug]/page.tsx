@@ -69,7 +69,7 @@ export default async function BookPage({ params }: PageProps<"/book/[slug]">) {
             )}
 
             <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-[var(--muted)]">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-[var(--accent-strong)] ring-1 ring-inset ring-[var(--accent-muted)]">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--surface)] px-2.5 py-1 text-xs font-semibold text-[var(--accent-strong)] ring-1 ring-inset ring-[var(--accent-muted)]">
                 <ClockIcon />
                 {eventType.duration_minutes} דקות
               </span>

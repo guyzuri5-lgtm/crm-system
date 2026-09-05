@@ -9,7 +9,7 @@ export default async function LoginPage(props: PageProps<"/login">) {
     <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_50%_0%,var(--primary-soft),var(--background)_55%)] p-6">
       <div className="w-full max-w-sm">
         <div className="mb-6 flex flex-col items-center gap-3 text-center">
-          <span className="grid size-11 place-items-center rounded-2xl bg-[var(--primary)] text-sm font-bold text-white shadow-sm">
+          <span className="grid size-11 place-items-center rounded-2xl bg-[var(--primary)] text-sm font-bold text-[var(--on-primary)] shadow-sm">
             CRM
           </span>
           <div>

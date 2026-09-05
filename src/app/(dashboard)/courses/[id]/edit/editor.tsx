@@ -164,6 +164,7 @@ export function CourseDesignEditor({ course }: { course: CourseRow }) {
                 form_description: draft.form_description || null,
                 button_text: draft.button_text,
                 custom_fields: draft.custom_fields,
+                grow_link: draft.grow_link || null,
               }}
               spotsLeft={null}
             />

@@ -397,7 +397,7 @@ export function BookingFlow({
 
         <button
           type="submit"
-          className="mt-5 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-[transform,background-color] duration-150 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 sm:w-auto"
+          className="mt-5 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-[var(--accent-on)] shadow-sm transition-[transform,background-color] duration-150 ease-out hover:bg-[var(--accent-strong)] active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 sm:w-auto"
           disabled={submitting}
         >
           {submitting ? "קובע פגישה…" : "אישור הפגישה"}
@@ -471,9 +471,9 @@ export function BookingFlow({
                   className={[
                     "relative aspect-square rounded-xl text-sm font-semibold transition-[transform,background-color,color,box-shadow] duration-150 ease-out",
                     isSelected
-                      ? "bg-[var(--accent)] text-white shadow-sm"
+                      ? "bg-[var(--accent)] text-[var(--accent-on)] shadow-sm"
                       : hasSlots
-                        ? "cursor-pointer bg-[var(--accent-muted)] text-[var(--accent-strong)] hover:bg-[var(--accent)] hover:text-white active:scale-[0.94]"
+                        ? "cursor-pointer bg-[var(--accent-muted)] text-[var(--accent-strong)] hover:bg-[var(--accent)] hover:text-[var(--accent-on)] active:scale-[0.94]"
                         : "cursor-default font-normal text-[var(--subtle)]",
                     // טבעת דקה על היום הנוכחי — נקודת עיגון בלוח, גם כשאין בו
                     // שעות פנויות ולכן הוא מוצג מעומעם.
@@ -524,7 +524,7 @@ export function BookingFlow({
                       setStep("form");
                       setSubmitError(null);
                     }}
-                    className="w-full rounded-lg border border-[var(--accent-muted)] bg-white py-2.5 text-sm font-semibold tabular-nums text-[var(--accent-strong)] shadow-sm transition-[transform,background-color,border-color] duration-150 ease-out hover:border-[var(--accent)] hover:bg-[var(--accent)] hover:text-white active:scale-[0.97]"
+                    className="w-full rounded-lg border border-[var(--accent-muted)] bg-[var(--surface)] py-2.5 text-sm font-semibold tabular-nums text-[var(--accent-strong)] shadow-sm transition-[transform,background-color,border-color] duration-150 ease-out hover:border-[var(--accent)] hover:bg-[var(--accent)] hover:text-[var(--accent-on)] active:scale-[0.97]"
                   >
                     {formatSlotTime(iso)}
                   </button>

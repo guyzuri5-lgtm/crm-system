@@ -38,6 +38,8 @@ export interface LandingDesign {
   location?: string | null;
   show_datetime?: boolean;
   show_capacity?: boolean;
+  /** לינק תשלום. קיים = ההרשמה נגמרת בתשלום, וזה נאמר לפני הכפתור. */
+  grow_link?: string | null;
 }
 
 export interface ThanksDesign {
@@ -105,8 +107,12 @@ export function RegistrationLanding({ design, spotsLeft, action }: LandingProps)
         )}
 
         {design.show_capacity && spotsLeft !== null && !isFull && (
-          <p className="mt-4 text-center text-sm font-semibold text-[var(--nav-amber)]">
-            נותרו {spotsLeft} מקומות
+          <p className="mt-4 text-center">
+            {/* הרקע הרך הוא דרישת ניגודיות, לא קישוט: ענבר על המשטח החשוף
+                מגיע ל-3.57 בלבד, ועל הרקע הרך ל-5.19. */}
+            <span className="inline-block rounded-full bg-[var(--nav-amber-soft)] px-3 py-1 text-sm font-semibold text-[var(--nav-amber)]">
+              נותרו {spotsLeft} מקומות
+            </span>
           </p>
         )}
 
@@ -131,7 +137,7 @@ function FormCard({
   action,
   onResult,
 }: {
-  design: Pick<LandingDesign, "form_description" | "button_text" | "custom_fields">;
+  design: Pick<LandingDesign, "form_description" | "button_text" | "custom_fields" | "grow_link">;
   isFull: boolean;
   action?: LandingProps["action"];
   /** ההטמעה בלבד: מה לעשות כשההרשמה חזרה בהצלחה. */
@@ -152,6 +158,14 @@ function FormCard({
             {design.form_description}
           </p>
         )
+      )}
+
+      {/* לפני הכפתור ולא אחרי הטופס: מי שמגלה שהיא צריכה לשלם רק אחרי
+          שמילאה שדות מרגישה שמשכו אותה. במצב "מלא" אין תשלום — יש המתנה. */}
+      {design.grow_link && !isFull && (
+        <p className="mb-4 text-center text-xs leading-relaxed text-[var(--muted)]">
+          המקום נשמר רק אחרי התשלום.
+        </p>
       )}
 
       <RegistrationForm
@@ -182,10 +196,13 @@ function Header({ design }: { design: Pick<LandingDesign, "name" | "subtitle" | 
     >
       {hasImage && <div className="absolute inset-0 bg-black/35" aria-hidden="true" />}
 
-      <div className="relative">
-        <h1 className="text-2xl font-bold text-white sm:text-3xl">{design.name}</h1>
+      {/* שני מצבי צבע ולא אחד: מעל התמונה יש שכבת הכהיה, ולבן קריא עליה
+          בכל ערכה. בלי תמונה הרקע הוא --primary עצמו, שבמצב כהה הוא
+          טורקיז בהיר — ולבן עליו יורד ל-2.13. --on-primary נועד לזה. */}
+      <div className={`relative ${hasImage ? "text-white" : "text-[var(--on-primary)]"}`}>
+        <h1 className="text-2xl font-bold sm:text-3xl">{design.name}</h1>
         {design.subtitle && (
-          <p className="mx-auto mt-2.5 max-w-lg text-sm leading-relaxed text-white/85">
+          <p className="mx-auto mt-2.5 max-w-lg text-sm leading-relaxed opacity-85">
             {design.subtitle}
           </p>
         )}
@@ -382,7 +399,7 @@ export function RegistrationEmbed({
   thanksText,
   embedId,
 }: {
-  design: Pick<LandingDesign, "form_description" | "button_text" | "custom_fields">;
+  design: Pick<LandingDesign, "form_description" | "button_text" | "custom_fields" | "grow_link">;
   spotsLeft: number | null;
   action: NonNullable<LandingProps["action"]>;
   thanksTitle: string;

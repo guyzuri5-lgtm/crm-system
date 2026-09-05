@@ -203,6 +203,7 @@ export function EventDesignEditor({
                 show_datetime: draft.show_datetime,
                 show_capacity: draft.show_capacity,
                 custom_fields: draft.custom_fields,
+                grow_link: draft.grow_link || null,
               }}
               // מספר לדוגמה: התצוגה נועדה להראות איך השורה נראית, לא לדווח
               // כמה מקומות באמת נשארו — זה נתון חי ששייך למסך האירוע.
