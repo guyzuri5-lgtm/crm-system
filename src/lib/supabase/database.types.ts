@@ -695,6 +695,13 @@ export type Database = {
           active: boolean;
           /** נוסף ב-0017 — תגובה של הלקוח מסיימת את המסע כולו */
           stop_on_reply: boolean;
+          /**
+           * נוספו ב-0031 — מיקום צומת הכניסה על הלוח. null = לא נגרר מעולם,
+           * והלוח מציב אותו בעוגן הימני. לשלבים עצמם יש pos_x/pos_y משלהם
+           * ב-journey_steps; לכניסה אין שורה שם, כי היא צומת וירטואלי.
+           */
+          entry_pos_x: number | null;
+          entry_pos_y: number | null;
           created_at: string;
           updated_at: string;
         };

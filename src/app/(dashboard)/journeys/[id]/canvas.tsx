@@ -12,6 +12,7 @@ import {
 } from "@/lib/supabase/database.types";
 import {
   moveNodeAction,
+  moveEntryAction,
   addEdgeAction,
   deleteEdgeAction,
   deleteNodeAction,
@@ -94,12 +95,15 @@ export function JourneyCanvas({
   journeyId,
   entryLabel,
   bookingEntry,
+  savedEntry,
   nodes,
   edges,
   templates,
 }: {
   journeyId: string;
   entryLabel: string;
+  /** מיקום שמור לצומת הכניסה. null = לא נגרר מעולם (0031). */
+  savedEntry: { x: number; y: number } | null;
   /** האם הכניסה למסע היא "קבע פגישה" — קובע אילו תזמונים מוצעים בטופס. */
   bookingEntry: boolean;
   nodes: CanvasNode[];
@@ -109,19 +113,6 @@ export function JourneyCanvas({
   const surface = useRef<HTMLDivElement>(null);
   const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [drag, setDrag] = useState<{ id: string; dx: number; dy: number } | null>(null);
-  // נקרא פעם אחת בעצלתיים ולא ב-useEffect: קריאה אחרי הציור הראשון הייתה
-  // מקפיצה את הכניסה ממקום למקום מול העיניים.
-  const [storedEntry] = useState<{ x: number; y: number } | null>(() => {
-    if (typeof window === "undefined") return null;
-    try {
-      const raw = localStorage.getItem(`crm-journey-entry-${journeyId}`);
-      if (!raw) return null;
-      const p = JSON.parse(raw);
-      return typeof p?.x === "number" && typeof p?.y === "number" ? p : null;
-    } catch {
-      return null;
-    }
-  });
   const [connectFrom, setConnectFrom] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // מיקום של כרטיסיית טיוטה: מופיעה מיד על המשטח, נשמרת למסד רק ב"הוסף".
@@ -143,15 +134,14 @@ export function JourneyCanvas({
   /*
    * מיקום הכניסה.
    *
-   * הכניסה אינה שורה במסד אלא צומת וירטואלי, ולכן אין לה pos_x/pos_y לשמור
-   * בהם — ומיגרציה בשביל מיקום של כרטיס אחד אינה שווה את המחיר. הבחירה
-   * נשמרת ב-localStorage: היא שורדת רענון, אבל היא של הדפדפן הזה בלבד.
-   * לוח שנפתח במחשב אחר יראה את ברירת המחדל, וזה עדיף על מיקום שנעלם בכל
-   * רענון.
+   * נשמר על journeys (עמודות entry_pos_x/y, מיגרציה 0031) ולא ב-localStorage:
+   * מיקום הוא תכונה של הלוח ולא של מי שמסתכל עליו, ולוח שנפתח במחשב אחר
+   * צריך להיראות אותו דבר.
+   *
+   * null = לא נגרר מעולם, והכניסה יושבת בעוגן הימני — בעברית המסע מתחיל שם.
    */
-  const entryKey = `crm-journey-entry-${journeyId}`;
   const defaultEntry = { x: CANVAS_W - CARD_W - 20, y: 20 };
-  const entryPos = positions[ENTRY_ID] ?? storedEntry ?? defaultEntry;
+  const entryPos = positions[ENTRY_ID] ?? savedEntry ?? defaultEntry;
   /** פינת הכרטיס, או null אם הצומת נמחק מתחת לרגליים. */
   const cornerOf = (id: string) => {
     if (id === ENTRY_ID) return entryPos;
@@ -235,13 +225,14 @@ export function JourneyCanvas({
     const p = positions[id];
     if (!p) return;
 
-    // הכניסה אינה שורה במסד — אין לאן לשלוח אותה. נשמרת בדפדפן.
     if (id === ENTRY_ID) {
-      try {
-        localStorage.setItem(entryKey, JSON.stringify(p));
-      } catch {
-        // חלון פרטי: המיקום יחזיק עד רענון, וזה עדיין טוב יותר מכלום.
-      }
+      startTransition(async () => {
+        const data = new FormData();
+        data.set("journey_id", journeyId);
+        data.set("pos_x", String(p.x));
+        data.set("pos_y", String(p.y));
+        await moveEntryAction(data);
+      });
       return;
     }
 
@@ -314,13 +305,11 @@ export function JourneyCanvas({
 
     // הכניסה חוזרת לעוגן שלה. "סידור אוטומטי" שמשאיר אותה איפה שנגררה אינו
     // מסדר — הוא מסדר סביב מקום שרירותי.
-    try {
-      localStorage.removeItem(entryKey);
-    } catch {
-      // אין מה לעשות; ה-setPositions למטה מחזיר אותה ממילא בהפעלה הזו.
-    }
     setPositions({ ...next, [ENTRY_ID]: defaultEntry });
     startTransition(async () => {
+      const reset = new FormData();
+      reset.set("journey_id", journeyId);
+      await moveEntryAction(reset);
       for (const [id, p] of Object.entries(next)) {
         const data = new FormData();
         data.set("id", id);

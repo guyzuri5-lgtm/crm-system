@@ -163,6 +163,40 @@ export async function deleteNodeAction(formData: FormData) {
  * נקראת בסיום הגרירה ולא תוך כדי: עדכון לכל פיקסל היה מציף את המסד בכתיבות
  * שכולן חוץ מהאחרונה חסרות ערך.
  */
+/**
+ * מיקום צומת הכניסה. נשמר על journeys ולא על journey_steps, כי לכניסה אין
+ * שורה שם — היא צומת וירטואלי שהלוח מצייר מתוך המסע עצמו.
+ *
+ * שגיאת "עמודה לא קיימת" נבלעת בכוונה: 0031 עשויה לא לרוץ, וגרירה של
+ * כרטיס אחד אינה סיבה להפיל את הלוח. המיקום פשוט לא יישמר, וזה בדיוק המצב
+ * שהיה לפני המיגרציה.
+ */
+export async function moveEntryAction(formData: FormData) {
+  await verifyTeamMember();
+
+  const journeyId = String(formData.get("journey_id") ?? "");
+  const x = Number(formData.get("pos_x"));
+  const y = Number(formData.get("pos_y"));
+  if (!journeyId) return;
+
+  // NaN = "החזר לעוגן", וזה מה ש"סידור אוטומטי" שולח.
+  const reset = !Number.isFinite(x) || !Number.isFinite(y);
+
+  const { error } = await supabaseAdmin()
+    .from("journeys")
+    .update(
+      reset
+        ? { entry_pos_x: null, entry_pos_y: null }
+        : { entry_pos_x: Math.round(x), entry_pos_y: Math.round(y) }
+    )
+    .eq("id", journeyId);
+
+  // 42703 = undefined_column, PGRST204 = העמודה אינה בסכימה שהוצגה.
+  if (error && !["42703", "PGRST204"].includes(error.code ?? "")) throw error;
+
+  revalidatePath(`/journeys/${journeyId}`);
+}
+
 export async function moveNodeAction(formData: FormData) {
   await verifyTeamMember();
 

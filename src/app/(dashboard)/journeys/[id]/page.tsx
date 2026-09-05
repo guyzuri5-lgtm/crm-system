@@ -184,6 +184,14 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
               ? `: ${journey.entry_value.status}`
               : "")
           }
+          // typeof ולא !== null: לפני שמיגרציה 0031 רצה, select("*") לא מחזיר
+          // את העמודה בכלל והערך הוא undefined — שאינו null, וכך היה עובר
+          // את הבדיקה ומגיע ללוח כמיקום {undefined, undefined}.
+          savedEntry={
+            typeof journey.entry_pos_x === "number" && typeof journey.entry_pos_y === "number"
+              ? { x: journey.entry_pos_x, y: journey.entry_pos_y }
+              : null
+          }
           nodes={steps.map((s) => ({
             id: s.id,
             x: s.pos_x,
