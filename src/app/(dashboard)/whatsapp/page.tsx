@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import { verifyTeamMember } from "@/lib/dal";
 import { getWhatsAppSettings, countWhatsAppSentToday } from "@/lib/whatsapp-throttle";
@@ -52,11 +53,22 @@ export default async function WhatsAppPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div>
-        <h1 className="page-title">וואטסאפ</h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">
-          מצב המספר אצל Meta: איכות, תקרה, וכמה נשלח היום.
-        </p>
+      <div className="h-page">
+        <div>
+          <h1>ערוץ הוואטסאפ</h1>
+          <p>מצב המספר אצל Meta: איכות, תקרה יומית, וכמה כבר נשלח היום.</p>
+        </div>
+        {phone?.displayPhoneNumber && (
+          <>
+            <span className="flex-1" />
+            <span className="pill" style={pillStyle("var(--ok)", "var(--ok-soft)")}>
+              מחובר ·{" "}
+              <span className="data" dir="ltr">
+                {phone.displayPhoneNumber}
+              </span>
+            </span>
+          </>
+        )}
       </div>
 
       {/* ── מצב ─────────────────────────────────────────────────────── */}
@@ -70,13 +82,16 @@ export default async function WhatsAppPage() {
           ) : quality ? (
             <>
               <p
-                className={`mt-1 font-medium ${
-                  quality.tone === "ok"
-                    ? "text-emerald-600"
-                    : quality.tone === "warn"
-                      ? "text-amber-600"
-                      : "text-[var(--danger)]"
-                }`}
+                className="mt-1 text-[22px] leading-none font-medium tracking-[-0.02em]"
+                style={{
+                  fontFamily: "var(--font-display)",
+                  color:
+                    quality.tone === "ok"
+                      ? "var(--ok)"
+                      : quality.tone === "warn"
+                        ? "var(--warn)"
+                        : "var(--danger)",
+                }}
               >
                 {quality.text}
               </p>
@@ -89,18 +104,23 @@ export default async function WhatsAppPage() {
 
         <div className="card">
           <p className="text-sm text-[var(--muted)]">נשלחו היום</p>
-          <p className="mt-1 text-2xl font-bold tabular-nums">
-            {sentToday ?? "—"}
-            <span className="text-base font-normal text-[var(--subtle)]">
-              {" "}
-              / {settings.daily_limit}
-            </span>
-          </p>
-          {phone?.displayPhoneNumber && (
-            <p className="mt-1 text-xs text-[var(--subtle)]" dir="ltr">
-              {phone.displayPhoneNumber}
-            </p>
-          )}
+          {/* טבעת ולא מספר יבש: כשהמכסה מתמלאת רואים את זה לפני שהשליחה
+              נעצרת, ולא רק אחרי. */}
+          <div className="mt-2.5 flex items-center gap-3.5">
+            <QuotaRing value={sentToday ?? 0} max={settings.daily_limit} />
+            <div>
+              <p className="text-[25px] leading-none font-medium tracking-[-0.02em] tabular-nums"
+                 style={{ fontFamily: "var(--font-display)" }}>
+                {sentToday ?? "—"}
+                <span className="text-sm text-[var(--subtle)]"> / {settings.daily_limit}</span>
+              </p>
+              <p className="mt-1.5 text-[11.5px] text-[var(--subtle)]">
+                {sentToday === null
+                  ? "אין נתון"
+                  : `${Math.round((sentToday / settings.daily_limit) * 100)}% מהתקרה היומית`}
+              </p>
+            </div>
+          </div>
         </div>
 
         <div className="card">
@@ -180,5 +200,38 @@ export default async function WhatsAppPage() {
         </p>
       </section>
     </div>
+  );
+}
+
+function pillStyle(color: string, soft: string): CSSProperties {
+  return { "--pill-color": color, "--pill-bg": soft } as CSSProperties;
+}
+
+/**
+ * טבעת המכסה היומית. r=22 ולכן ההיקף הוא 2πr; ה-offset הוא מה שנשאר ריק,
+ * והסיבוב ב-90 מעלות מתחיל אותה מלמעלה במקום מימין.
+ */
+function QuotaRing({ value, max }: { value: number; max: number }) {
+  const R = 22;
+  const circumference = 2 * Math.PI * R;
+  const pct = max > 0 ? Math.min(1, value / max) : 0;
+  const full = pct >= 0.9;
+
+  return (
+    <svg width={54} height={54} viewBox="0 0 54 54" aria-label={`${value} מתוך ${max}`} role="img">
+      <circle cx="27" cy="27" r={R} fill="none" stroke="var(--surface-sunken)" strokeWidth={6} />
+      <circle
+        cx="27"
+        cy="27"
+        r={R}
+        fill="none"
+        stroke={full ? "var(--warn)" : "var(--primary)"}
+        strokeWidth={6}
+        strokeLinecap="round"
+        strokeDasharray={circumference.toFixed(1)}
+        strokeDashoffset={(circumference * (1 - pct)).toFixed(1)}
+        transform="rotate(-90 27 27)"
+      />
+    </svg>
   );
 }

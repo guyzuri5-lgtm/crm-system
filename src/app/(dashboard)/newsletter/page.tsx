@@ -67,12 +67,14 @@ export default async function NewsletterPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="page-title">הודעה חדשה</h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">
-          מייל אחד שיוצא לרשימה. מי שהוסר מרשימת התפוצה לא יקבל אותו — אבל ימשיך לקבל
-          מסעות, תזכורות פגישה והודעות אישיות.
-        </p>
+      <div className="h-page">
+        <div>
+          <h1>הודעה חדשה</h1>
+          <p>
+            מייל אחד שיוצא לרשימה. מי שהוסר מרשימת התפוצה לא יקבל אותו — אבל ימשיך לקבל
+            מסעות, תזכורות פגישה והודעות אישיות.
+          </p>
+        </div>
       </div>
 
       <NewsletterEditor allCount={allCount} statusOptions={statusOptions} initial={initial} />

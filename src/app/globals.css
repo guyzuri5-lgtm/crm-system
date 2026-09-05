@@ -580,6 +580,23 @@ body {
     font-family: var(--font-display);
     font-variant-numeric: tabular-nums;
   }
+
+  /* ── לשונית ──────────────────────────────────────────────────────── */
+  /* הקו התחתון הוא הסימון, לא רקע: לשונית פעילה היא מקום ולא כפתור לחוץ.
+     ‎-1px מרים אותה על הקו של ה-nav, כך שהשניים נראים כקו אחד. */
+  .tab {
+    @apply -mb-px border-b-2 border-transparent px-3.5 py-2 text-sm font-medium
+      transition-[color,border-color] duration-150;
+    color: var(--muted);
+  }
+  .tab:hover {
+    color: var(--foreground);
+  }
+  .tab[aria-current="page"] {
+    @apply font-semibold;
+    color: var(--primary);
+    border-color: var(--primary);
+  }
 }
 
 /* טבעת פוקוס אחידה לכל מה שמקבל מיקוד מהמקלדת. עד עכשיו כל דפדפן צייר

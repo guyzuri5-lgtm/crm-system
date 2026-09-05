@@ -144,7 +144,7 @@ export function NewsletterEditor({
             className={`rounded-full px-3 py-1 text-sm font-medium ring-1 ring-inset transition-colors duration-150 ${
               selected.length === 0
                 ? "bg-[var(--primary-soft)] text-[var(--primary)] ring-[var(--primary)]/30"
-                : "bg-white text-[var(--muted)] ring-[var(--border-strong)]"
+                : "bg-[var(--surface)] text-[var(--muted)] ring-[var(--border-strong)]"
             }`}
           >
             כל אנשי הקשר ({allCount})
@@ -164,7 +164,7 @@ export function NewsletterEditor({
                 className={`rounded-full px-3 py-1 text-sm font-medium transition-colors duration-150 ${
                   active
                     ? statusColorClasses(option.color)
-                    : "bg-white text-[var(--muted)] ring-1 ring-inset ring-[var(--border-strong)]"
+                    : "bg-[var(--surface)] text-[var(--muted)] ring-1 ring-inset ring-[var(--border-strong)]"
                 }`}
               >
                 {statusLabel(option.name)} ({option.count})
