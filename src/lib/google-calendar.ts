@@ -87,6 +87,40 @@ function errorStatus(error: unknown): number | undefined {
   return typeof code === "string" ? Number(code) : code;
 }
 
+/**
+ * תיאור קצר וּבטוח של שגיאה מ-googleapis, ללוג.
+ *
+ * **לעולם לא להעביר את אובייקט השגיאה עצמו ל-console.** googleapis מצרפת לו
+ * את גוף הבקשה המלא, וגוף בקשת הרענון מכיל את ה-refresh token בטקסט גלוי.
+ * ה-errorRedactor שלה מצנזרת client_secret ו-grant_type אבל **לא** את
+ * ה-refresh token, ולכן כל כשל מול היומן הדפיס את הסוד ללוגים של Vercel —
+ * שם הוא נשמר, ומי שיש לו גישה ללוגים מקבל שליטה על היומן והמייל.
+ *
+ * מה שכן נשמר כאן זה מה שבאמת עוזר לאבחן: ההודעה, קוד ה-HTTP, והשדות
+ * error/error_description שגוגל מחזירה. "invalid_grant · status=400 ·
+ * Token has been expired or revoked." אומר את כל מה שצריך בלי שום סוד.
+ */
+export function describeGoogleError(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+
+  const parts: string[] = [error.message];
+
+  const status = errorStatus(error);
+  if (status !== undefined && Number.isFinite(status)) parts.push(`status=${status}`);
+
+  const data = (error as { response?: { data?: unknown } }).response?.data;
+  if (data && typeof data === "object") {
+    const body = data as { error?: unknown; error_description?: unknown };
+    // data.error הוא לפעמים מחרוזת ("invalid_grant") ולפעמים אובייקט מקונן
+    // עם message משלו. רק המחרוזת בטוחה להדפסה כמו שהיא.
+    const code = typeof body.error === "string" ? body.error : undefined;
+    if (code && code !== error.message) parts.push(code);
+    if (typeof body.error_description === "string") parts.push(body.error_description);
+  }
+
+  return parts.join(" · ");
+}
+
 /** אירוע שהמארח דחה אינו תופס לו את היומן. */
 function declinedBySelf(event: calendar_v3.Schema$Event): boolean {
   return (

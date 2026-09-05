@@ -5,6 +5,7 @@ import { sendEmail } from "@/lib/email";
 import {
   createCalendarEvent,
   deleteCalendarEvent,
+  describeGoogleError,
   isCalendarConfigured,
 } from "@/lib/google-calendar";
 import { normalizePhone } from "@/lib/quiz";
@@ -241,7 +242,7 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
         .update({ google_event_id: event.eventId, google_meet_url: event.meetUrl })
         .eq("id", booking.id);
     } catch (error) {
-      console.error("[booking] calendar event creation failed:", error);
+      console.error("[booking] calendar event creation failed:", describeGoogleError(error));
     }
   }
 
@@ -300,7 +301,7 @@ export async function cancelBooking(
         eventId: booking.google_event_id,
       });
     } catch (error) {
-      console.error("[booking] calendar event deletion failed:", error);
+      console.error("[booking] calendar event deletion failed:", describeGoogleError(error));
     }
   }
 

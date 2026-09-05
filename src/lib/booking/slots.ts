@@ -1,6 +1,7 @@
 import "server-only";
 
 import {
+  describeGoogleError,
   fetchBusyIntervals,
   isCalendarConfigured,
   type BusyInterval,
@@ -259,7 +260,7 @@ export async function getAvailableSlots({
       // כשל מול גוגל הוא המקרה המסוכן: להמשיך כאילו היומן ריק יגרום להצעת
       // שעות תפוסות. עדיף להחזיר "אין זמינות" מאשר להזמין לקוח לשעה שבה
       // כבר יש פגישה אחרת.
-      console.error("[booking] freeBusy lookup failed:", error);
+      console.error("[booking] freeBusy lookup failed:", describeGoogleError(error));
       throw new Error("calendar_unavailable");
     }
   }
