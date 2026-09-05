@@ -2,7 +2,7 @@
 
 import type { CSSProperties } from "react";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import {
   JOURNEY_CONDITIONS,
@@ -111,8 +111,17 @@ export function JourneyCanvas({
   templates: CanvasTemplate[];
 }) {
   const surface = useRef<HTMLDivElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
   const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [drag, setDrag] = useState<{ id: string; dx: number; dy: number } | null>(null);
+
+  // הלוח נפתח על הקצה הימני, כי שם הכניסה. מוגדר במפורש ולא מסתמך על
+  // התנהגות הגלילה ב-RTL: המיכל הוא dir=ltr כדי שמיקומי left יהיו צפויים,
+  // ובכיוון הזה הדפדפן מתחיל משמאל — כלומר על אזור ריק.
+  useEffect(() => {
+    const el = scroller.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, []);
   const [connectFrom, setConnectFrom] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // מיקום של כרטיסיית טיוטה: מופיעה מיד על המשטח, נשמרת למסד רק ב"הוסף".
@@ -363,8 +372,8 @@ export function JourneyCanvas({
     if (!el || e.target !== el) return;
     const rect = el.getBoundingClientRect();
     openDraft({
-      x: Math.max(0, Math.round(e.clientX - rect.left + el.scrollLeft - CARD_W / 2)),
-      y: Math.max(0, Math.round(e.clientY - rect.top + el.scrollTop - CARD_H / 2)),
+      x: Math.max(0, Math.round(e.clientX - rect.left - CARD_W / 2)),
+      y: Math.max(0, Math.round(e.clientY - rect.top - CARD_H / 2)),
     });
   }
 
@@ -394,7 +403,7 @@ export function JourneyCanvas({
 
   return (
     <div className="flex flex-col gap-3">
-      <div>
+      <div className="flex flex-wrap items-center gap-2">
         <button
           onClick={autoLayout}
           disabled={pending || !nodes.length}
@@ -419,22 +428,40 @@ export function JourneyCanvas({
       )}
 
       <div
+        ref={scroller}
+        dir="ltr"
+        className="overflow-auto rounded-2xl border border-[var(--border)]"
+        style={{
+          height: boardH,
+          backgroundColor: "var(--background)",
+          boxShadow: "inset 0 1px 3px rgb(23 30 27 / 0.05)",
+        }}
+      >
+      {/*
+        שני אלמנטים ולא אחד.
+
+        קודם ה-minWidth ישב על מיכל הגלילה עצמו — כלומר הרחיב *אותו* ל-1120
+        וגרם לו לגלוש מהכרטיס שמכיל אותו, במקום להרחיב את תוכנו.
+
+        הפיצול גם מתקן באג שהיה חבוי בו: מתמטיקת הגרירה חיסרה rect.left של
+        מיכל הגלילה ממיקום שנמדד בקואורדינטות התוכן, ולכן כרטיסייה שנגררה
+        בזמן שהלוח גלול קפצה. עכשיו המדידה נעשית מול המשטח הפנימי, שה-rect
+        שלו כבר מזיז את עצמו עם הגלילה — ואין מה לחסר.
+      */}
+      <div
         ref={surface}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerLeave={onPointerUp}
         onDoubleClick={onSurfaceDoubleClick}
-        dir="ltr"
-        className="relative overflow-auto rounded-2xl border border-[var(--border)]"
+        className="relative"
         style={{
+          width: boardW,
           height: boardH,
-          minWidth: boardW,
-          backgroundColor: "var(--background)",
           // רשת נקודות: נותנת ללוח תחושת משטח שאפשר לסדר עליו, ומראה
           // שהמיקום של כרטיסייה הוא בחירה ולא סתם איפה שהיא נפלה.
           backgroundImage: "radial-gradient(circle, var(--border-strong) 1px, transparent 1px)",
           backgroundSize: "24px 24px",
-          boxShadow: "inset 0 1px 3px rgb(23 30 27 / 0.05)",
         }}
       >
         {/* החצים מתחת לכרטיסיות, כדי שלא יחצו אותן */}
@@ -655,6 +682,7 @@ export function JourneyCanvas({
             <p className="mt-0.5 text-sm leading-snug font-medium">כרטיסייה חדשה</p>
           </div>
         )}
+      </div>
       </div>
 
       {/* ── פאנל יצירה: אותו טופס של העריכה, במצב טיוטה ── */}
