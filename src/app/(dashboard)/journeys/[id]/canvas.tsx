@@ -118,12 +118,32 @@ export function JourneyCanvas({
 
   // הכניסה אינה שורה במסד אלא צומת וירטואלי, ולכן מיקומה קבוע משמאל.
   const entryPos = { x: 20, y: 20 };
-  const centerOf = (id: string) => {
-    if (id === ENTRY_ID) return { x: entryPos.x + CARD_W / 2, y: entryPos.y + CARD_H / 2 };
+  /** פינת הכרטיס, או null אם הצומת נמחק מתחת לרגליים. */
+  const cornerOf = (id: string) => {
+    if (id === ENTRY_ID) return entryPos;
     const node = nodes.find((n) => n.id === id);
-    if (!node) return null;
-    const p = posOf(node);
-    return { x: p.x + CARD_W / 2, y: p.y + CARD_H / 2 };
+    return node ? posOf(node) : null;
+  };
+
+  /*
+   * החוט יוצא מנמל המוצא ונכנס לנמל הכניסה, ולא ממרכז לכמרכז.
+   *
+   * הנמלים הם העיגולים שעל שפת הכרטיס, וזה מה שהם מבטיחים: מכאן יוצא, לכאן
+   * נכנס. חוט שמתחיל במרכז ונעלם מתחת לכרטיס סותר את ההבטחה הזו — ובפועל
+   * הוא גם נראה כאילו הוא צומח מתוך הטקסט.
+   *
+   * הזרימה בעברית מימין לשמאל: המוצא על השפה השמאלית, הכניסה על הימנית.
+   * המספרים נגזרים מ-CSS: הנמל ברוחב 13 ומוזז ‎-7, ולכן מרכזו חצי פיקסל
+   * מחוץ לשפה.
+   */
+  const PORT_R = 6.5;
+  const outPortOf = (id: string) => {
+    const c = cornerOf(id);
+    return c ? { x: c.x - PORT_R + 6, y: c.y + CARD_H / 2 } : null;
+  };
+  const inPortOf = (id: string) => {
+    const c = cornerOf(id);
+    return c ? { x: c.x + CARD_W + PORT_R - 6, y: c.y + CARD_H / 2 } : null;
   };
 
   function onPointerDown(e: React.PointerEvent, node: CanvasNode) {
@@ -363,8 +383,10 @@ export function JourneyCanvas({
           </defs>
 
           {edges.map((edge) => {
-            const a = centerOf(edge.fromId ?? ENTRY_ID);
-            const b = centerOf(edge.toId);
+            const a = outPortOf(edge.fromId ?? ENTRY_ID);
+            const bPort = inPortOf(edge.toId);
+            // ראש החץ נעצר על שפת הנמל ולא במרכזו, אחרת העיגול מכסה אותו.
+            const b = a && bPort ? { x: bPort.x + (bPort.x > a.x ? -9 : 9), y: bPort.y } : null;
             if (!a || !b) return null;
             const conditional = edge.condition !== "always";
             return (
