@@ -60,7 +60,7 @@ export function StepForm({
   const timingCard = (t: StepTiming) =>
     `flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-xl border-2 px-4 py-3 text-sm cursor-pointer ${
       timing === t
-        ? "border-[var(--primary)] bg-white"
+        ? "border-[var(--primary)] bg-[var(--surface)]"
         : "border-[var(--border)] bg-[var(--background)] text-[var(--muted)]"
     }`;
 
@@ -133,7 +133,7 @@ export function StepForm({
               onClick={() => setTemplateId(t.id)}
               className={`cursor-pointer rounded-xl border-2 px-4 py-3 ${
                 active
-                  ? "border-[var(--primary)] bg-white"
+                  ? "border-[var(--primary)] bg-[var(--surface)]"
                   : "border-[var(--border)] bg-[var(--background)]"
               }`}
             >

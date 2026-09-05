@@ -1,5 +1,7 @@
 "use client";
 
+import type { CSSProperties } from "react";
+
 import { useRef, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import {
@@ -238,7 +240,8 @@ export function JourneyCanvas({
       </div>
 
       {connectFrom && (
-        <div className="rounded-xl bg-amber-50 px-4 py-2 text-sm text-amber-900 ring-1 ring-amber-600/20 ring-inset">
+        <div className="rounded-xl px-4 py-2 text-sm"
+          style={{ backgroundColor: "var(--warn-soft)", color: "var(--warn)" }}>
           מצב חיבור: לחצו על הכרטיסייה שאליה יימשך החץ.{" "}
           <button onClick={() => setConnectFrom(null)} className="underline">
             ביטול
@@ -253,8 +256,17 @@ export function JourneyCanvas({
         onPointerLeave={onPointerUp}
         onDoubleClick={onSurfaceDoubleClick}
         dir="ltr"
-        className="relative overflow-auto rounded-2xl border border-[var(--border)] bg-[var(--background)]"
-        style={{ height: Math.max(320, maxY + 80), minWidth: maxX + 80 }}
+        className="relative overflow-auto rounded-2xl border border-[var(--border)]"
+        style={{
+          height: Math.max(320, maxY + 80),
+          minWidth: maxX + 80,
+          backgroundColor: "var(--background)",
+          // רשת נקודות: נותנת ללוח תחושת משטח שאפשר לסדר עליו, ומראה
+          // שהמיקום של כרטיסייה הוא בחירה ולא סתם איפה שהיא נפלה.
+          backgroundImage: "radial-gradient(circle, var(--border-strong) 1px, transparent 1px)",
+          backgroundSize: "24px 24px",
+          boxShadow: "inset 0 1px 3px rgb(23 30 27 / 0.05)",
+        }}
       >
         {/* החצים מתחת לכרטיסיות, כדי שלא יחצו אותן */}
         <svg className="pointer-events-none absolute inset-0 h-full w-full">
@@ -263,7 +275,7 @@ export function JourneyCanvas({
               <path d="M 0 0 L 10 5 L 0 10 z" className="fill-[var(--muted)]" />
             </marker>
             <marker id="ah-c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="#d97706" />
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--warn)" />
             </marker>
           </defs>
 
@@ -274,13 +286,11 @@ export function JourneyCanvas({
             const conditional = edge.condition !== "always";
             return (
               <g key={edge.id}>
-                <line
-                  x1={a.x}
-                  y1={a.y}
-                  x2={b.x}
-                  y2={b.y}
-                  stroke={conditional ? "#d97706" : "var(--muted)"}
-                  strokeWidth={1.5}
+                <path
+                  d={curve(a.x, a.y, b.x, b.y)}
+                  fill="none"
+                  stroke={conditional ? "var(--warn)" : "var(--border-strong)"}
+                  strokeWidth={1.8}
                   strokeDasharray={conditional ? "5 4" : undefined}
                   markerEnd={conditional ? "url(#ah-c)" : "url(#ah)"}
                 />
@@ -290,7 +300,7 @@ export function JourneyCanvas({
                     y={(a.y + b.y) / 2 - 6}
                     textAnchor="middle"
                     className="text-[10px]"
-                    fill="#b45309"
+                    fill="var(--warn)"
                   >
                     {JOURNEY_CONDITION_LABELS[edge.condition]}
                   </text>
@@ -304,7 +314,7 @@ export function JourneyCanvas({
         <div
           style={{ left: entryPos.x, top: entryPos.y, width: CARD_W, height: CARD_H }}
           onClick={() => connectFrom && connectTo(ENTRY_ID)}
-          className="absolute flex flex-col justify-center rounded-2xl border border-[var(--border)] bg-white px-4 shadow-sm"
+          className="absolute flex flex-col justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 shadow-sm"
         >
           <p className="text-[11px] text-[var(--subtle)]">נכנסים למסע</p>
           <p className="mt-0.5 text-sm leading-snug font-medium">{entryLabel}</p>
@@ -314,7 +324,7 @@ export function JourneyCanvas({
               setConnectFrom(ENTRY_ID);
             }}
             title="משוך חץ מכאן"
-            className="absolute top-1/2 -right-2.5 size-5 -translate-y-1/2 rounded-full border border-[var(--border)] bg-white text-[10px] leading-none text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+            className="absolute top-1/2 -right-2.5 size-5 -translate-y-1/2 rounded-full border border-[var(--border)] bg-[var(--surface)] text-[10px] leading-none text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
           >
             →
           </button>
@@ -356,7 +366,7 @@ export function JourneyCanvas({
                   setConnectFrom(node.id);
                 }}
                 title="משוך חץ מכאן"
-                className="absolute top-1/2 -right-2.5 size-5 -translate-y-1/2 rounded-full border border-[var(--border)] bg-white text-[10px] leading-none text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                className="absolute top-1/2 -right-2.5 size-5 -translate-y-1/2 rounded-full border border-[var(--border)] bg-[var(--surface)] text-[10px] leading-none text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
               >
                 →
               </button>
@@ -378,7 +388,7 @@ export function JourneyCanvas({
         {draft && (
           <div
             style={{ left: draft.x, top: draft.y, width: CARD_W, height: CARD_H }}
-            className="absolute flex flex-col justify-center rounded-2xl border-2 border-dashed border-[var(--primary)] bg-white/80 px-4"
+            className="absolute flex flex-col justify-center rounded-2xl border-2 border-dashed border-[var(--primary)] bg-[var(--surface)]/85 px-4"
           >
             <p className="text-[11px] text-[var(--subtle)]">טיוטה — עוד לא נשמרה</p>
             <p className="mt-0.5 text-sm leading-snug font-medium">כרטיסייה חדשה</p>
@@ -388,7 +398,7 @@ export function JourneyCanvas({
 
       {/* ── פאנל יצירה: אותו טופס של העריכה, במצב טיוטה ── */}
       {draft && (
-        <div className="rounded-2xl border-2 border-dashed border-[var(--primary)] bg-white p-5">
+        <div className="rounded-2xl border-2 border-dashed border-[var(--primary)] bg-[var(--surface)] p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <h3 className="font-medium">כרטיסייה חדשה</h3>
             <button
@@ -413,7 +423,7 @@ export function JourneyCanvas({
 
       {/* ── פאנל הכרטיסייה הנבחרת ── */}
       {selected && (
-        <div className="rounded-2xl border-2 border-[var(--primary)] bg-white p-5">
+        <div className="rounded-2xl border-2 border-[var(--primary)] bg-[var(--surface)] p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <h3 className="font-medium">{selected.label || selected.templateName}</h3>
             <button
@@ -436,7 +446,8 @@ export function JourneyCanvas({
                     <li key={e.id}>
                       {e.fromId ? nameOf(e.fromId) : "כניסה"}
                       {e.condition !== "always" && (
-                        <span className="mr-2 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700">
+                        <span className="pill mr-2"
+                          style={{ "--pill-color": "var(--warn)", "--pill-bg": "var(--warn-soft)" } as CSSProperties}>
                           {JOURNEY_CONDITION_LABELS[e.condition]}
                         </span>
                       )}
@@ -456,7 +467,8 @@ export function JourneyCanvas({
                     <li key={e.id}>
                       {nameOf(e.toId)}
                       {e.condition !== "always" && (
-                        <span className="mr-2 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700">
+                        <span className="pill mr-2"
+                          style={{ "--pill-color": "var(--warn)", "--pill-bg": "var(--warn-soft)" } as CSSProperties}>
                           {JOURNEY_CONDITION_LABELS[e.condition]}
                         </span>
                       )}
@@ -508,7 +520,7 @@ export function JourneyCanvas({
                   <select
                     name="condition"
                     defaultValue={edge.condition}
-                    className="rounded-md border border-[var(--border)] bg-white px-1.5 py-0.5 text-xs"
+                    className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-1.5 py-0.5 text-xs"
                   >
                     {JOURNEY_CONDITIONS.map((c) => (
                       <option key={c} value={c}>
@@ -588,9 +600,21 @@ function DeleteButton() {
       type="submit"
       disabled={pending}
       title="מחק כרטיסייה"
-      className="size-5 rounded-full border border-[var(--border)] bg-white text-[11px] leading-none text-[var(--danger)] hover:bg-red-50 disabled:opacity-50"
+      className="size-5 rounded-full border border-[var(--border)] bg-[var(--surface)] text-[11px] leading-none text-[var(--danger)] hover:bg-[var(--danger-soft)] disabled:opacity-50"
     >
       ×
     </button>
   );
+}
+
+/**
+ * עקומת בזייה בין שתי נקודות. נקודות הבקרה נשענות על המרחק האופקי וחסומות
+ * ב-90, אחרת חוט כמעט-אנכי מתקפל על עצמו. הכיוון נגזר מסימן ההפרש, כך
+ * שהעקומה נכונה גם כשהיעד מימין למקור וגם כשהוא משמאלו.
+ */
+function curve(sx: number, sy: number, tx: number, ty: number): string {
+  const dx = tx - sx;
+  const depth = Math.max(24, Math.min(Math.abs(dx) * 0.5, 90));
+  const dir = Math.sign(dx) || 1;
+  return `M ${sx} ${sy} C ${sx + dir * depth} ${sy}, ${tx - dir * depth} ${ty}, ${tx} ${ty}`;
 }
