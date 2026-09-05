@@ -109,6 +109,19 @@ export function JourneyCanvas({
   const surface = useRef<HTMLDivElement>(null);
   const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [drag, setDrag] = useState<{ id: string; dx: number; dy: number } | null>(null);
+  // נקרא פעם אחת בעצלתיים ולא ב-useEffect: קריאה אחרי הציור הראשון הייתה
+  // מקפיצה את הכניסה ממקום למקום מול העיניים.
+  const [storedEntry] = useState<{ x: number; y: number } | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = localStorage.getItem(`crm-journey-entry-${journeyId}`);
+      if (!raw) return null;
+      const p = JSON.parse(raw);
+      return typeof p?.x === "number" && typeof p?.y === "number" ? p : null;
+    } catch {
+      return null;
+    }
+  });
   const [connectFrom, setConnectFrom] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // מיקום של כרטיסיית טיוטה: מופיעה מיד על המשטח, נשמרת למסד רק ב"הוסף".
@@ -127,7 +140,18 @@ export function JourneyCanvas({
   const posOf = (n: CanvasNode) => positions[n.id] ?? { x: n.x, y: n.y };
 
   // הכניסה אינה שורה במסד אלא צומת וירטואלי, ולכן מיקומה קבוע משמאל.
-  const entryPos = { x: CANVAS_W - CARD_W - 20, y: 20 };
+  /*
+   * מיקום הכניסה.
+   *
+   * הכניסה אינה שורה במסד אלא צומת וירטואלי, ולכן אין לה pos_x/pos_y לשמור
+   * בהם — ומיגרציה בשביל מיקום של כרטיס אחד אינה שווה את המחיר. הבחירה
+   * נשמרת ב-localStorage: היא שורדת רענון, אבל היא של הדפדפן הזה בלבד.
+   * לוח שנפתח במחשב אחר יראה את ברירת המחדל, וזה עדיף על מיקום שנעלם בכל
+   * רענון.
+   */
+  const entryKey = `crm-journey-entry-${journeyId}`;
+  const defaultEntry = { x: CANVAS_W - CARD_W - 20, y: 20 };
+  const entryPos = positions[ENTRY_ID] ?? storedEntry ?? defaultEntry;
   /** פינת הכרטיס, או null אם הצומת נמחק מתחת לרגליים. */
   const cornerOf = (id: string) => {
     if (id === ENTRY_ID) return entryPos;
@@ -156,14 +180,18 @@ export function JourneyCanvas({
     return c ? { x: c.x + CARD_W + PORT_R - 6, y: c.y + CARD_H / 2 } : null;
   };
 
-  function onPointerDown(e: React.PointerEvent, node: CanvasNode) {
+  /** מקבלת מזהה ומיקום ולא צומת, כדי שגם הכניסה — שאינה צומת — תוכל להיגרר. */
+  function startDrag(e: React.PointerEvent, id: string, p: { x: number; y: number }) {
     if (connectFrom) return;
-    const p = posOf(node);
     const rect = surface.current?.getBoundingClientRect();
     if (!rect) return;
     pressStart.current = { x: e.clientX, y: e.clientY };
-    setDrag({ id: node.id, dx: e.clientX - rect.left - p.x, dy: e.clientY - rect.top - p.y });
+    setDrag({ id, dx: e.clientX - rect.left - p.x, dy: e.clientY - rect.top - p.y });
     (e.target as Element).setPointerCapture?.(e.pointerId);
+  }
+
+  function onPointerDown(e: React.PointerEvent, node: CanvasNode) {
+    startDrag(e, node.id, posOf(node));
   }
 
   function onPointerMove(e: React.PointerEvent) {
@@ -206,6 +234,16 @@ export function JourneyCanvas({
 
     const p = positions[id];
     if (!p) return;
+
+    // הכניסה אינה שורה במסד — אין לאן לשלוח אותה. נשמרת בדפדפן.
+    if (id === ENTRY_ID) {
+      try {
+        localStorage.setItem(entryKey, JSON.stringify(p));
+      } catch {
+        // חלון פרטי: המיקום יחזיק עד רענון, וזה עדיין טוב יותר מכלום.
+      }
+      return;
+    }
 
     startTransition(async () => {
       const data = new FormData();
@@ -267,13 +305,21 @@ export function JourneyCanvas({
       const row = rows.get(d) ?? 0;
       rows.set(d, row + 1);
       // שמאלה מהכניסה, וחסום ב-0 כדי שדור רחוק לא ייצא מחוץ ללוח.
+      // מהעוגן ולא מהמיקום הנוכחי: הסידור מחזיר את הלוח לברירת מחדל.
       next[node.id] = {
-        x: Math.max(0, entryPos.x - d * GAP_X),
-        y: entryPos.y + row * GAP_Y,
+        x: Math.max(0, defaultEntry.x - d * GAP_X),
+        y: defaultEntry.y + row * GAP_Y,
       };
     }
 
-    setPositions(next);
+    // הכניסה חוזרת לעוגן שלה. "סידור אוטומטי" שמשאיר אותה איפה שנגררה אינו
+    // מסדר — הוא מסדר סביב מקום שרירותי.
+    try {
+      localStorage.removeItem(entryKey);
+    } catch {
+      // אין מה לעשות; ה-setPositions למטה מחזיר אותה ממילא בהפעלה הזו.
+    }
+    setPositions({ ...next, [ENTRY_ID]: defaultEntry });
     startTransition(async () => {
       for (const [id, p] of Object.entries(next)) {
         const data = new FormData();
@@ -342,13 +388,20 @@ export function JourneyCanvas({
   };
 
   // גובה המשטח נגזר מהכרטיסייה הנמוכה ביותר, עם מרווח לגרירה כלפי מטה.
-  const maxY = Math.max(entryPos.y, draft?.y ?? 0, ...nodes.map((n) => posOf(n).y)) + CARD_H;
-  const maxX = Math.max(
-    CANVAS_W - 80,
-    entryPos.x,
-    draft?.x ?? 0,
-    ...nodes.map((n) => posOf(n).x)
-  ) + CARD_W;
+  /*
+   * גבולות הלוח = הקצה הימני־תחתון של מה שיש עליו, ולא יותר.
+   *
+   * הגרסה הקודמת חישבה max(...) ואז הוסיפה CARD_W על התוצאה — כלומר גם על
+   * CANVAS_W, שכבר כולל את רוחב הכרטיס. הלוח יצא רחב ב-190 פיקסלים מהמיכל
+   * וגלש ממנו החוצה. כאן כל מועמד מביא את הגודל שלו איתו.
+   */
+  const PAD = 20;
+  const edges2 = [entryPos, draft, ...nodes.map(posOf)].filter(Boolean) as {
+    x: number;
+    y: number;
+  }[];
+  const boardW = Math.max(CANVAS_W, ...edges2.map((p) => p.x + CARD_W + PAD));
+  const boardH = Math.max(360, ...edges2.map((p) => p.y + CARD_H + PAD));
 
   return (
     <div className="flex flex-col gap-3">
@@ -385,8 +438,8 @@ export function JourneyCanvas({
         dir="ltr"
         className="relative overflow-auto rounded-2xl border border-[var(--border)]"
         style={{
-          height: Math.max(320, maxY + 80),
-          minWidth: maxX + 80,
+          height: boardH,
+          minWidth: boardW,
           backgroundColor: "var(--background)",
           // רשת נקודות: נותנת ללוח תחושת משטח שאפשר לסדר עליו, ומראה
           // שהמיקום של כרטיסייה הוא בחירה ולא סתם איפה שהיא נפלה.
@@ -476,9 +529,12 @@ export function JourneyCanvas({
 
         {/* ── כניסה ── */}
         <div
+          onPointerDown={(e) => startDrag(e, ENTRY_ID, entryPos)}
           onClick={() => connectFrom && connectTo(ENTRY_ID)}
           data-entry
-          className="j-node absolute flex flex-col justify-center"
+          className={`j-node absolute flex flex-col justify-center ${
+            drag?.id === ENTRY_ID ? "cursor-grabbing" : "cursor-grab"
+          }`}
           style={{ left: entryPos.x, top: entryPos.y, width: CARD_W, height: CARD_H }}
         >
           <p className="text-[10px] font-semibold text-[var(--primary)]">נכנסים למסע</p>
