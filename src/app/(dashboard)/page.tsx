@@ -245,7 +245,7 @@ export default async function DashboardPage() {
     { count: activeJourneysCount },
     { count: enrolledCount },
     { data: todayBookings },
-    { data: quietContacts, count: quietTotal },
+    { data: quietRowsRaw, count: quietTotal },
     { data: lastWhatsAppOut },
     { data: nextNewsletter },
     { data: nextEvent },
@@ -291,19 +291,27 @@ export default async function DashboardPage() {
       .gte("starts_at", startOfToday.toISOString())
       .lt("starts_at", endOfToday.toISOString())
       .order("starts_at"),
-    // הקריטריון של הטריגר "זמן ללא מענה" (src/lib/automation-engine.ts), עם 3
-    // ימים ובלי סינון סטטוס — כאן רק מציגים, לא שולחים. הסדר יורד כדי שמי
-    // ששתק לאחרונה יופיע ראשון, ומי שמעולם לא כתב (null) ייפול לסוף.
+    // "דורש טיפול" = **מי שפנה אלינו ומחכה**, ולא "מי ששותק".
+    //
+    // קודם הקריטריון היה זהה לזה של טריגר הכללים: שתיקה של שלושה ימים, או —
+    // למי שמעולם לא כתב — שלושה ימים מאז שנוצר. הסעיף השני הוא זה שהרס את
+    // הכרטיס: הוא תפס כל איש קשר שיובא מאקסל ומעולם לא פנה, כלומר 721 מתוך
+    // 724. מספר כזה אינו רשימת מטלות, והשמות שהוצגו תחתיו היו לידים מיובאים
+    // שלא כתבו מילה — עם תווית "11 ימים" שמרמזת על נטישה שלא הייתה.
+    //
+    // ההבחנה הנכונה כבר קיימת במערכת ועליה בנוי /active: last_customer_at
+    // סופר רק מה שהלקוח *יזם* (הודעה נכנסת, שאלון, קביעת פגישה או ביטול).
+    // אותו שדה מזין כאן גם את המונה וגם את השמות, ולכן הכרטיס מסכים סוף סוף
+    // עם המדד "לקוחות פעילים" שיושב שני סנטימטרים ממנו.
     //
     // ה-count מגיע על אותה שאילתה ולא בנוספת: הכרטיס מציג חמישה שמות אבל
     // התווית בכותרת סופרת את כולם.
     db
-      .from("contacts")
-      .select("*", { count: "exact" })
-      .or(
-        `last_incoming_message_at.lte.${noReplyCutoff},and(last_incoming_message_at.is.null,created_at.lte.${noReplyCutoff})`
-      )
-      .order("last_incoming_message_at", { ascending: false, nullsFirst: false })
+      .from("contact_activity")
+      .select("contact_id, last_customer_at, last_inbound_text", { count: "exact" })
+      .not("last_customer_at", "is", null)
+      .lte("last_customer_at", noReplyCutoff)
+      .order("last_customer_at", { ascending: false })
       .limit(5),
     db
       .from("interactions")
@@ -375,11 +383,17 @@ export default async function DashboardPage() {
   ]);
 
   const bookings = todayBookings ?? [];
-  const quiet = (quietContacts ?? []) as Contact[];
+
+  /** שורות התצוגה שמזינות את "דורש טיפול" — מי פנה, מתי, ומה כתב. */
+  const quietRows = (quietRowsRaw ?? []) as {
+    contact_id: string;
+    last_customer_at: string;
+    last_inbound_text: string | null;
+  }[];
 
   // גל שני: שלוש שאילתות שתלויות בתוצאות שלמעלה, ולכן לא יכלו לרוץ איתן.
   // יחד ולא בזו אחר זו — הן אינן תלויות זו בזו.
-  const [{ count: nextEventPaid }, { data: quietActivity }, newsletterAudience] = await Promise.all([
+  const [{ count: nextEventPaid }, { data: quietContacts }, newsletterAudience] = await Promise.all([
     nextEvent
       ? db
           .from("event_registrations")
@@ -387,15 +401,15 @@ export default async function DashboardPage() {
           .eq("event_id", nextEvent.id)
           .eq("stage", "paid")
       : Promise.resolve({ count: null }),
-    // מה שכל אחת מהן כתבה לאחרונה. התצוגה כבר מחזיקה את הטקסט, ולכן זו
-    // שליפה אחת לפי מזהים ולא שאילתה לכל שורה.
-    quiet.length
+    // השמות והטלפונים של אותן חמש שורות. התצוגה כבר מחזיקה את מה שהן כתבו
+    // ואת מתי פנו, ולכן זו שליפה אחת לפי מזהים ולא שאילתה לכל שורה.
+    quietRows.length
       ? db
-          .from("contact_activity")
-          .select("contact_id, last_inbound_text")
+          .from("contacts")
+          .select("*")
           .in(
-            "contact_id",
-            quiet.map((contact) => contact.id)
+            "id",
+            quietRows.map((row) => row.contact_id)
           )
       : Promise.resolve({ data: [] }),
     // כמה אנשים יקבלו את הניוזלטר הקרוב. הקהל נשמר כתנאי ולא כרשימה, ולכן
@@ -417,9 +431,16 @@ export default async function DashboardPage() {
   const healthSoft = health.tone === "bad" ? "var(--danger-soft)" : health.tone === "warn" ? "var(--warn-soft)" : "var(--ok-soft)";
 
   const eventTypeById = new Map(eventTypes.map((type) => [type.id, type]));
-  const lastTextById = new Map(
-    (quietActivity ?? []).map((row) => [row.contact_id as string, row.last_inbound_text as string | null])
-  );
+  const lastTextById = new Map(quietRows.map((row) => [row.contact_id, row.last_inbound_text]));
+  /** מתי אותו אדם פנה בפעם האחרונה — זה מה שנספר כ"כמה ימים הוא מחכה". */
+  const quietSinceById = new Map(quietRows.map((row) => [row.contact_id, row.last_customer_at]));
+
+  // הסדר של contact_activity הוא זה שנשמר (היורד לפי last_customer_at); שליפת
+  // אנשי הקשר לפי מזהים מחזירה סדר משלה, ולכן היא ממופה ולא נלקחת כמו שהיא.
+  const contactById = new Map(((quietContacts ?? []) as Contact[]).map((c) => [c.id, c]));
+  const quiet = quietRows
+    .map((row) => contactById.get(row.contact_id))
+    .filter((c): c is Contact => Boolean(c));
 
   // ── מתעניינות ──
   const courseInterested = (courseInterestedRaw ?? []).map((r) => r.contact_id);
@@ -642,8 +663,10 @@ export default async function DashboardPage() {
                 {quiet.map((contact) => {
                   const name = contact.full_name || contact.phone || "ללא שם";
                   const said = lastTextById.get(contact.id);
+                  // מאז שהוא פנה, ולא מאז שנוצר: השורות האלה הן אנשים שיזמו
+                  // משהו, וזה הרגע שממנו הם מחכים.
                   const days = daysSince(
-                    contact.last_incoming_message_at ?? contact.created_at,
+                    quietSinceById.get(contact.id) ?? contact.created_at,
                     now
                   );
                   const urgent = days >= URGENT_DAYS;
@@ -732,7 +755,8 @@ export default async function DashboardPage() {
           </div>
 
           <div className="card-f mt-auto">
-            מי שלא נשמע ממנו {NO_REPLY_DAYS} ימים ומעלה נכנס לרשימה אוטומטית.
+            מי שפנה אלינו ולא קיבל מענה {NO_REPLY_DAYS} ימים ומעלה נכנס לרשימה
+            אוטומטית. מי שיובא מאקסל ומעולם לא כתב אינו נספר כאן.
           </div>
         </section>
       </section>
