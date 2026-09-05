@@ -1,4 +1,8 @@
 import { ActionForm } from "@/components/action-form";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getBookingSettings } from "@/lib/booking/data";
+import { formatDateTime } from "@/lib/booking/timezone";
+import Link from "next/link";
 import { WeekAvailability } from "./week-availability";
 import { verifyTeamMember } from "@/lib/dal";
 import { listStatuses } from "@/lib/statuses";
@@ -16,8 +20,25 @@ export const dynamic = "force-dynamic";
 export default async function EventTypesPage() {
   await verifyTeamMember();
 
-  const [eventTypes, statuses] = await Promise.all([listEventTypes(), listStatuses()]);
+  const [eventTypes, statuses, settings] = await Promise.all([
+    listEventTypes(),
+    listStatuses(),
+    getBookingSettings(),
+  ]);
   const statusNames = statuses.map((s) => s.name);
+
+  // חמש הפגישות הקרובות. תקציר ולא כפילות: הרשימה המלאה עם הפעולות נשארת
+  // בלשונית "פגישות קרובות", וכאן זה ההקשר שחסר כשמסתכלים על סוגי הפגישות —
+  // "מה בכלל נקבע דרך הקישורים האלה".
+  const { data: nextRaw } = await supabaseAdmin()
+    .from("bookings")
+    .select("id, starts_at, invitee_name, event_type_id, contact_id")
+    .eq("status", "confirmed")
+    .gte("starts_at", new Date().toISOString())
+    .order("starts_at")
+    .limit(5);
+  const upcoming = nextRaw ?? [];
+  const typeById = new Map(eventTypes.map((t) => [t.id, t]));
 
   return (
     <div className="flex flex-col gap-6">
@@ -48,6 +69,57 @@ export default async function EventTypesPage() {
       {/* רשת הזמינות לצד סוגי הפגישות: שתי השאלות שנשאלות במסך הזה הן
           "איזה קישור לשלוח" ו"מתי אני בכלל פנוי", וקודם הן ישבו בשני מסכים. */}
       <WeekAvailability />
+
+      {upcoming.length > 0 && (
+        <section className="card flex flex-col p-0">
+          <div className="card-h">
+            <h2>הפגישות הקרובות</h2>
+            <span className="flex-1" />
+            <Link href="/booking/upcoming" className="btn-ghost text-xs">
+              לכל הפגישות
+            </Link>
+          </div>
+          <div className="card-b flex flex-col">
+            {upcoming.map((b) => {
+              const type = typeById.get(b.event_type_id);
+              const at = new Date(b.starts_at);
+              return (
+                <div
+                  key={b.id}
+                  className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-[var(--border)] py-2.5 text-[12.5px] last:border-b-0"
+                >
+                  <span className="data w-[9.5rem] shrink-0 text-[var(--muted)]">
+                    {formatDateTime(at, settings.timezone)}
+                  </span>
+                  {type && (
+                    <span
+                      className="pill"
+                      style={
+                        {
+                          "--pill-color": statusToken(type.color),
+                          "--pill-bg": `color-mix(in srgb, ${statusToken(type.color)} 13%, transparent)`,
+                        } as CSSProperties
+                      }
+                    >
+                      {type.name}
+                    </span>
+                  )}
+                  {b.contact_id ? (
+                    <Link
+                      href={`/contacts/${b.contact_id}`}
+                      className="font-medium hover:underline"
+                    >
+                      {b.invitee_name}
+                    </Link>
+                  ) : (
+                    <span className="font-medium">{b.invitee_name}</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* ── סוג פגישה חדש ─────────────────────────────────────────── */}
       <details className="card">

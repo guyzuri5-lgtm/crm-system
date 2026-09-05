@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { WindowMeter } from "@/components/window-meter";
 import Link from "next/link";
 import { verifyTeamMember } from "@/lib/dal";
@@ -43,6 +44,17 @@ export default async function WhatsAppPage() {
         }))
       : Promise.resolve(null),
   ]);
+
+  // התבניות המאושרות שייכות למסך הזה: כשבודקים את מצב הערוץ, השאלה הבאה
+  // היא תמיד "ומה בכלל מותר לי לשלוח מחוץ לחלון". הן לקריאה בלבד כאן —
+  // העריכה נשארת ב"תבניות הודעה".
+  const { data: templatesRaw } = await supabaseAdmin()
+    .from("message_templates")
+    .select("id, name, meta_template_name, meta_category, meta_status")
+    .eq("channel", "whatsapp")
+    .not("meta_template_name", "is", null)
+    .order("name");
+  const templates = templatesRaw ?? [];
 
   const statusError = status && "error" in status ? status.error : null;
   const phone = status && !("error" in status) ? status : null;
@@ -216,7 +228,94 @@ export default async function WhatsAppPage() {
           </span>
         </p>
       </section>
+
+      {/* ── תבניות מאושרות ──────────────────────────────────────────── */}
+      <section className="card flex flex-col p-0">
+        <div className="card-h">
+          <h2>תבניות מאושרות</h2>
+          <span className="flex-1" />
+          <Link href="/templates" className="btn-ghost text-xs">
+            ניהול תבניות
+          </Link>
+        </div>
+
+        {templates.length === 0 ? (
+          <div className="card-b">
+            <p className="py-2 text-sm text-[var(--muted)]">
+              אין עדיין תבנית שאושרה ב-Meta. בלעדיה אי אפשר לפנות למי שמחוץ לחלון —
+              כלומר כמעט לכל מסע מעקב.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto border-t border-[var(--border)]">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr>
+                    <th className="th">שם</th>
+                    <th className="th">מזהה ב-Meta</th>
+                    <th className="th">קטגוריה</th>
+                    <th className="th">מצב</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {templates.map((t) => (
+                    <tr
+                      key={t.id}
+                      className="tr-hover border-b border-[var(--border)] last:border-0"
+                    >
+                      <td className="td font-medium">{t.name}</td>
+                      <td className="td data text-[var(--muted)]" dir="ltr">
+                        {t.meta_template_name}
+                      </td>
+                      <td className="td text-[var(--muted)]">
+                        {META_CATEGORY[t.meta_category ?? ""] ?? t.meta_category ?? "—"}
+                      </td>
+                      <td className="td">
+                        <MetaStatusPill status={t.meta_status} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="card-f">
+              רק תבנית שאושרה ב-Meta ניתנת לשליחה מחוץ לחלון 24 השעות, והיא מחויבת.
+            </div>
+          </>
+        )}
+      </section>
     </div>
+  );
+}
+
+const META_CATEGORY: Record<string, string> = {
+  MARKETING: "שיווק",
+  UTILITY: "שירות",
+  AUTHENTICATION: "אימות",
+};
+
+/** מצב האישור אצל Meta. תמונת מצב מסונכרנת, לא מקור אמת — ולכן רק תצוגה. */
+function MetaStatusPill({ status }: { status: string | null }) {
+  const map: Record<string, { label: string; color: string; bg: string }> = {
+    APPROVED: { label: "אושרה", color: "var(--ok)", bg: "var(--ok-soft)" },
+    PENDING: { label: "בבדיקה", color: "var(--warn)", bg: "var(--warn-soft)" },
+    REJECTED: { label: "נדחתה", color: "var(--danger)", bg: "var(--danger-soft)" },
+    PAUSED: { label: "מושהית", color: "var(--warn)", bg: "var(--warn-soft)" },
+    DISABLED: { label: "מושבתת", color: "var(--danger)", bg: "var(--danger-soft)" },
+  };
+  const tone = map[status ?? ""] ?? {
+    label: status ?? "לא סונכרנה",
+    color: "var(--muted)",
+    bg: "var(--surface-sunken)",
+  };
+  return (
+    <span
+      className="pill"
+      style={{ "--pill-color": tone.color, "--pill-bg": tone.bg } as CSSProperties}
+    >
+      {tone.label}
+    </span>
   );
 }
 

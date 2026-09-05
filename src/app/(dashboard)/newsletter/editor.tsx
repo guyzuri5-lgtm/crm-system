@@ -5,7 +5,7 @@ import type { CSSProperties } from "react";
 import { NewsletterPreview } from "./preview";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { statusColorClasses, statusLabel } from "@/lib/status-colors";
+import { statusLabel } from "@/lib/status-colors";
 import { youtubeIdFrom } from "@/lib/youtube";
 import type { NewsletterBlock } from "@/lib/supabase/database.types";
 import {
@@ -147,47 +147,62 @@ export function NewsletterEditor({
     <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
       <div className="flex flex-col gap-4">
       {/* ── קהל ─────────────────────────────────────────────────────── */}
-      <section className="card flex flex-col gap-3">
-        <h2 className="card-title">למי שולחים</h2>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setSelected([])}
-            aria-pressed={selected.length === 0}
-            className={`rounded-full px-3 py-1 text-sm font-medium ring-1 ring-inset transition-colors duration-150 ${
-              selected.length === 0
-                ? "bg-[var(--primary-soft)] text-[var(--primary)] ring-[var(--primary)]/30"
-                : "bg-[var(--surface)] text-[var(--muted)] ring-[var(--border-strong)]"
-            }`}
+      <section className="card flex flex-col p-0">
+        <div className="card-h">
+          <span
+            className="glyph"
+            style={
+              { "--glyph-color": "var(--nav-coral)", "--glyph-bg": "var(--nav-coral-soft)" } as CSSProperties
+            }
           >
-            כל אנשי הקשר ({allCount})
-          </button>
-          {statusOptions.map((option) => {
-            const active = selected.includes(option.name);
-            return (
-              <button
-                key={option.name}
-                type="button"
-                aria-pressed={active}
-                onClick={() =>
-                  setSelected((current) =>
-                    active ? current.filter((n) => n !== option.name) : [...current, option.name]
-                  )
-                }
-                className={`rounded-full px-3 py-1 text-sm font-medium transition-colors duration-150 ${
-                  active
-                    ? statusColorClasses(option.color)
-                    : "bg-[var(--surface)] text-[var(--muted)] ring-1 ring-inset ring-[var(--border-strong)]"
-                }`}
-              >
-                {statusLabel(option.name)} ({option.count})
-              </button>
-            );
-          })}
+            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+              <circle cx="9.5" cy="7" r="4" />
+              <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+          </span>
+          <h2>למי זה יוצא</h2>
+          <span className="flex-1" />
+          <span
+            className="pill"
+            style={
+              { "--pill-color": "var(--nav-coral)", "--pill-bg": "var(--nav-coral-soft)" } as CSSProperties
+            }
+          >
+            {audienceCount} נמענים
+          </span>
         </div>
-        <p className="text-xs text-[var(--subtle)]">
-          הספירות כוללות רק מי שיש לו כתובת מייל ולא הוסר מרשימת התפוצה.
-        </p>
+
+        {/*
+          שורות ולא שבבים. שבב אומר "נבחר / לא נבחר"; כאן צריך גם לראות כמה
+          כל סטטוס מוסיף, וכשהמספרים יושבים בטור אפשר להשוות ביניהם במבט.
+        */}
+        <div className="card-b flex flex-col gap-1.5">
+          <AudienceRow
+            label="כל אנשי הקשר"
+            count={allCount}
+            on={selected.length === 0}
+            onToggle={() => setSelected([])}
+          />
+          {statusOptions.map((option) => (
+            <AudienceRow
+              key={option.name}
+              label={statusLabel(option.name)}
+              count={option.count}
+              on={selected.includes(option.name)}
+              onToggle={() =>
+                setSelected((current) =>
+                  current.includes(option.name)
+                    ? current.filter((n) => n !== option.name)
+                    : [...current, option.name]
+                )
+              }
+            />
+          ))}
+          <p className="mt-1.5 text-[11.5px] text-[var(--subtle)]">
+            הספירות כוללות רק מי שיש לו כתובת מייל ולא הוסר מרשימת התפוצה.
+          </p>
+        </div>
       </section>
 
       {/* ── נושא ────────────────────────────────────────────────────── */}
@@ -469,5 +484,58 @@ export function NewsletterEditor({
         </div>
       </section>
     </div>
+  );
+}
+
+/** שורת קהל אחת: סימון, שם, וכמה הוא מוסיף. */
+function AudienceRow({
+  label,
+  count,
+  on,
+  onToggle,
+}: {
+  label: string;
+  count: number;
+  on: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={on}
+      onClick={onToggle}
+      className="flex items-center gap-2.5 rounded-lg border px-2.5 py-2 text-start text-[12.5px] transition-colors duration-150"
+      style={
+        on
+          ? {
+              borderColor: "color-mix(in srgb, var(--primary) 40%, transparent)",
+              backgroundColor: "var(--primary-soft)",
+            }
+          : { borderColor: "var(--border)", backgroundColor: "var(--surface)" }
+      }
+    >
+      <span
+        aria-hidden
+        className="grid size-[15px] shrink-0 place-items-center rounded border-[1.5px]"
+        style={
+          on
+            ? { borderColor: "var(--primary)", backgroundColor: "var(--primary)" }
+            : { borderColor: "var(--border-strong)" }
+        }
+      >
+        {on && (
+          <svg width={9} height={9} viewBox="0 0 24 24" fill="none" stroke="var(--on-primary)" strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round">
+            <path d="m4.5 12.5 5 5 10-11" />
+          </svg>
+        )}
+      </span>
+      <b className={`min-w-0 flex-1 truncate ${on ? "font-semibold text-[var(--primary)]" : "font-medium"}`}>
+        {label}
+      </b>
+      <span className={`data text-[11.5px] ${on ? "text-[var(--primary)]" : "text-[var(--subtle)]"}`}>
+        {count}
+      </span>
+    </button>
   );
 }
