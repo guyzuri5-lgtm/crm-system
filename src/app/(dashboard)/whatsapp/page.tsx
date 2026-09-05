@@ -53,7 +53,7 @@ export default async function WhatsAppPage() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-xl font-semibold">וואטסאפ</h1>
+        <h1 className="page-title">וואטסאפ</h1>
         <p className="mt-1 text-sm text-[var(--muted)]">
           מצב המספר אצל Meta: איכות, תקרה, וכמה נשלח היום.
         </p>

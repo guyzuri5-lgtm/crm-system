@@ -31,7 +31,7 @@ export default async function ScheduledPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">מתוזמנים</h1>
+        <h1 className="page-title">מתוזמנים</h1>
         <p className="mt-1 text-sm text-[var(--muted)]">
           מה שממתין לשליחה, ומה שנמצא באמצעה. אפשר לבטל כל עוד השליחה לא התחילה.
         </p>

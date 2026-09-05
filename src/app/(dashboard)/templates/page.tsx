@@ -88,7 +88,7 @@ export default async function TemplatesPage({
     <div className="flex flex-col gap-8">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">תבניות הודעה</h1>
+          <h1 className="page-title">תבניות הודעה</h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
             תבנית שנדחתה או נמחקה אצל Meta ממשיכה להיראות תקינה כאן עד שמסנכרנים.
             {templates?.some((t) => t.meta_synced_at) && (

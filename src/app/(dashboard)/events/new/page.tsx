@@ -9,7 +9,7 @@ export default async function NewEventPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">אירוע חדש</h1>
+        <h1 className="page-title">אירוע חדש</h1>
         <p className="mt-1 text-sm text-[var(--muted)]">
           קודם מה ומתי. אחרי השמירה נעבור לעיצוב דף ההרשמה — כותרת, תמונה, טקסטים ושדות הטופס.
         </p>

@@ -22,7 +22,7 @@ export default async function RulesPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <h1 className="text-xl font-semibold">כללי אוטומציה</h1>
+      <h1 className="page-title">כללי אוטומציה</h1>
 
       <section className="card">
         <h2 className="mb-4 font-medium">כלל חדש</h2>

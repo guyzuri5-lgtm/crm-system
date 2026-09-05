@@ -18,7 +18,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">הגדרות</h1>
+        <h1 className="page-title">הגדרות</h1>
         <p className="mt-1 text-sm text-[var(--muted)]">
           הגדרות שמשפיעות על כל המערכת. שעות הזמינות והגדרות הפגישות נשארו תחת{" "}
           <Link href="/booking" className="underline">

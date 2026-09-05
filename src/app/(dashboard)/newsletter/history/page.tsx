@@ -30,7 +30,7 @@ export default async function HistoryPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">היסטוריה</h1>
+        <h1 className="page-title">היסטוריה</h1>
         <p className="mt-1 text-sm text-[var(--muted)]">
           מה שכבר יצא. &rdquo;שכפל&rdquo; פותח הודעה חדשה עם אותו תוכן — הישנה נשארת כפי שנשלחה.
         </p>

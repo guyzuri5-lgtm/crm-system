@@ -76,7 +76,7 @@ export default async function EventPage({ params }: PageProps<"/events/[id]">) {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-xl font-semibold">{event.name}</h1>
+          <h1 className="page-title">{event.name}</h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
             {formatDateTime(new Date(event.starts_at), EVENT_TIMEZONE)}
             {event.location ? ` · ${event.location}` : ""}
@@ -97,11 +97,53 @@ export default async function EventPage({ params }: PageProps<"/events/[id]">) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Metric label="שילמו" value={counts.paid} tone="var(--primary)" />
-        <Metric label="נרשמו ולא שילמו" value={counts.registered} tone="var(--nav-pink)" />
-        <Metric label="מתעניינות" value={counts.interested} tone="var(--nav-amber)" />
-      </div>
+      <section className="card flex flex-col gap-5">
+        {/* תפוסה: הקיבולת מחולקת לשלושה פלחים — מי ששילמה, מי ששריינה ולא
+            שילמה, ומה שנשאר. זה המספר שנבדק כמה פעמים ביום לפני אירוע. */}
+        {event.capacity ? (
+          <div>
+            <div className="mb-2 flex items-baseline justify-between text-[11.5px] text-[var(--muted)]">
+              <span>תפוסה</span>
+              <span>
+                <b className="tabular font-semibold text-[var(--foreground)]">{counts.paid}</b> מתוך{" "}
+                {event.capacity}
+              </span>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <span className="cap-track">
+                <i
+                  style={{
+                    width: `${Math.min(100, (counts.paid / event.capacity) * 100)}%`,
+                    backgroundColor: "var(--primary)",
+                  }}
+                />
+                <i
+                  style={{
+                    width: `${Math.min(Math.max(0, 100 - (counts.paid / event.capacity) * 100), (counts.registered / event.capacity) * 100)}%`,
+                    backgroundColor: "var(--nav-pink)",
+                  }}
+                />
+              </span>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-x-3.5 gap-y-1 text-[11px] text-[var(--muted)]">
+              <Legend color="var(--primary)" label={`שילמו ${counts.paid}`} />
+              <Legend color="var(--nav-pink)" label={`שריון זמני ${counts.registered}`} />
+              <Legend
+                color="var(--surface-sunken)"
+                label={`פנוי ${Math.max(0, event.capacity - counts.paid - counts.registered)}`}
+              />
+            </div>
+          </div>
+        ) : null}
+
+        {/* המשפך קורא את אותם שלושה מספרים כירידה ולא כשלושה כרטיסים
+            נפרדים — ההפרש בין השלבים הוא מה שמעניין, לא הערך המוחלט. */}
+        <div className="flex flex-col gap-2.5">
+          <FunnelRow label="מתעניינות" value={counts.interested} max={counts.interested} tone="var(--nav-amber)" />
+          <FunnelRow label="נרשמו" value={counts.registered + counts.paid} max={counts.interested} tone="var(--nav-pink)" />
+          <FunnelRow label="שילמו" value={counts.paid} max={counts.interested} tone="var(--primary)" />
+        </div>
+      </section>
 
       <EventReminders
         eventId={event.id}
@@ -183,13 +225,36 @@ export default async function EventPage({ params }: PageProps<"/events/[id]">) {
   );
 }
 
-function Metric({ label, value, tone }: { label: string; value: number; tone: string }) {
+
+function Legend({ color, label }: { color: string; label: string }) {
   return (
-    <div className="card">
-      <p className="text-2xl font-bold" style={{ color: tone }}>
-        {value}
-      </p>
-      <p className="mt-0.5 text-sm text-[var(--muted)]">{label}</p>
+    <span className="inline-flex items-center gap-1.5">
+      <i aria-hidden className="block size-2 rounded-sm" style={{ backgroundColor: color }} />
+      {label}
+    </span>
+  );
+}
+
+/** שורת משפך. הבסיס הוא תמיד השלב הרחב ביותר, אחרת הפסים לא ניתנים להשוואה. */
+function FunnelRow({
+  label,
+  value,
+  max,
+  tone,
+}: {
+  label: string;
+  value: number;
+  max: number;
+  tone: string;
+}) {
+  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
+  return (
+    <div className="fn-row">
+      <span className="fn-label">{label}</span>
+      <span className="fn-track">
+        <i style={{ width: `${pct}%`, backgroundColor: tone }} />
+      </span>
+      <span className="fn-value">{value}</span>
     </div>
   );
 }

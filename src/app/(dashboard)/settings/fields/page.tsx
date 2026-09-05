@@ -39,7 +39,7 @@ export default async function FieldsPage() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-xl font-semibold">שדות אנשי קשר</h1>
+        <h1 className="page-title">שדות אנשי קשר</h1>
         <p className="mt-1 text-sm text-[var(--muted)]">
           הסדר כאן קובע את סדר העמודות בטבלת אנשי הקשר ואת סדר השדות בכרטיס.
         </p>

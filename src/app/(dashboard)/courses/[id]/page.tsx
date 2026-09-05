@@ -60,9 +60,11 @@ export default async function CourseManagePage({ params }: PageProps<"/courses/[
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-xl font-semibold">{course.name}</h1>
-          <p className="mt-1 text-sm text-[var(--muted)]" dir="ltr">
-            /course/{course.slug}
+          <h1 className="page-title">{course.name}</h1>
+          <p className="mt-1.5">
+            <span className="slug" dir="ltr">
+              /course/{course.slug}
+            </span>
           </p>
         </div>
 
@@ -97,11 +99,18 @@ export default async function CourseManagePage({ params }: PageProps<"/courses/[
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Metric label="לקוחות בקורס" value={counts.paid} tone="var(--primary)" />
-        <Metric label="התחילו ולא שילמו" value={counts.registered} tone="var(--nav-pink)" />
-        <Metric label="מתעניינות" value={counts.interested} tone="var(--nav-amber)" />
-      </div>
+      {/* משפך ולא שלושה כרטיסים: ההפרש בין השלבים הוא מה שמעניין בקורס,
+          לא הערך המוחלט של כל אחד מהם. */}
+      <section className="card flex flex-col gap-2.5">
+        <FunnelRow label="מתעניינות" value={counts.interested} max={counts.interested} tone="var(--nav-amber)" />
+        <FunnelRow
+          label="התחילו"
+          value={counts.registered + counts.paid}
+          max={counts.interested}
+          tone="var(--nav-pink)"
+        />
+        <FunnelRow label="שילמו" value={counts.paid} max={counts.interested} tone="var(--primary)" />
+      </section>
 
       {registrations.length === 0 ? (
         <div className="card text-center text-sm text-[var(--muted)]">
@@ -175,13 +184,26 @@ export default async function CourseManagePage({ params }: PageProps<"/courses/[
   );
 }
 
-function Metric({ label, value, tone }: { label: string; value: number; tone: string }) {
+/** שורת משפך. הבסיס הוא תמיד השלב הרחב ביותר, אחרת הפסים לא ניתנים להשוואה. */
+function FunnelRow({
+  label,
+  value,
+  max,
+  tone,
+}: {
+  label: string;
+  value: number;
+  max: number;
+  tone: string;
+}) {
+  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
   return (
-    <div className="card">
-      <p className="text-2xl font-bold" style={{ color: tone }}>
-        {value}
-      </p>
-      <p className="mt-0.5 text-sm text-[var(--muted)]">{label}</p>
+    <div className="fn-row">
+      <span className="fn-label">{label}</span>
+      <span className="fn-track">
+        <i style={{ width: `${pct}%`, backgroundColor: tone }} />
+      </span>
+      <span className="fn-value">{value}</span>
     </div>
   );
 }

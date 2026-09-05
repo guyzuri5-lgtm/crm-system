@@ -73,7 +73,7 @@ export function NewEventForm() {
             שממלאים כאן רק את הסוף. שדה ריק עם התווית "כתובת הקישור" הזמין
             להדביק לתוכו כתובת מלאה. */}
         <span
-          className="flex items-stretch overflow-hidden rounded-lg border bg-white shadow-[inset_0_1px_1px_rgba(28,26,23,0.03)] focus-within:border-[var(--primary)] focus-within:shadow-[0_0_0_3px_var(--primary-soft)]"
+          className="flex items-stretch overflow-hidden rounded-lg border bg-[var(--surface)] shadow-[inset_0_1px_1px_rgba(28,26,23,0.03)] focus-within:border-[var(--primary)] focus-within:shadow-[0_0_0_3px_var(--primary-soft)]"
           style={{ borderColor: "var(--border-strong)" }}
           dir="ltr"
         >

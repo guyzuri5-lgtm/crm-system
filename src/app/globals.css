@@ -48,6 +48,10 @@
   /* מה שנקרא *על* המבטא — טקסט בכפתור ראשי, בבועת הודעה יוצאת. במצב כהה
      המבטא הופך לטורקיז בהיר, ולבן עליו נותן ניגודיות של פחות מ-2:1. */
   --on-primary: #ffffff;
+  /* ידית מתג. לבנה בשני המצבים בכוונה — היא יושבת תמיד על מסילה צבועה,
+     ושם לבן הוא מה שנקרא כ"הידית". אסימון ולא ערך קשיח, כדי שהכוונה תהיה
+     כתובה ולא תתפרש כ-bg-white שנשכח. */
+  --knob: #ffffff;
 
   /* ── מצב ────────────────────────────────────────────────────────────── */
   --ok: #0d7255;
@@ -115,6 +119,7 @@
   --primary-soft: #0f312d;
   --ring: #4fc4b3;
   --on-primary: #06201c;
+  --knob: #ffffff;
 
   --ok: #52c098;
   --ok-soft: #0f3025;
@@ -441,7 +446,10 @@ body {
   .h-page {
     @apply flex flex-wrap items-start gap-x-3.5 gap-y-2;
   }
-  .h-page h1 {
+  /* page-title לכותרת שעומדת לבדה, h-page h1 לכותרת עם תיאור לצידה —
+     אותה טיפוגרפיה בשתיהן, כדי שכל המסכים יישמעו באותו קול. */
+  .h-page h1,
+  .page-title {
     @apply text-[21px] leading-tight font-medium;
     font-family: var(--font-display);
     letter-spacing: -0.02em;
@@ -500,6 +508,77 @@ body {
   /* ── אווטר עם שם ─────────────────────────────────────────────────── */
   .avc {
     @apply inline-flex items-center gap-2.5;
+  }
+
+  /* ── ריבוע משך הפגישה ────────────────────────────────────────────── */
+  /* המספר שמחפשים בפועל כשמחליטים איזה קישור לשלוח הוא 20 / 60 / 90, ולא
+     שם סוג הפגישה. לכן הוא פותח את השורה ובגודל שנקרא לפני הכותרת. */
+  .dur-box {
+    @apply grid size-[46px] shrink-0 place-items-center rounded-[13px] leading-none font-medium;
+    font-family: var(--font-display);
+    color: var(--dur-color, var(--primary));
+    background-color: var(--dur-bg, var(--primary-soft));
+  }
+  .dur-box small {
+    @apply mt-0.5 block text-[9px] font-normal opacity-80;
+  }
+
+  /* ── בלוק תאריך ──────────────────────────────────────────────────── */
+  /* חודש ויום, בגודל שנקרא מרחוק. אירוע נבחר לפי מתי הוא, לא לפי שמו. */
+  .date-box {
+    @apply w-[50px] shrink-0 overflow-hidden rounded-xl border text-center;
+    border-color: var(--border);
+  }
+  .date-box .m {
+    @apply block py-0.5 text-[9.5px] font-semibold;
+    color: var(--date-color, var(--nav-amber));
+    background-color: var(--date-bg, var(--nav-amber-soft));
+  }
+  .date-box .d {
+    @apply block pt-[3px] pb-[5px] text-[19px] leading-none font-medium;
+    font-family: var(--font-display);
+  }
+
+  /* ── מזהה ציבורי ─────────────────────────────────────────────────── */
+  /* ה-slug הוא מה ששולחים ללקוח בפועל, ולכן הוא מוצג ולא מוסתר. */
+  .slug {
+    @apply inline-block rounded px-1.5 py-px text-[11px] whitespace-nowrap;
+    font-family: var(--font-data);
+    color: var(--muted);
+    background-color: var(--surface-sunken);
+  }
+
+  /* ── פס תפוסה ────────────────────────────────────────────────────── */
+  /* מחלק את הקיבולת לפלחים: מי ששילם, מי ששריין ולא שילם, ומה שנשאר. זה
+     המספר שנבדק כמה פעמים ביום לפני אירוע. */
+  .cap-track {
+    @apply flex h-2 flex-1 overflow-hidden rounded-full;
+    background-color: var(--surface-sunken);
+  }
+  .cap-track > i {
+    @apply block h-full;
+  }
+
+  /* ── משפך ────────────────────────────────────────────────────────── */
+  .fn-row {
+    @apply flex items-center gap-2.5;
+  }
+  .fn-label {
+    @apply w-[76px] shrink-0 text-[11.5px];
+    color: var(--muted);
+  }
+  .fn-track {
+    @apply relative h-[22px] flex-1 overflow-hidden rounded-md;
+    background-color: var(--surface-sunken);
+  }
+  .fn-track > i {
+    @apply block h-full rounded-md opacity-90;
+    background-color: var(--fn-color, var(--primary));
+  }
+  .fn-value {
+    @apply w-[34px] text-end text-sm font-medium;
+    font-family: var(--font-display);
+    font-variant-numeric: tabular-nums;
   }
 }
 

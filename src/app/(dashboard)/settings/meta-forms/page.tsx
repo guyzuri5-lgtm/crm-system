@@ -50,7 +50,7 @@ export default async function MetaFormsPage() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-xl font-semibold">טפסי מטא</h1>
+        <h1 className="page-title">טפסי מטא</h1>
         <p className="mt-1 text-sm text-[var(--muted)]">
           מטא שולחת בליד את מזהה הטופס בלבד, בלי לומר לאיזה מוצר הוא שייך. השיוך כאן הוא מה
           שמכניס את הלקוחה לאירוע או לקורס הנכון. את המזהה מעתיקים מ־Meta Business Suite ←

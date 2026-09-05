@@ -9,7 +9,7 @@ export default async function NewCoursePage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">קורס חדש</h1>
+        <h1 className="page-title">קורס חדש</h1>
         <p className="mt-1 text-sm text-[var(--muted)]">
           קודם השם והכתובת. אחרי השמירה נעבור לעיצוב דף ההרשמה — כותרת, תמונה, טקסטים ושדות הטופס.
         </p>

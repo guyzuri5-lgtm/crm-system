@@ -518,7 +518,7 @@ function Toggle({
         {/* RTL: הכפתור נע ימינה כשכבוי ושמאלה כשדלוק, כדי שהתנועה תתאים
             לכיוון הקריאה. */}
         <span
-          className="absolute top-0.5 size-5 rounded-full bg-white shadow-sm transition-all"
+          className="absolute top-0.5 size-5 rounded-full bg-[var(--knob)] shadow-sm transition-all"
           style={checked ? { left: "0.125rem" } : { right: "0.125rem" }}
         />
       </button>

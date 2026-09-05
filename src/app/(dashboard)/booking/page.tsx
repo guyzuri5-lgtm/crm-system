@@ -4,7 +4,8 @@ import { listStatuses } from "@/lib/statuses";
 import { listEventTypes } from "@/lib/booking/data";
 import { isCalendarConfigured } from "@/lib/google-calendar";
 import { BOOKING_LOCATION_LABELS } from "@/lib/supabase/database.types";
-import { statusColorClasses } from "@/lib/status-colors";
+import type { CSSProperties } from "react";
+import { statusToken } from "@/lib/status-colors";
 import { deleteEventTypeAction } from "./actions";
 import { EventTypeForm } from "./event-type-form";
 import { CopyLink } from "./copy-link";
@@ -19,17 +20,29 @@ export default async function EventTypesPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="h-page">
+        <div>
+          <h1>סוגי פגישות</h1>
+          <p>
+            לכל סוג פגישה יש קישור ציבורי משלו. שולחים אותו ללקוח, והוא בוחר מועד מתוך השעות
+            הפנויות שלך.
+          </p>
+        </div>
+      </div>
+
       {!isCalendarConfigured() && (
-        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div
+          className="rounded-xl border px-4 py-3 text-sm"
+          style={{
+            backgroundColor: "var(--warn-soft)",
+            borderColor: "color-mix(in srgb, var(--warn) 30%, transparent)",
+            color: "var(--warn)",
+          }}
+        >
           <strong className="font-semibold">יומן גוגל אינו מחובר.</strong> המערכת תציע שעות לפי
           הזמינות שהוגדרה כאן בלבד — בלי לדעת מה כבר תפוס ביומן.
         </div>
       )}
-
-      <p className="text-sm text-[var(--muted)]">
-        לכל סוג פגישה יש קישור ציבורי משלו. שלחו אותו ללקוח, והוא בוחר מועד מתוך
-        השעות הפנויות שלכם.
-      </p>
 
       {/* ── סוג פגישה חדש ─────────────────────────────────────────── */}
       <details className="card">
@@ -43,27 +56,39 @@ export default async function EventTypesPage() {
       {eventTypes.map((eventType) => (
         <section key={eventType.id} className="card">
           <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--border)] pb-4">
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-base font-semibold">{eventType.name}</h2>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColorClasses(eventType.color)}`}
-                >
-                  {eventType.duration_minutes} דק׳
-                </span>
-                {!eventType.active && (
-                  <span className="rounded-full bg-[var(--background)] px-2 py-0.5 text-xs text-[var(--subtle)]">
-                    כבוי
+            <div className="flex min-w-0 items-center gap-3.5">
+              {/* המשך נקרא לפני השם: זה מה שמחפשים כשמחליטים איזה קישור לשלוח. */}
+              <span
+                className="dur-box"
+                style={
+                  {
+                    "--dur-color": statusToken(eventType.color),
+                    "--dur-bg": `color-mix(in srgb, ${statusToken(eventType.color)} 13%, transparent)`,
+                  } as CSSProperties
+                }
+              >
+                {eventType.duration_minutes}
+                <small>דק׳</small>
+              </span>
+
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-base font-semibold">{eventType.name}</h2>
+                  {!eventType.active && (
+                    <span className="pill">כבוי</span>
+                  )}
+                </div>
+                <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-[var(--muted)]">
+                  <span className="slug" dir="ltr">
+                    /book/{eventType.slug}
                   </span>
-                )}
+                  <span>{BOOKING_LOCATION_LABELS[eventType.location]}</span>
+                  <span>
+                    · הפסקה{" "}
+                    {Math.max(eventType.buffer_before_minutes, eventType.buffer_after_minutes)} דק׳
+                  </span>
+                </p>
               </div>
-              <p className="mt-1.5 text-sm text-[var(--muted)]">
-                <span dir="ltr">/book/{eventType.slug}</span>
-                {" · "}
-                {BOOKING_LOCATION_LABELS[eventType.location]}
-                {" · "}
-                הפסקה {Math.max(eventType.buffer_before_minutes, eventType.buffer_after_minutes)} דק׳
-              </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-1">

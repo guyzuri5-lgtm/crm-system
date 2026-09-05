@@ -47,13 +47,12 @@ export default async function CoursesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="h-page">
         <div>
-          <h1 className="text-xl font-semibold">כל הקורסים</h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            לכל קורס דף הרשמה משלו בכתובת ציבורית, וטופס שאפשר להטמיע בדף נחיתה קיים.
-          </p>
+          <h1>כל הקורסים</h1>
+          <p>לכל קורס דף הרשמה משלו בכתובת ציבורית, וטופס שאפשר להטמיע בדף נחיתה קיים.</p>
         </div>
+        <span className="flex-1" />
         <Link href="/courses/new" className="btn-primary">
           קורס חדש
         </Link>
@@ -94,8 +93,11 @@ export default async function CoursesPage() {
                         </span>
                       )}
                     </div>
-                    <p className="mt-1 text-sm text-[var(--muted)]">
-                      /course/{course.slug} · נוצר {formatDate(new Date(course.created_at))}
+                    <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-[var(--muted)]">
+                      <span className="slug" dir="ltr">
+                        /course/{course.slug}
+                      </span>
+                      <span>· נוצר {formatDate(new Date(course.created_at))}</span>
                     </p>
                   </div>
 

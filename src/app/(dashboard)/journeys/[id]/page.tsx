@@ -94,7 +94,7 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
           <Link href="/journeys" className="text-sm text-[var(--muted)] hover:underline">
             ← כל המסעות
           </Link>
-          <h1 className="mt-1 text-xl font-semibold">{journey.name}</h1>
+          <h1 className="page-title mt-1">{journey.name}</h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
             נכנסים למסע: {JOURNEY_ENTRY_LABELS[journey.entry_type]}
             {journey.entry_type === "status" && journey.entry_value?.status

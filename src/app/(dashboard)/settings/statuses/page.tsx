@@ -37,7 +37,7 @@ export default async function StatusesPage() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-xl font-semibold">סטטוסים</h1>
+        <h1 className="page-title">סטטוסים</h1>
         <p className="mt-1 text-sm text-[var(--muted)]">
           הסטטוס הראשון ברשימה הוא ברירת המחדל לכל ליד חדש שנכנס מוואטסאפ או מהשאלון.
         </p>

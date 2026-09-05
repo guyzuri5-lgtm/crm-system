@@ -7,6 +7,10 @@ import type { EventRow, EventStage } from "@/lib/supabase/database.types";
 
 export const dynamic = "force-dynamic";
 
+/** חודש מקוצר ויום בחודש, בשעון האירועים — לבלוק התאריך שפותח כל שורה. */
+const monthFmt = new Intl.DateTimeFormat("he-IL", { month: "short", timeZone: EVENT_TIMEZONE });
+const dayFmt = new Intl.DateTimeFormat("he-IL", { day: "numeric", timeZone: EVENT_TIMEZONE });
+
 type Counts = Record<EventStage, number>;
 
 /**
@@ -49,13 +53,12 @@ export default async function EventsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="h-page">
         <div>
-          <h1 className="text-xl font-semibold">כל האירועים</h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            כל אירוע מקבל דף הרשמה משלו בכתובת ציבורית, ותזכורות בוואטסאפ למי ששילמה.
-          </p>
+          <h1>כל האירועים</h1>
+          <p>כל אירוע מקבל דף הרשמה משלו בכתובת ציבורית, ותזכורות בוואטסאפ למי ששילמה.</p>
         </div>
+        <span className="flex-1" />
         <Link href="/events/new" className="btn-primary">
           אירוע חדש
         </Link>
@@ -75,17 +78,29 @@ export default async function EventsPage() {
             const isPast = hasPassed(new Date(event.starts_at));
 
             return (
-              <Link key={event.id} href={`/events/${event.id}`} className="card block hover:border-[var(--border-strong)]">
+              <Link
+                key={event.id}
+                href={`/events/${event.id}`}
+                className={`card block hover:border-[var(--border-strong)] ${isPast ? "opacity-65" : ""}`}
+              >
                 <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="font-semibold">{event.name}</h2>
-                      <Badge past={isPast || !event.active} label={eventTag(event, isPast)} />
+                  <div className="flex min-w-0 items-center gap-3.5">
+                    {/* אירוע נבחר לפי מתי הוא, ולכן התאריך פותח את השורה. */}
+                    <span className="date-box">
+                      <span className="m">{monthFmt.format(new Date(event.starts_at))}</span>
+                      <span className="d">{dayFmt.format(new Date(event.starts_at))}</span>
+                    </span>
+
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="font-semibold">{event.name}</h2>
+                        <Badge past={isPast || !event.active} label={eventTag(event, isPast)} />
+                      </div>
+                      <p className="mt-1 text-[12.5px] text-[var(--muted)]">
+                        {formatDateTime(new Date(event.starts_at), EVENT_TIMEZONE)}
+                        {event.location ? ` · ${event.location}` : ""}
+                      </p>
                     </div>
-                    <p className="mt-1 text-sm text-[var(--muted)]">
-                      {formatDateTime(new Date(event.starts_at), EVENT_TIMEZONE)}
-                      {event.location ? ` · ${event.location}` : ""}
-                    </p>
                   </div>
 
                   <div className="flex shrink-0 gap-5 text-center">
@@ -94,6 +109,31 @@ export default async function EventsPage() {
                     <Metric value={c.interested} label="מתעניינות" tone="var(--nav-amber)" />
                   </div>
                 </div>
+
+                {/* פס התפוסה מחלק את הקיבולת לשלושה: מי ששילמה, מי ששריינה
+                    ולא שילמה, ומה שנשאר פנוי. בלי קיבולת אין מה לחלק. */}
+                {event.capacity ? (
+                  <div className="mt-3.5 flex items-center gap-2.5">
+                    <span className="cap-track">
+                      <i
+                        style={{
+                          width: `${Math.min(100, (c.paid / event.capacity) * 100)}%`,
+                          backgroundColor: "var(--primary)",
+                        }}
+                      />
+                      <i
+                        style={{
+                          width: `${Math.min(100 - Math.min(100, (c.paid / event.capacity) * 100), (c.registered / event.capacity) * 100)}%`,
+                          backgroundColor: "var(--nav-pink)",
+                        }}
+                      />
+                    </span>
+                    <span className="shrink-0 text-[11.5px] text-[var(--subtle)]">
+                      <b className="tabular font-semibold text-[var(--foreground)]">{c.paid}</b> מתוך{" "}
+                      {event.capacity}
+                    </span>
+                  </div>
+                ) : null}
               </Link>
             );
           })}

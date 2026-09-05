@@ -70,7 +70,7 @@ export default async function JourneysPage({ searchParams }: PageProps<"/journey
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-xl font-semibold">מסע לקוח</h1>
+        <h1 className="page-title">מסע לקוח</h1>
         <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">
           רצף שלבים שאיש קשר עובר לאורך זמן. בניגוד לכלל אוטומציה, שהוא חד-שלבי וחסר
           זיכרון, מסע זוכר איפה כל אדם עומד וממשיך משם.{" "}

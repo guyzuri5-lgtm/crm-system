@@ -336,7 +336,7 @@ export default async function AvailabilityCalendarPage({
                         <button
                           type="submit"
                           aria-label="מחיקת חלון"
-                          className="grid size-5 place-items-center rounded-full hover:bg-white/70"
+                          className="grid size-5 place-items-center rounded-full hover:bg-[var(--surface)]"
                         >
                           ×
                         </button>
