@@ -78,6 +78,16 @@ const CARD_W = 190;
 // נמדד ולא נוחש: כותרת (22) + הודעה בשתי שורות (48) + מטא (18), עם
 // gap של 6 ופדינג 10 למעלה ולמטה = 122. 116 חתך את השורה האחרונה.
 const CARD_H = 122;
+
+/**
+ * רוחב הלוח.
+ *
+ * המסע מתחיל בימין וזורם שמאלה, כמו קריאה בעברית, ולכן הכניסה מעוגנת לקצה
+ * הימני והשלבים מתרחקים ממנה שמאלה. הרוחב חייב להיות קבוע וידוע מראש כדי
+ * שיהיה למה לעגן — בלוח שרוחבו נגזר מהתוכן, "ימין" זז עם כל כרטיסייה
+ * שנוספת.
+ */
+const CANVAS_W = 1120;
 const ENTRY_ID = "__entry__";
 
 export function JourneyCanvas({
@@ -117,7 +127,7 @@ export function JourneyCanvas({
   const posOf = (n: CanvasNode) => positions[n.id] ?? { x: n.x, y: n.y };
 
   // הכניסה אינה שורה במסד אלא צומת וירטואלי, ולכן מיקומה קבוע משמאל.
-  const entryPos = { x: 20, y: 20 };
+  const entryPos = { x: CANVAS_W - CARD_W - 20, y: 20 };
   /** פינת הכרטיס, או null אם הצומת נמחק מתחת לרגליים. */
   const cornerOf = (id: string) => {
     if (id === ENTRY_ID) return entryPos;
@@ -256,7 +266,11 @@ export function JourneyCanvas({
       const d = depth.get(node.id) ?? orphanLevel;
       const row = rows.get(d) ?? 0;
       rows.set(d, row + 1);
-      next[node.id] = { x: entryPos.x + d * GAP_X, y: entryPos.y + row * GAP_Y };
+      // שמאלה מהכניסה, וחסום ב-0 כדי שדור רחוק לא ייצא מחוץ ללוח.
+      next[node.id] = {
+        x: Math.max(0, entryPos.x - d * GAP_X),
+        y: entryPos.y + row * GAP_Y,
+      };
     }
 
     setPositions(next);
@@ -297,10 +311,15 @@ export function JourneyCanvas({
   }
 
   // מקום פנוי לכרטיסייה מכפתור ההוספה — אותה נוסחת רשת ששימשה את הטופס הישן.
-  const freeSpot = () => ({
-    x: 40 + ((nodes.length + 1) % 4) * 230,
-    y: 140 + Math.floor((nodes.length + 1) / 4) * 130,
-  });
+  // כרטיסייה חדשה נופלת משמאל לכניסה ולא בפינה השמאלית העליונה: זה הכיוון
+  // שהמסע זורם אליו, וכך היא נוחתת בערך במקום שאליו תגרר ממילא.
+  const freeSpot = () => {
+    const i = nodes.length;
+    return {
+      x: Math.max(20, entryPos.x - (1 + (i % 4)) * 230),
+      y: 20 + Math.floor(i / 4) * 150,
+    };
+  };
 
   // לחיצה כפולה על שטח ריק יוצרת טיוטה שם, ממורכזת סביב נקודת הלחיצה.
   // ה-scroll מתווסף כי המיקומים נמדדים בתוך התוכן הנגלל, לא בחלון הנראה.
@@ -324,7 +343,12 @@ export function JourneyCanvas({
 
   // גובה המשטח נגזר מהכרטיסייה הנמוכה ביותר, עם מרווח לגרירה כלפי מטה.
   const maxY = Math.max(entryPos.y, draft?.y ?? 0, ...nodes.map((n) => posOf(n).y)) + CARD_H;
-  const maxX = Math.max(entryPos.x, draft?.x ?? 0, ...nodes.map((n) => posOf(n).x)) + CARD_W;
+  const maxX = Math.max(
+    CANVAS_W - 80,
+    entryPos.x,
+    draft?.x ?? 0,
+    ...nodes.map((n) => posOf(n).x)
+  ) + CARD_W;
 
   return (
     <div className="flex flex-col gap-3">
@@ -459,16 +483,17 @@ export function JourneyCanvas({
         >
           <p className="text-[10px] font-semibold text-[var(--primary)]">נכנסים למסע</p>
           <p className="mt-0.5 text-sm leading-snug font-medium">{entryLabel}</p>
+          {/* לכניסה יש מוצא בלבד — אין לתוכה מה להיכנס. */}
           <button
             onClick={(e) => {
               e.stopPropagation();
               setConnectFrom(ENTRY_ID);
             }}
-            title="משוך חץ מכאן"
-            className="absolute top-1/2 -right-2.5 size-5 -translate-y-1/2 rounded-full border border-[var(--border)] bg-[var(--surface)] text-[10px] leading-none text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
-          >
-            →
-          </button>
+            data-hot={connectFrom === ENTRY_ID ? "true" : undefined}
+            title="משוך חץ מכאן אל כרטיסייה אחרת"
+            aria-label="חיבור יוצא"
+            className="j-port j-port-out"
+          />
         </div>
 
         {/* ── כרטיסיות ── */}
