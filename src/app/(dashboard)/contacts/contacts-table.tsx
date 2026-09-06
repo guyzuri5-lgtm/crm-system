@@ -271,7 +271,10 @@ export function ContactsTable({
                             ))}
                         </span>
                       ) : ltr && value ? (
-                        <span className="data" dir="ltr">
+                        // nowrap: טלפון או תאריך הוא ערך אחד, ובעמודה צרה הוא
+                        // נשבר לשתי שורות באמצע הספרות. הטבלה גוללת אופקית
+                        // (table-wrap), ולכן עדיף שהיא תגלול מאשר שהערך יישבר.
+                        <span className="data whitespace-nowrap" dir="ltr">
                           {value}
                         </span>
                       ) : (
