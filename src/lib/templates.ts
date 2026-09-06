@@ -92,6 +92,27 @@ export function renderTemplate(
   });
 }
 
+/**
+ * מציינים שנשארו בטקסט אחרי הרינדור.
+ *
+ * renderTemplate משאיר מציין שאין לו הקשר כפי שהוא, בכוונה — הודעה שנראית
+ * שבורה נתפסת מיד, וריק לא נתפס בכלל. אבל ההיגיון הזה מניח שיש **מי שרואה**
+ * את ההודעה לפני שהיא יוצאת, וזה לא המצב: בשליחה ידנית מכרטיס איש הקשר,
+ * במסע ובכלל אוטומציה, הטקסט המרונדר הולך ישר ללקוחה.
+ *
+ * ב-5.9.2026 זה קרה בפועל — תזכורת לפגישה יצאה עם "ב{{booking_day}} בשעה
+ * {{booking_time}}" בגוף, כי לאיש הקשר לא הייתה פגישה **עתידית** והחיפוש
+ * מסנן לפי starts_at עתידי בלבד.
+ *
+ * הפונקציה הזו היא מה שמאפשר לחסום שליחה כזו. היא תופסת כל `{{...}}` שנותר,
+ * ולא רק מציני פגישה ואירוע: מציין שהוקלד עם שגיאת כתיב לא נפתר גם הוא,
+ * ולקוחה שמקבלת "{{first_nmae}}" לא מבחינה בין השניים.
+ */
+export function unresolvedPlaceholders(rendered: string): string[] {
+  const found = rendered.match(/\{\{\s*[a-z_]+\s*\}\}/gi) ?? [];
+  return [...new Set(found.map((m) => m.replace(/[{}\s]/g, "")))];
+}
+
 /** המציינים הזמינים, לתצוגה בממשק. */
 export const CONTACT_PLACEHOLDERS = Object.keys(TEMPLATE_FIELDS);
 export const BOOKING_PLACEHOLDERS = Object.keys(BOOKING_FIELDS);

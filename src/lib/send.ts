@@ -7,7 +7,7 @@ import {
   sendText,
   waIdFromPhone,
 } from "./whatsapp-cloud";
-import { renderTemplate } from "./templates";
+import { renderTemplate, unresolvedPlaceholders } from "./templates";
 import { sendEmail, type MessageStream } from "./email";
 import type {
   Contact,
@@ -70,11 +70,38 @@ export interface SendMessageInput {
 
 export type SendResult = { ok: true } | { ok: false; error: string };
 
+/**
+ * הודעה שנשארו בה מציינים לא פתורים לא יוצאת.
+ *
+ * renderTemplate משאיר מציין בלי הקשר כפי שהוא, מתוך הנחה שמישהו יראה את
+ * ההודעה השבורה. אף אחד לא רואה: הטקסט המרונדר הולך ישר ללקוחה. ב-5.9.2026
+ * יצאה בפועל תזכורת עם "ב{{booking_day}} בשעה {{booking_time}}" בגוף.
+ *
+ * הבדיקה כאן ולא אצל הקוראים, כי יש ארבעה מהם — שליחה ידנית, מסעות, כללים
+ * ותזכורות אירועים — ובדיקה שמשוכפלת ארבע פעמים היא בדיקה שתישכח באחת מהן.
+ *
+ * זו ולידציה דרך אי-אפשרות: הכישלון מפורש, מוסבר, ומגיע למי ששלח — במקום
+ * הודעה שגויה שמגיעה למי שלא אמור היה לראות אותה.
+ */
+function assertNoUnresolvedPlaceholders(rendered: string, where: string): void {
+  const missing = unresolvedPlaceholders(rendered);
+  if (!missing.length) return;
+
+  const list = missing.map((key) => `{{${key}}}`).join(", ");
+  throw new Error(
+    `ההודעה לא נשלחה: ${where} מכיל מציינים שלא הוחלפו — ${list}. ` +
+      `מציני פגישה מתמלאים רק כשלאיש הקשר יש פגישה עתידית, ומציני אירוע רק בתזכורת של אירוע.`
+  );
+}
+
 export async function sendMessageToContact(input: SendMessageInput): Promise<SendResult> {
   const db = supabaseAdmin();
   const label = input.logPrefix ? `${input.logPrefix} ` : "";
 
   try {
+    assertNoUnresolvedPlaceholders(input.body, "גוף ההודעה");
+    if (input.subject) assertNoUnresolvedPlaceholders(input.subject, "כותרת המייל");
+
     if (input.channel === "email") {
       if (!input.contact.email) throw new Error("לאיש הקשר אין כתובת מייל");
       if (!input.subject) throw new Error("חסרה כותרת (subject) למייל");
@@ -127,6 +154,14 @@ export async function sendMessageToContact(input: SendMessageInput): Promise<Sen
       // שיהיה מודל מנטלי אחד למי שכותב תבנית ולא שתי שפות מציינים.
       const parameters = template.meta_variables.map((expression) =>
         renderTemplate(expression, input.contact, input.booking, input.event)
+      );
+
+      // הפרמטרים נבדקים בנפרד מהגוף. הם נשלחים למטא כערכים של {{1}}, {{2}}
+      // וכו', והיא מציגה אותם ללקוחה כפי שהם — כלומר מציין שלא הוחלף כאן
+      // מגיע אליה כטקסט "{{booking_time}}" בתוך הודעה מאושרת. זה מסלול
+      // נפרד לחלוטין מגוף ההודעה, ולכן בדיקה אחת לא מכסה את שניהם.
+      parameters.forEach((value, index) =>
+        assertNoUnresolvedPlaceholders(value, `הפרמטר ${index + 1} של התבנית המאושרת`)
       );
 
       messageId = await sendTemplate({
