@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getActiveCourseBySlug } from "@/lib/courses";
 import { RegistrationEmbed } from "@/components/registration-page";
+import { EmbedFrame, parseEmbedStyle } from "@/components/embed-frame";
 import { registerForCourseEmbedAction } from "../actions";
 
 /**
@@ -9,7 +10,7 @@ import { registerForCourseEmbedAction } from "../actions";
  * שלושה הבדלים מהדף המלא, וכולם נובעים מאותו עיקרון: הדף המארח הוא הבעלים
  * של העיצוב, והטופס הוא אורח.
  *   1. בלי תמונת רקע, בלי כותרות ובלי פריסת מסך מלא.
- *   2. רקע שקוף — הצבע של דף הנחיתה נראה מבעד למסגרת.
+ *   2. הטוקנים והרקע מגיעים מ-EmbedFrame — שפת דף הנחיתה, לא של המערכת.
  *   3. הסיום קורה בלקוח: תשלום לוקח את כל החלון, תודה מוצגת במקום.
  *
  * אין כאן כותרות X-Frame-Options/CSP חוסמות, ואין הגדרת headers גלובלית
@@ -22,26 +23,23 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function CourseEmbedPage({ params }: PageProps<"/course/[slug]/embed">) {
+export default async function CourseEmbedPage({ params, searchParams }: PageProps<"/course/[slug]/embed">) {
   const { slug } = await params;
+  // שני המתגים של ההטמעה: mode=bare ו-accent. ראו embed-frame.
+  const style = parseEmbedStyle(await searchParams);
   const course = await getActiveCourseBySlug(slug);
   if (!course) notFound();
 
   return (
-    <>
-      {/* הרקע של המערכת מוסר כאן בלבד. body מקבל את הצבע שלו מ-globals.css,
-          ובתוך iframe זה היה מצייר מלבן קרם על דף נחיתה בכל צבע אחר. */}
-      <style>{`body{background:transparent!important}`}</style>
-      <div className="p-1">
-        <RegistrationEmbed
-          design={course}
-          spotsLeft={null}
-          action={registerForCourseEmbedAction.bind(null, slug)}
-          thanksTitle={course.thankyou_title}
-          thanksText={course.thankyou_text}
-          embedId={course.slug}
-        />
-      </div>
-    </>
+    <EmbedFrame style={style}>
+      <RegistrationEmbed
+        design={course}
+        spotsLeft={null}
+        action={registerForCourseEmbedAction.bind(null, slug)}
+        thanksTitle={course.thankyou_title}
+        thanksText={course.thankyou_text}
+        embedId={course.slug}
+      />
+    </EmbedFrame>
   );
 }
