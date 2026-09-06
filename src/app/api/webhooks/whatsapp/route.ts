@@ -6,6 +6,7 @@ import {
   verifyWebhookChallenge,
   verifyWebhookSignature,
   type ParsedInboundMessage,
+  type ParsedStatus,
   type WhatsAppWebhook,
 } from "@/lib/whatsapp-cloud";
 import { phoneVariants } from "@/lib/contact-import";
@@ -66,9 +67,14 @@ export async function POST(request: NextRequest) {
       if (result) handled.push(result);
     }
 
-    await recordFailures(statuses);
+    const unmatchedFailures = await recordFailures(statuses);
 
-    return NextResponse.json({ ok: true, messages: handled.length, statuses: statuses.length });
+    return NextResponse.json({
+      ok: true,
+      messages: handled.length,
+      statuses: statuses.length,
+      unmatchedFailures,
+    });
   } catch (error) {
     console.error("[whatsapp] webhook failed:", error);
     return NextResponse.json({ ok: false, error: describe(error) });
@@ -201,25 +207,74 @@ async function findOrCreateContact(message: ParsedInboundMessage) {
 }
 
 /**
+ * כמה פעמים לחפש את השורה שעליה הדיווח מדבר, ובאיזה מרווח.
+ *
+ * הדיווח והרישום הם מרוץ. `sendMessageToContact` שולחת, מקבלת wamid, ורק
+ * אז כותבת את השורה — ומטא מספיקה לדווח כישלון בתוך החלון הזה. ב-6.9.2026
+ * זה קרה בפועל: הדיווח נכנס ב-15:13:07.98, השורה נוצרה ב-15:13:10.54,
+ * החיפוש לא מצא כלום והדיווח נזרק. ההודעה נראתה במסך כאילו נמסרה, גיא לא
+ * קיבל אותה, ושום דבר ביומן לא רמז על כך.
+ *
+ * שלוש שהיות של 400 מ"ש = 1.2 שניות לכל היותר, ורק כשיש כישלון שלא נמצא.
+ * זה מכסה את המרוץ בלי להחזיק את מטא בהמתנה — היא מצפה לתשובה מהירה.
+ */
+const FAILURE_MATCH_ATTEMPTS = 4;
+const FAILURE_MATCH_DELAY_MS = 400;
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
  * הודעה שיצאה בהצלחה מבחינת ה-API אבל לא הגיעה ליעד.
  *
  * זה נודע *רק* כאן — הקריאה לשליחה החזירה 200 ומזהה הודעה, והכישלון מתגלה
  * שניות אחר כך. בלי הרישום הזה, "שלחתי ללקוח" ביומן היה שקר שאיש לא מגלה.
  *
  * נרשם על השורה הקיימת ולא כשורה חדשה: זו אותה הודעה, רק עם מידע חדש עליה.
+ *
+ * מחזירה כמה כשלים נשארו בלי שורה תואמת — הערך עולה לגוף התשובה, כדי
+ * שהמצב הזה יהיה נראה מבחוץ ולא רק בלוג.
  */
-async function recordFailures(statuses: { messageId: string; status: string; error: string | null }[]) {
+async function recordFailures(statuses: ParsedStatus[]): Promise<number> {
   const failures = statuses.filter((status) => status.status === "failed");
-  if (!failures.length) return;
+  if (!failures.length) return 0;
 
+  // כל מה שלא נמצא חוזר לניסיון **כקבוצה**, ולא כישלון-כישלון: כך ההמתנה
+  // הכוללת חסומה בשלוש שהיות גם כשהגיעו עשרה כשלים באותו payload.
+  let pending = failures;
+  for (let attempt = 1; attempt <= FAILURE_MATCH_ATTEMPTS; attempt++) {
+    pending = await markNotDelivered(pending);
+    if (!pending.length) return 0;
+    if (attempt < FAILURE_MATCH_ATTEMPTS) await wait(FAILURE_MATCH_DELAY_MS);
+  }
+
+  // עדיין בלי שורה. זה לגיטימי כשההודעה לא יצאה מהמערכת — אפליקציית
+  // WhatsApp Business בטלפון, או כפתור הבדיקה של מטא — ואז אין מה לעדכן.
+  // אבל אם היא כן יצאה מכאן, זו הודעה שנעלמה, ולכן **error ולא בליעה**:
+  // התסמין המקורי היה שקט מוחלט, וזה בדיוק מה שאסור שיחזור.
+  for (const failure of pending) {
+    console.error(
+      `[whatsapp] דיווח כישלון בלי שורה תואמת (${failure.messageId}): ${failure.error ?? "ללא פירוט"}`
+    );
+  }
+  return pending.length;
+}
+
+/** מסמן את מי שנמצאה לו שורה, ומחזיר את מי שעדיין לא. */
+async function markNotDelivered(failures: ParsedStatus[]): Promise<ParsedStatus[]> {
   const db = supabaseAdmin();
+  const unmatched: ParsedStatus[] = [];
+
   for (const failure of failures) {
     const { data: existing } = await db
       .from("interactions")
       .select("id, content")
       .eq("external_id", failure.messageId)
       .maybeSingle();
-    if (!existing) continue;
+
+    if (!existing) {
+      unmatched.push(failure);
+      continue;
+    }
 
     const note = `[לא נמסר${failure.error ? `: ${failure.error}` : ""}]`;
     if (existing.content?.startsWith("[לא נמסר")) continue;
@@ -231,4 +286,6 @@ async function recordFailures(statuses: { messageId: string; status: string; err
 
     console.warn(`[whatsapp] הודעה ${failure.messageId} לא נמסרה: ${failure.error ?? "ללא פירוט"}`);
   }
+
+  return unmatched;
 }
