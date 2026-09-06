@@ -78,6 +78,63 @@ export async function getWhatsAppSettings(): Promise<WhatsAppSettings> {
  * לחסום שליחה ידנית: אדם שלוחץ "שלח" יודע מה הוא עושה, והתקרה נאכפת רק על
  * השליחה האוטומטית.
  */
+/**
+ * הקידומת שה-webhook של מטא מוסיף לשורת היומן כשהודעה לא נמסרה.
+ * חייבת להישאר זהה ל-recordFailures ב-app/api/webhooks/whatsapp/route.ts.
+ */
+const NOT_DELIVERED_PREFIX = "[לא נמסר";
+
+/** כמה שעות אחורה נחשבות "עכשיו" לצורך התראה על כשלי מסירה. */
+const FAILURE_WINDOW_HOURS = 48;
+
+export interface DeliveryFailureSummary {
+  count: number;
+  /** הסיבה של הכישלון האחרון, כפי שמטא ניסחה אותה. null כשאין כשלים. */
+  lastReason: string | null;
+}
+
+/**
+ * כשלי מסירה אחרונים בוואטסאפ.
+ *
+ * ── למה זה קיים ──
+ * דירוג האיכות של מטא (getPhoneNumberStatus) אומר אם נמענים מתלוננים. הוא
+ * **אינו** אומר אם ההודעות בכלל נמסרות. ב-5.9.2026 המסך הציג "תקין · איכות
+ * ירוקה" בזמן שכל תבנית נדחתה עם `Business eligibility payment issue` —
+ * כלומר תקלת חיוב בחשבון. שני הדברים אמיתיים ואינם חופפים.
+ *
+ * מקור האמת כאן אינו מטא אלא היומן שלנו: ה-webhook כבר מסמן כל הודעה
+ * שנכשלה. זה עדיף מלשאול את מטא על מצב החיוב — אין לכך שדה יציב ב-Graph,
+ * והספירה הזו נכונה לכל סיבת כישלון ולא רק לחיוב.
+ *
+ * נכשל בשקט ומחזיר אפס: זו שורת מצב, ואסור שנפילה שלה תפיל מסך שלם.
+ */
+export async function recentDeliveryFailures(
+  now: Date = new Date()
+): Promise<DeliveryFailureSummary> {
+  const since = new Date(now.getTime() - FAILURE_WINDOW_HOURS * 60 * 60 * 1000);
+
+  const { data, error } = await supabaseAdmin()
+    .from("interactions")
+    .select("content")
+    .eq("type", "whatsapp_out")
+    .gte("created_at", since.toISOString())
+    .like("content", `${NOT_DELIVERED_PREFIX}%`)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (error) {
+    console.error("[whatsapp] failed to count delivery failures:", error.message);
+    return { count: 0, lastReason: null };
+  }
+
+  const rows = data ?? [];
+  // "[לא נמסר: Business eligibility payment issue] …" → הסיבה שבין הנקודתיים
+  // לסוגר. בלי פירוט מטא שולחת רק "[לא נמסר]", ואז אין מה לחלץ.
+  const match = rows[0]?.content?.match(/^\[לא נמסר:\s*([^\]]+)\]/);
+
+  return { count: rows.length, lastReason: match?.[1]?.trim() ?? null };
+}
+
 export async function countWhatsAppSentToday(now: Date = new Date()): Promise<number> {
   const { year, month, day } = utcToZonedParts(now, TIMEZONE);
   const startOfDay = zonedTimeToUtc(year, month, day, 0, TIMEZONE);

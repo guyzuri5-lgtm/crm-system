@@ -2,7 +2,7 @@ import { verifyTeamMember } from "@/lib/dal";
 import { signOut } from "@/app/login/actions";
 import { DashboardShell, type ChannelState } from "@/components/dashboard-shell";
 import { isWhatsAppConfigured } from "@/lib/whatsapp-cloud";
-import { getWhatsAppSettings } from "@/lib/whatsapp-throttle";
+import { getWhatsAppSettings, recentDeliveryFailures } from "@/lib/whatsapp-throttle";
 
 /**
  * מצב הערוץ לסרגל הצד.
@@ -19,9 +19,25 @@ async function readChannel(): Promise<ChannelState> {
     return { tone: "bad", label: "הערוץ לא מוגדר", hint: "אין חיבור ל‑Meta" };
   }
 
-  const settings = await getWhatsAppSettings();
+  const [settings, failures] = await Promise.all([
+    getWhatsAppSettings(),
+    recentDeliveryFailures(),
+  ]);
+
   if (settings.paused) {
     return { tone: "bad", label: "השליחה מושהית", hint: "הקרון אינו שולח דבר" };
+  }
+
+  // כשלי מסירה קודמים ל"פעיל". דירוג האיכות של מטא יכול להיות ירוק בזמן
+  // שאף הודעה לא נמסרת — למשל תקלת חיוב — ומסך שאומר "תקין" במצב כזה גרוע
+  // מכך שלא יוצג דבר. זה בדיוק הדפוס שהחזיק תקלת יומן שבוע שלם.
+  if (failures.count > 0) {
+    return {
+      tone: "bad",
+      label:
+        failures.count === 1 ? "הודעה אחת לא נמסרה" : `${failures.count} הודעות לא נמסרו`,
+      hint: failures.lastReason ?? "מטא דחתה את השליחה",
+    };
   }
 
   return { tone: "ok", label: "הערוץ פעיל", hint: `תקרה: ${settings.daily_limit} ליום` };

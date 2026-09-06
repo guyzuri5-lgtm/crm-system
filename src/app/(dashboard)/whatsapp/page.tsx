@@ -3,7 +3,11 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { WindowMeter } from "@/components/window-meter";
 import Link from "next/link";
 import { verifyTeamMember } from "@/lib/dal";
-import { getWhatsAppSettings, countWhatsAppSentToday } from "@/lib/whatsapp-throttle";
+import {
+  getWhatsAppSettings,
+  countWhatsAppSentToday,
+  recentDeliveryFailures,
+} from "@/lib/whatsapp-throttle";
 import { isWhatsAppConfigured, getPhoneNumberStatus } from "@/lib/whatsapp-cloud";
 
 export const dynamic = "force-dynamic";
@@ -36,13 +40,14 @@ export default async function WhatsAppPage() {
 
   // שתי הקריאות יכולות להיכשל בנפרד, ואף אחת מהן אינה סיבה להפיל את הדף —
   // זה גם הדף שבו משהים את השליחה כשמשהו משתבש.
-  const [sentToday, status] = await Promise.all([
+  const [sentToday, status, failures] = await Promise.all([
     countWhatsAppSentToday().catch(() => null),
     configured
       ? getPhoneNumberStatus().catch((error: unknown) => ({
           error: error instanceof Error ? error.message : String(error),
         }))
       : Promise.resolve(null),
+    recentDeliveryFailures(),
   ]);
 
   // התבניות המאושרות שייכות למסך הזה: כשבודקים את מצב הערוץ, השאלה הבאה
@@ -83,6 +88,40 @@ export default async function WhatsAppPage() {
           </>
         )}
       </div>
+
+      {/*
+        כשלי מסירה, מעל הכול.
+
+        דירוג האיכות שמתחת מגיע ממטא ואומר אם נמענים מתלוננים. הוא אינו אומר
+        אם ההודעות נמסרות בכלל, ושני הדברים אינם חופפים: ב-5.9.2026 הכרטיס
+        הציג "תקין · איכות ירוקה" בזמן שכל תבנית נדחתה על תקלת חיוב. לכן זה
+        יושב מעליו ולא לצידו.
+      */}
+      {failures.count > 0 && (
+        <section
+          className="rounded-xl border p-4"
+          style={{
+            borderColor: "color-mix(in srgb, var(--danger) 35%, transparent)",
+            backgroundColor: "var(--danger-soft)",
+          }}
+        >
+          <p className="font-semibold text-[var(--danger)]">
+            {failures.count === 1
+              ? "הודעה אחת לא נמסרה ביומיים האחרונים"
+              : `${failures.count} הודעות לא נמסרו ביומיים האחרונים`}
+          </p>
+          {failures.lastReason && (
+            <p className="mt-1 text-sm text-[var(--foreground)]">
+              מטא החזירה: <span className="data" dir="ltr">{failures.lastReason}</span>
+            </p>
+          )}
+          <p className="mt-2 text-xs leading-relaxed text-[var(--muted)]">
+            {/^business eligibility/i.test(failures.lastReason ?? "")
+              ? "זו תקלת חיוב בחשבון ה-WhatsApp Business, לא תקלה במערכת. בודקים באמצעי התשלום ב-Meta Business Suite ← הגדרות עסק ← חיוב ותשלומים. עד שזה מסודר, תבניות מחוץ לחלון 24 השעות לא יימסרו — אבל מענה בתוך החלון ממשיך לעבוד."
+              : "השליחה התקבלה אצל מטא והיא דחתה אותה אחר כך. הסיבה מופיעה גם ביומן של איש הקשר, על ההודעה עצמה."}
+          </p>
+        </section>
+      )}
 
       {/* ── מצב ─────────────────────────────────────────────────────── */}
       <section className="grid gap-4 sm:grid-cols-3">

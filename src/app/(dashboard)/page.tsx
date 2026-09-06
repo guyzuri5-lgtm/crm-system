@@ -10,7 +10,7 @@ import {
   formatTime,
   formatDateTime,
 } from "@/lib/booking/timezone";
-import { getWhatsAppSettings } from "@/lib/whatsapp-throttle";
+import { getWhatsAppSettings, recentDeliveryFailures } from "@/lib/whatsapp-throttle";
 import { isWhatsAppConfigured, getPhoneNumberStatus } from "@/lib/whatsapp-cloud";
 import { countAudience } from "@/lib/newsletter";
 import { statusToken } from "@/lib/status-colors";
@@ -116,12 +116,17 @@ function whatsappHealth(
   configured: boolean,
   paused: boolean,
   statusError: string | null,
-  qualityRating: string | null
+  qualityRating: string | null,
+  deliveryFailures: number
 ): Health {
   if (!configured) return { text: "לא מוגדר", tone: "bad" };
   // מתג ההשהיה חוסם שליחה בשקט, ולכן הוא חייב להיראות דווקא כאן.
   if (paused) return { text: "מושהה", tone: "bad" };
   if (statusError) return { text: statusError, tone: "bad" };
+  // כשל מסירה קודם לדירוג האיכות: האיכות אומרת אם נמענים מתלוננים, לא אם
+  // ההודעות בכלל נמסרות. ב-5.9.2026 הכרטיס הזה הציג "תקין" בזמן שכל תבנית
+  // נדחתה על תקלת חיוב — והמסך היה הדבר היחיד שיכול היה לספר על כך.
+  if (deliveryFailures > 0) return { text: "הודעות לא נמסרות", tone: "bad" };
   if (qualityRating === "RED") return { text: "איכות נמוכה", tone: "bad" };
   if (qualityRating === "YELLOW") return { text: "איכות יורדת", tone: "warn" };
   return { text: "תקין", tone: "ok" };
@@ -260,6 +265,7 @@ export default async function DashboardPage() {
     bookingSettings,
     whatsappSettings,
     phoneStatus,
+    deliveryFailures,
   ] = await Promise.all([
     // אותו קריטריון בדיוק כמו /active: מי שיזם משהו, ולא כל מי שיובא מאקסל.
     db
@@ -380,6 +386,8 @@ export default async function DashboardPage() {
           error: error instanceof Error ? error.message : String(error),
         }))
       : Promise.resolve(null),
+    // כשלי מסירה אחרונים — מה שמבדיל בין "המספר תקין" ל"ההודעות מגיעות".
+    recentDeliveryFailures(),
   ]);
 
   const bookings = todayBookings ?? [];
@@ -425,7 +433,8 @@ export default async function DashboardPage() {
     configured,
     whatsappSettings.paused,
     statusError,
-    phone?.qualityRating ?? null
+    phone?.qualityRating ?? null,
+    deliveryFailures.count
   );
   const healthColor = health.tone === "bad" ? "var(--danger)" : health.tone === "warn" ? "var(--warn)" : "var(--ok)";
   const healthSoft = health.tone === "bad" ? "var(--danger-soft)" : health.tone === "warn" ? "var(--warn-soft)" : "var(--ok-soft)";
