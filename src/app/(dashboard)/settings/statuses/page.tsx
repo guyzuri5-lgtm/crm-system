@@ -18,21 +18,18 @@ import {
 export default async function StatusesPage() {
   await verifyTeamMember();
 
-  const statuses = await listStatuses();
-  const db = supabaseAdmin();
+  // גל אחד, שתי שאילתות. קודם רשימת הסטטוסים נשלפה לבד, ורק אחריה יצאה
+  // שאילתת ספירה **לכל סטטוס בנפרד** — כלומר שבע נסיעות לשרת אחרי אחת.
+  // עמודת הסטטוס של כל אנשי הקשר היא שדה טקסט קצר אחד לשורה, והספירה
+  // בזיכרון זולה מכל אחת מהנסיעות שהיא מחליפה.
+  const [statuses, { data: rows }] = await Promise.all([
+    listStatuses(),
+    supabaseAdmin().from("contacts").select("status"),
+  ]);
 
-  // ספירה לכל סטטוס בנפרד עם head:true — מחזיר רק count, בלי לשלוף שורות.
-  // מספר הסטטוסים קטן, אז זה זול יותר משליפת כל אנשי הקשר וספירה בזיכרון.
-  const counts = await Promise.all(
-    statuses.map(async (status) => {
-      const { count } = await db
-        .from("contacts")
-        .select("id", { count: "exact", head: true })
-        .eq("status", status.name);
-      return [status.id, count ?? 0] as const;
-    })
-  );
-  const countById = new Map(counts);
+  const countByName = new Map<string, number>();
+  for (const row of rows ?? []) countByName.set(row.status, (countByName.get(row.status) ?? 0) + 1);
+  const countById = new Map(statuses.map((s) => [s.id, countByName.get(s.name) ?? 0]));
 
   return (
     <div className="flex flex-col gap-8">

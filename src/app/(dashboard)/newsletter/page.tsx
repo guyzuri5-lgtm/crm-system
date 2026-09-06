@@ -1,7 +1,7 @@
 import { verifyTeamMember } from "@/lib/dal";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { listStatuses } from "@/lib/statuses";
-import { countAudience } from "@/lib/newsletter";
+import { countAudienceByStatus } from "@/lib/newsletter";
 import type { Newsletter } from "@/lib/supabase/database.types";
 import { NewsletterEditor, type StatusOption } from "./editor";
 
@@ -29,33 +29,38 @@ export default async function NewsletterPage({
   await verifyTeamMember();
 
   const copyId = (await searchParams).copy;
-  const statuses = await listStatuses();
 
-  let allCount = 0;
-  let statusOptions: StatusOption[] = [];
-  try {
-    const [all, ...perStatus] = await Promise.all([
-      countAudience({ type: "all" }),
-      ...statuses.map((status) => countAudience({ type: "statuses", statuses: [status.name] })),
-    ]);
-    allCount = all;
-    statusOptions = statuses.map((status, index) => ({
-      name: status.name,
-      color: status.color,
-      count: perStatus[index] ?? 0,
-    }));
-  } catch (error) {
-    explain(error);
-  }
+  // גל אחד: רשימת הסטטוסים, כל ספירות הקהל, והניוזלטר לשכפול. קודם השלושה
+  // רצו בזה אחר זה, והספירות עצמן היו שאילתה לכל סטטוס — שבע נסיעות לשרת
+  // אחרי שתיים אחרות. עכשיו זו שאילתה אחת לכל הספירות, ושלושתן יחד.
+  const [statuses, audience, copySource] = await Promise.all([
+    listStatuses(),
+    countAudienceByStatus().catch((error) => {
+      explain(error);
+      return null;
+    }),
+    // "שכפל" מההיסטוריה: אותו תוכן, ניוזלטר חדש. הישן נשאר כפי שנשלח.
+    typeof copyId === "string"
+      ? supabaseAdmin()
+          .from("newsletters")
+          .select("subject, blocks, audience")
+          .eq("id", copyId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
 
-  // "שכפל" מההיסטוריה: אותו תוכן, ניוזלטר חדש. הישן נשאר כפי שנשלח.
+  const allCount = audience?.all ?? 0;
+  const statusOptions: StatusOption[] = audience
+    ? statuses.map((status) => ({
+        name: status.name,
+        color: status.color,
+        count: audience.byStatus.get(status.name) ?? 0,
+      }))
+    : [];
+
   let initial: { subject: string; blocks: Newsletter["blocks"]; statuses: string[] } | undefined;
-  if (typeof copyId === "string") {
-    const { data } = await supabaseAdmin()
-      .from("newsletters")
-      .select("subject, blocks, audience")
-      .eq("id", copyId)
-      .maybeSingle();
+  {
+    const data = copySource.data;
     if (data) {
       initial = {
         subject: data.subject,

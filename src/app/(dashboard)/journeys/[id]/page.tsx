@@ -29,20 +29,25 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
   const { id } = await params;
 
   const db = supabaseAdmin();
-  const { data: journeyRaw, error } = await db
-    .from("journeys")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
-  if (error) throw error;
-  if (!journeyRaw) notFound();
 
-  const journey = journeyRaw as Journey;
-
+  // ── גל אחד ──
+  // קודם המסך רץ בשישה גלים בזה אחר זה: המסע, ואז הכרטיסיות, ואז הקשתות,
+  // ואז אנשי הקשר, ואז המצבת, ואז שאר המסעות. חמש נסיעות לשרת שאיש לא חיכה
+  // להן — רק שליפת אנשי הקשר באמת תלויה בקודמת, כי היא צריכה את המזהים.
+  //
   // השגיאות נבדקות ולא נבלעות. הגרסה הקודמת לקחה רק את data, ומיון לפי עמודה
   // שנמחקה במיגרציה 0019 החזיר שגיאה ש-data שלה null — כלומר הדף הציג "אין
   // כרטיסיות" בזמן ששש מהן ישבו במסד. כישלון שקט גרוע מכישלון רועש.
-  const [stepsRes, templatesRes, enrollmentsRes] = await Promise.all([
+  const [
+    { data: journeyRaw, error },
+    stepsRes,
+    templatesRes,
+    enrollmentsRes,
+    edgesRes,
+    { data: activeRaw },
+    { data: otherRaw },
+  ] = await Promise.all([
+    db.from("journeys").select("*").eq("id", id).maybeSingle(),
     db.from("journey_steps").select("*").eq("journey_id", id).order("created_at"),
     db.from("message_templates").select("*").order("name"),
     db
@@ -51,24 +56,30 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
       .eq("journey_id", id)
       .order("updated_at", { ascending: false })
       .limit(50),
+    db.from("journey_edges").select("*").eq("journey_id", id).order("priority", { ascending: true }),
+    // שאילתה אחת לשתי הספירות: המצבת של המסע הזה (לפי כרטיסייה) וגם כמה
+    // פעילים בכל מסע אחר. קודם אלה היו שתי שאילתות כמעט זהות על אותה טבלה.
+    db.from("journey_enrollments").select("journey_id, current_step_id").eq("state", "active"),
+    // שאר המסעות, לצד המשפך. מסע נערך כמעט תמיד מתוך השוואה לאחרים — "כמה
+    // אנשים במסע הזה לעומת ההוא" — ועד עכשיו זה דרש לחזור לרשימה ולחזור.
+    db.from("journeys").select("id, name, active").neq("id", id).order("name"),
   ]);
+
+  if (error) throw error;
+  if (!journeyRaw) notFound();
+
+  const journey = journeyRaw as Journey;
 
   if (stepsRes.error) throw stepsRes.error;
   if (templatesRes.error) throw templatesRes.error;
   if (enrollmentsRes.error) throw enrollmentsRes.error;
+  if (edgesRes.error) throw edgesRes.error;
 
   const { data: stepsRaw } = stepsRes;
   const { data: templatesRaw } = templatesRes;
   const { data: enrollmentsRaw } = enrollmentsRes;
 
   const steps = (stepsRaw ?? []) as JourneyStep[];
-
-  const edgesRes = await db
-    .from("journey_edges")
-    .select("*")
-    .eq("journey_id", id)
-    .order("priority", { ascending: true });
-  if (edgesRes.error) throw edgesRes.error;
   const edges = (edgesRes.data ?? []) as JourneyEdge[];
   const templates = (templatesRaw ?? []) as MessageTemplate[];
   const templateById = new Map(templates.map((t) => [t.id, t]));
@@ -88,32 +99,20 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
     : { data: [] };
   const contactById = new Map((contactsRaw ?? []).map((c) => [c.id, c]));
 
-  // כמה אנשים עומדים בכל כרטיסייה. שאילתה נפרדת ולא ספירה מתוך enrollments
-  // שלמעלה: זו מוגבלת ל-50 שורות לצורך הרשימה, וספירה ממנה הייתה משקרת
-  // ברגע שיש יותר. שתי עמודות בלבד, ולכן היא זולה גם במסע גדול.
-  const { data: standingRaw } = await db
-    .from("journey_enrollments")
-    .select("current_step_id")
-    .eq("journey_id", id)
-    .eq("state", "active");
-
+  // כמה אנשים עומדים בכל כרטיסייה, ולא ספירה מתוך enrollments שלמעלה: זו
+  // מוגבלת ל-50 שורות לצורך הרשימה, וספירה ממנה הייתה משקרת ברגע שיש יותר.
+  // שתי המפות נגזרות מאותן שורות שכבר נשלפו למעלה.
   const standingByStep = new Map<string, number>();
-  for (const row of standingRaw ?? []) {
+  const activeByJourney = new Map<string, number>();
+  let totalActive = 0;
+  for (const row of activeRaw ?? []) {
+    activeByJourney.set(row.journey_id, (activeByJourney.get(row.journey_id) ?? 0) + 1);
+    if (row.journey_id !== id) continue;
+    totalActive += 1;
     const key = row.current_step_id;
     if (key) standingByStep.set(key, (standingByStep.get(key) ?? 0) + 1);
   }
-  const totalActive = (standingRaw ?? []).length;
 
-  // שאר המסעות, לצד המשפך. מסע נערך כמעט תמיד מתוך השוואה לאחרים — "כמה
-  // אנשים במסע הזה לעומת ההוא" — ועד עכשיו זה דרש לחזור לרשימה ולחזור.
-  const [{ data: otherRaw }, { data: otherCountsRaw }] = await Promise.all([
-    db.from("journeys").select("id, name, active").neq("id", id).order("name"),
-    db.from("journey_enrollments").select("journey_id").eq("state", "active"),
-  ]);
-  const activeByJourney = new Map<string, number>();
-  for (const row of otherCountsRaw ?? []) {
-    activeByJourney.set(row.journey_id, (activeByJourney.get(row.journey_id) ?? 0) + 1);
-  }
   const otherJourneys = (otherRaw ?? []) as { id: string; name: string; active: boolean }[];
 
   return (

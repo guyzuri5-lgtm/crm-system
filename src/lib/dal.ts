@@ -2,7 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 import { redirect } from "next/navigation";
-import { createSupabaseServerClient } from "./supabase/server";
+import { readTeamClaims } from "./auth-claims";
 
 /**
  * Data Access Layer entry point — call this at the top of any Server Component,
@@ -12,19 +12,11 @@ import { createSupabaseServerClient } from "./supabase/server";
  * own — this is the secure check, close to the data.
  *
  * Wrapped in React's cache() so multiple calls during one render pass only hit
- * Supabase once.
+ * Supabase once. האימות עצמו יושב ב-./auth-claims, כי גם מסלולי ה-API צריכים
+ * אותו — ושם מוסבר למה הוא מקומי ולא ברשת.
  */
 export const verifyTeamMember = cache(async () => {
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.auth.getClaims();
-
-  if (error || !data?.claims) {
-    redirect("/login");
-  }
-
-  const claims = data.claims;
-  return {
-    userId: claims.sub as string,
-    email: (claims.email as string | undefined) ?? null,
-  };
+  const claims = await readTeamClaims();
+  if (!claims) redirect("/login");
+  return claims;
 });

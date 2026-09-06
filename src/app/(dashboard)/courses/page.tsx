@@ -34,16 +34,16 @@ async function countsByCourse(): Promise<Map<string, Counts>> {
 export default async function CoursesPage() {
   await verifyTeamMember();
 
-  const { data, error } = await supabaseAdmin()
-    .from("courses")
-    .select("*")
-    .order("created_at", { ascending: false });
+  // שתי השאילתות יחד ולא בזו אחר זו — הספירות אינן תלויות ברשימת הקורסים.
+  const [{ data, error }, counts] = await Promise.all([
+    supabaseAdmin().from("courses").select("*").order("created_at", { ascending: false }),
+    countsByCourse(),
+  ]);
 
   assertCoursesMigrated(error);
   if (error) throw error;
 
   const courses = (data ?? []) as CourseRow[];
-  const counts = await countsByCourse();
 
   return (
     <div className="flex flex-col gap-6">

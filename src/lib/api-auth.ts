@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createSupabaseServerClient } from "./supabase/server";
+import { readTeamClaims } from "./auth-claims";
 
 /**
  * Session check for Route Handlers under /api that the dashboard itself calls
@@ -11,15 +11,11 @@ import { createSupabaseServerClient } from "./supabase/server";
  * NOT used by /api/webhooks/green-api (webhookUrlToken bearer auth) or
  * /api/cron/check-rules (Vercel's CRON_SECRET bearer token) — neither call carries a
  * team member's session.
+ *
+ * הבדיקה עצמה משותפת עם ה-DAL (./auth-claims). זה חשוב במיוחד כאן: פתיחת
+ * שורה ב"לקוחות פעילים" קוראת ל-/api/contacts/[id]/thread, ובגרסה הקודמת כל
+ * פתיחה כזו שילמה על נסיעה נפרדת לשרת האימות לפני שהשיחה בכלל נשלפה.
  */
 export async function requireTeamSession() {
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.auth.getClaims();
-
-  if (error || !data?.claims) return null;
-
-  return {
-    userId: data.claims.sub as string,
-    email: (data.claims.email as string | undefined) ?? null,
-  };
+  return readTeamClaims();
 }

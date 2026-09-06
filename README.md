@@ -145,8 +145,16 @@ Next.js 16 (App Router, Turbopack) · Postgres + Auth דרך Supabase · Vercel 
 
 1. `vercel deploy` (או חיבור ה-repo ב-Vercel dashboard).
 2. Project Settings → Environment Variables — הזינו את כל מה שב-`.env.example`.
-3. `vercel.json` כבר מגדיר cron יומי ל-`/api/cron/check-rules` בשעה 06:00 UTC (≈ 8–9 בבוקר בישראל, תלוי שעון קיץ) — שנו את ה-schedule אם רוצים שעה אחרת. ברגע שמגדירים `CRON_SECRET` כמשתנה סביבה, Vercel שולח אותו אוטומטית כ-`Authorization: Bearer <CRON_SECRET>` — אין צורך בקוד נוסף.
-4. הדומיין הסופי (זמני מ-Vercel כמו `your-app.vercel.app`, או דומיין קסטום) הוא מה שהולך ב-Callback URL של ה-webhook ב-Meta.
+3. **אזור הפונקציות — `vercel.json` מקבע `sin1` (סינגפור), וזה לא שרירותי.** האזור חייב להיות זה של מסד הנתונים (Supabase → Settings → General → Project region). כשהם נפרדים, *כל* שאילתה חוצה את המרחק ביניהם. נמדד ב-6.9.2026, כשהפונקציות רצו ב-`iad1` (וושינגטון) מול מסד בסינגפור:
+
+   | | |
+   |---|---|
+   | עמוד בלי שאילתות | 380ms |
+   | עמוד עם שאילתות | 750ms–2.0s |
+
+   ההפרש — כשנייה — היה כולו נסיעות וושינגטון↔סינגפור. **אם תעבירו את המסד לאזור אחר, עדכנו כאן בהתאם.** האזור האידאלי לקהל ישראלי הוא `fra1` לשניהם.
+4. הקרון **אינו** רץ מ-Vercel אלא מ-GitHub Actions (`.github/workflows/`), כל 15 דקות — תוכנית Hobby מגבילה לקרון יומי אחד, ותזכורת "שעה לפני הפגישה" זקוקה לתדירות גבוהה בהרבה. ה-endpoint מוגן ב-`CRON_SECRET`, שנשלח כ-`Authorization: Bearer <CRON_SECRET>`.
+5. הדומיין הסופי (זמני מ-Vercel כמו `your-app.vercel.app`, או דומיין קסטום) הוא מה שהולך ב-Callback URL של ה-webhook ב-Meta.
 
 ## פיתוח מקומי
 

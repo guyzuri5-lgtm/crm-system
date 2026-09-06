@@ -40,16 +40,16 @@ async function countsByEvent(): Promise<Map<string, Counts>> {
 export default async function EventsPage() {
   await verifyTeamMember();
 
-  const { data, error } = await supabaseAdmin()
-    .from("events")
-    .select("*")
-    .order("starts_at", { ascending: false });
+  // שתי השאילתות יחד ולא בזו אחר זו — הספירות אינן תלויות ברשימת האירועים.
+  const [{ data, error }, counts] = await Promise.all([
+    supabaseAdmin().from("events").select("*").order("starts_at", { ascending: false }),
+    countsByEvent(),
+  ]);
 
   assertEventsMigrated(error);
   if (error) throw error;
 
   const events = (data ?? []) as EventRow[];
-  const counts = await countsByEvent();
 
   return (
     <div className="flex flex-col gap-6">

@@ -1,4 +1,6 @@
+import { Suspense } from "react";
 import { verifyTeamMember } from "@/lib/dal";
+import { SkelList } from "@/components/skeleton";
 import { ActiveList } from "../active-list";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +20,9 @@ export default async function SentPage() {
         </div>
       </div>
 
-      <ActiveList mode="sent" />
+      <Suspense fallback={<SkelList rows={7} />}>
+        <ActiveList mode="sent" />
+      </Suspense>
     </div>
   );
 }

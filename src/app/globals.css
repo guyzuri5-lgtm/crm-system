@@ -617,6 +617,47 @@ body {
     color: var(--primary);
     border-color: var(--primary);
   }
+
+  /* ── שלד טעינה ───────────────────────────────────────────────────── */
+  /*
+    מה שמוצג בזמן שהנתונים בדרך. לא ספינר: ספינר אומר "חכה" ולא אומר למה,
+    ובכל מעבר עמוד הוא מקפיץ את הפריסה כשהתוכן מגיע. השלד מצייר את *הצורה*
+    של מה שיבוא — אותם גבהים, אותם מרווחים — ולכן ההחלפה לתוכן אמיתי אינה
+    מזיזה כלום.
+
+    הגוון מגיע מ---surface-sunken, כלומר הוא מתהפך לבד במצב כהה ואין כאן
+    אפור קשיח. הברק חוצה מימין לשמאל דרך [dir] בסלקטור, כי בעברית תנועה
+    משמאל לימין נקראת כנגד כיוון הקריאה.
+  */
+  .skeleton {
+    @apply relative overflow-hidden rounded-md;
+    background-color: var(--surface-sunken);
+  }
+  .skeleton::after {
+    content: "";
+    @apply absolute inset-0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      color-mix(in srgb, var(--surface) 55%, transparent) 50%,
+      transparent 100%
+    );
+    animation: skeleton-sweep 1.4s ease-in-out infinite;
+  }
+  @keyframes skeleton-sweep {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(100%);
+    }
+  }
+  /* מי שביקש פחות תנועה מקבל משטח דומם. הצורה נשארת — היא נושאת את המידע. */
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton::after {
+      animation: none;
+    }
+  }
 }
 
 /* טבעת פוקוס אחידה לכל מה שמקבל מיקוד מהמקלדת. עד עכשיו כל דפדפן צייר

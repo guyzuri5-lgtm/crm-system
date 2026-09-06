@@ -24,15 +24,26 @@ export default async function JourneysPage({ searchParams }: PageProps<"/journey
   const courseId = typeof query.course === "string" ? query.course : null;
 
   const db = supabaseAdmin();
-  const [{ data: journeysRaw, error }, statuses, { data: eventsRaw }, { data: coursesRaw }] =
-    await Promise.all([
-      db.from("journeys").select("*").order("created_at", { ascending: false }),
-      listStatuses(),
-      // maybe: טבלת האירועים נוספה ב-0024 והקורסים ב-0028, ומסך המסעות חייב
-      // להמשיך לעבוד גם אם מיגרציה עוד לא רצה. שגיאה כאן פשוט מרוקנת את הבורר.
-      db.from("events").select("id, name, starts_at").order("starts_at", { ascending: false }),
-      db.from("courses").select("id, name").order("created_at", { ascending: false }),
-    ]);
+  const [
+    { data: journeysRaw, error },
+    statuses,
+    { data: eventsRaw },
+    { data: coursesRaw },
+    { data: enrollmentsRaw },
+  ] = await Promise.all([
+    db.from("journeys").select("*").order("created_at", { ascending: false }),
+    listStatuses(),
+    // maybe: טבלת האירועים נוספה ב-0024 והקורסים ב-0028, ומסך המסעות חייב
+    // להמשיך לעבוד גם אם מיגרציה עוד לא רצה. שגיאה כאן פשוט מרוקנת את הבורר.
+    db.from("events").select("id, name, starts_at").order("starts_at", { ascending: false }),
+    db.from("courses").select("id, name").order("created_at", { ascending: false }),
+    // ── ספירת ההרשמות ──
+    // שאילתה אחת לכל השורות, ולא שתיים לכל מסע. קודם זה היה N+1: עשרה
+    // מסעות פירושם עשרים נסיעות לשרת, והן גם לא יכלו להתחיל לפני שרשימת
+    // המסעות חזרה — כלומר גל שלישי שלם. שני שדות לכל שורת הרשמה והספירה
+    // בזיכרון, בדיוק כמו countsByEvent ו-countsByCourse.
+    db.from("journey_enrollments").select("journey_id, state"),
+  ]);
 
   if (error) {
     if (error.code === "42P01" || error.code === "PGRST205") {
@@ -49,24 +60,14 @@ export default async function JourneysPage({ searchParams }: PageProps<"/journey
   const courses = (coursesRaw ?? []) as { id: string; name: string }[];
   const courseNameById = new Map(courses.map((c) => [c.id, c.name]));
 
-  // ספירה לכל מסע: כמה במסע עכשיו וכמה סיימו. head:true מחזיר רק count.
-  const counts = await Promise.all(
-    journeys.map(async (j) => {
-      const [{ count: active }, { count: total }] = await Promise.all([
-        db
-          .from("journey_enrollments")
-          .select("id", { count: "exact", head: true })
-          .eq("journey_id", j.id)
-          .eq("state", "active"),
-        db
-          .from("journey_enrollments")
-          .select("id", { count: "exact", head: true })
-          .eq("journey_id", j.id),
-      ]);
-      return [j.id, { active: active ?? 0, total: total ?? 0 }] as const;
-    })
-  );
-  const countById = new Map(counts);
+  // ספירה לכל מסע: כמה במסע עכשיו וכמה סיימו — מתוך השורות שכבר נשלפו.
+  const countById = new Map<string, { active: number; total: number }>();
+  for (const row of enrollmentsRaw ?? []) {
+    const counts = countById.get(row.journey_id) ?? { active: 0, total: 0 };
+    counts.total += 1;
+    if (row.state === "active") counts.active += 1;
+    countById.set(row.journey_id, counts);
+  }
 
   return (
     <div className="flex flex-col gap-8">

@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useOptimistic,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { statusColorClasses, statusLabel } from "@/lib/status-colors";
 
 export interface StatusOption {
@@ -20,6 +28,14 @@ export type SetStatusResult = { ok: true } | { ok: false; error: string };
  *
  * ה-Server Action מוחזר ולא נזרק (‎{ ok: false, error }‎) בכוונה: כישלון
  * עדכון של שורה אחת לא אמור להפיל את כל עמוד אנשי הקשר ל-error.tsx.
+ *
+ * ── למה useOptimistic ──
+ * הפעולה מסתיימת ב-revalidatePath, כלומר בשליפה מחדש של כל העמוד מהשרת.
+ * זו נסיעה שלמה, ועד שהיא חזרה התגית הציגה את הסטטוס **הישן** — הלחיצה
+ * נראתה כאילו לא נקלטה, ואנשים לחצו שוב. עכשיו התגית מתחלפת ברגע הבחירה
+ * ומחכה לשרת ברקע. אם הפעולה נכשלה, React מחזיר את הערך האמיתי מעצמו
+ * בסיום ה-transition, והשגיאה מוצגת מתחת — כלומר אין כאן "שקר" שנשאר על
+ * המסך.
  */
 export function StatusPicker({
   contactId,
@@ -38,10 +54,13 @@ export function StatusPicker({
   const [activeIndex, setActiveIndex] = useState(0);
   const [pending, startTransition] = useTransition();
 
+  // מה שמוצג: הבחירה האחרונה, גם לפני שהשרת אישר אותה.
+  const [shown, showOptimistic] = useOptimistic(status);
+
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const currentColor = options.find((o) => o.name === status)?.color;
+  const currentColor = options.find((o) => o.name === shown)?.color;
 
   const close = useCallback(() => {
     setOpen(false);
@@ -51,7 +70,7 @@ export function StatusPicker({
 
   function openMenu() {
     setError(null);
-    setActiveIndex(Math.max(0, options.findIndex((o) => o.name === status)));
+    setActiveIndex(Math.max(0, options.findIndex((o) => o.name === shown)));
     setOpen(true);
   }
 
@@ -112,9 +131,12 @@ export function StatusPicker({
 
   function select(name: string) {
     close();
-    if (name === status) return;
+    if (name === shown) return;
     setError(null);
     startTransition(async () => {
+      // חייב להיות **בתוך** ה-transition: מחוצה לו React זורק, כי אז אין
+      // פעולה שהערך האופטימי אמור לחכות לסיומה.
+      showOptimistic(name);
       const result = await onSelect(contactId, name);
       if (!result.ok) setError(result.error);
     });
@@ -140,16 +162,19 @@ export function StatusPicker({
         ref={buttonRef}
         type="button"
         onClick={() => (open ? close() : openMenu())}
-        disabled={pending}
+        /* aria-busy ולא disabled: כפתור מנוטרל בזמן ההמתנה חוסם שינוי נוסף
+           ומעביר מיקוד, וזו בדיוק ההרגשה של ממשק תקוע. הערך כבר מוצג
+           כרצוי, ואין סיבה לחסום. */
+        aria-busy={pending || undefined}
         aria-haspopup="listbox"
         aria-expanded={open}
         title="לחצו כדי לשנות סטטוס"
         className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium
           transition-[opacity,box-shadow] duration-150 outline-none
           hover:brightness-[0.97] focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-1
-          disabled:opacity-50 ${statusColorClasses(currentColor)}`}
+          ${pending ? "opacity-70" : ""} ${statusColorClasses(currentColor)}`}
       >
-        <span className="whitespace-nowrap">{statusLabel(status)}</span>
+        <span className="whitespace-nowrap">{statusLabel(shown)}</span>
         <span aria-hidden className={`text-[8px] leading-none opacity-60 ${open ? "rotate-180" : ""} transition-transform duration-150`}>
           ▼
         </span>
@@ -178,7 +203,7 @@ export function StatusPicker({
               key={option.name}
               type="button"
               role="option"
-              aria-selected={option.name === status}
+              aria-selected={option.name === shown}
               onMouseEnter={() => setActiveIndex(index)}
               onClick={() => select(option.name)}
               className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-start text-sm transition-colors duration-100
@@ -186,7 +211,7 @@ export function StatusPicker({
             >
               <span className={`size-2.5 shrink-0 rounded-full ${statusColorClasses(option.color)}`} />
               <span className="flex-1">{statusLabel(option.name)}</span>
-              {option.name === status && <span className="text-xs text-[var(--primary)]">✓</span>}
+              {option.name === shown && <span className="text-xs text-[var(--primary)]">✓</span>}
             </button>
           ))}
           {!options.length && (

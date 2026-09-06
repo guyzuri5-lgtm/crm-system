@@ -54,33 +54,46 @@ function glyphStyle(color: string, soft: string): CSSProperties {
   return { "--glyph-color": color, "--glyph-bg": soft } as CSSProperties;
 }
 
+/**
+ * חסם על אורך השיחה שנשלפת ומרונדרת.
+ *
+ * בלעדיו העמוד שלף את *כל* ההיסטוריה מול אותו אדם. עם הודעה או שתיים ביום
+ * זה מגיע למאות שורות בתוך שנה, וכל אחת מהן היא גם שאילתה גדולה יותר וגם
+ * עוד אלמנטים ב-DOM. מאתיים ההודעות האחרונות הן יותר ממה שמישהו גולל.
+ */
+const MAX_THREAD_MESSAGES = 200;
+
 export default async function ContactDetailPage(props: PageProps<"/contacts/[id]">) {
   await verifyTeamMember();
   const { id } = await props.params;
 
-  const [statuses, statusesByName, allEditable] = await Promise.all([
-    listStatuses(),
-    statusMap(),
-    editableFields(),
-  ]);
-  // סטטוס והערות מוצגים בפקדים ייעודיים משלהם במקום אחר בעמוד
-  const editableDetailFields = allEditable.filter(
-    (f) => f.key !== "status" && f.key !== "notes"
-  );
-
   const db = supabaseAdmin();
+
+  // גל אחד ולא שניים. קודם רשימת הסטטוסים והשדות נשלפה, ורק *אחריה* יצאו
+  // ארבע השאילתות של הכרטיס — אף שאין ביניהן שום תלות. זו הייתה נסיעה שלמה
+  // לשרת שנוספה לכל פתיחה של כרטיס לקוח, בלי שאיש חיכה למשהו.
   const [
+    statuses,
+    statusesByName,
+    allEditable,
     { data: contact, error },
     { data: interactions, error: interactionsError },
     { data: quizzes, error: quizError },
     { data: whatsappTemplates, error: templatesError },
   ] = await Promise.all([
+    listStatuses(),
+    statusMap(),
+    editableFields(),
     db.from("contacts").select("*").eq("id", id).maybeSingle(),
+    // חסם על ההיסטוריה. בלעדיו העמוד שלף כל הודעה שנכתבה אי-פעם עם אותו
+    // אדם ורינדר את כולן — מה שגדל בלי גבול ככל שהשיחה נמשכת. מאתיים
+    // הודעות הן הרבה מעבר למה שמישהו גולל אחורה בפועל.
     db
       .from("interactions")
       .select("*")
       .eq("contact_id", id)
-      .order("created_at", { ascending: false }),
+      .order("created_at", { ascending: false })
+      .limit(MAX_THREAD_MESSAGES),
     // המילוי האחרון קודם; אדם יכול למלא את השאלון יותר מפעם אחת
     db
       .from("quiz_submissions")
@@ -89,6 +102,11 @@ export default async function ContactDetailPage(props: PageProps<"/contacts/[id]
       .order("submitted_at", { ascending: false }),
     db.from("message_templates").select("*").eq("channel", "whatsapp").order("name"),
   ]);
+
+  // סטטוס והערות מוצגים בפקדים ייעודיים משלהם במקום אחר בעמוד
+  const editableDetailFields = allEditable.filter(
+    (f) => f.key !== "status" && f.key !== "notes"
+  );
 
   if (error) throw error;
   if (interactionsError) throw interactionsError;

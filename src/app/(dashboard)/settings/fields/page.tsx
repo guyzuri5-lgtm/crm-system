@@ -22,11 +22,12 @@ const TYPE_LABELS: Record<FieldInputType, string> = {
 export default async function FieldsPage() {
   await verifyTeamMember();
 
-  const fields = await listFields();
-  const db = supabaseAdmin();
-
-  // כמה אנשי קשר באמת מילאו כל שדה מותאם — כדי שמחיקה תדע להגיד מה נמחק.
-  const { data: contacts } = await db.from("contacts").select("custom");
+  // שתיהן יחד: ספירת השימוש אינה תלויה ברשימת השדות.
+  const [fields, { data: contacts }] = await Promise.all([
+    listFields(),
+    // כמה אנשי קשר באמת מילאו כל שדה מותאם — כדי שמחיקה תדע להגיד מה נמחק.
+    supabaseAdmin().from("contacts").select("custom"),
+  ]);
   const usage = new Map<string, number>();
   for (const c of contacts ?? []) {
     for (const key of Object.keys(c.custom ?? {})) {

@@ -40,6 +40,30 @@ export async function countAudience(audience: NewsletterAudience): Promise<numbe
   return count ?? 0;
 }
 
+/**
+ * כל הספירות של עורך הניוזלטר בשאילתה אחת.
+ *
+ * קודם העורך קרא ל-countAudience פעם אחת לכל סטטוס ועוד פעם ל"כולם" — שבע
+ * נסיעות לשרת בשביל שבעה מספרים, וכולן רק אחרי שרשימת הסטטוסים כבר חזרה.
+ * כאן נשלפת עמודת הסטטוס של הקהל הכשיר פעם אחת, והספירה נעשית בזיכרון.
+ * זה אותו דפוס בדיוק שמשמש את רשימות האירועים והקורסים.
+ *
+ * התנאי מגיע מ-audienceQuery ולא משוכפל כאן, ולכן "מי בקהל" נשאר הגדרה
+ * אחת: מי שיש לו מייל והוא לא הוסר.
+ */
+export async function countAudienceByStatus(): Promise<{
+  all: number;
+  byStatus: Map<string, number>;
+}> {
+  const { data, error } = await audienceQuery({ type: "all" }, "status");
+  if (error) throw error;
+
+  const rows = (data ?? []) as unknown as { status: string }[];
+  const byStatus = new Map<string, number>();
+  for (const row of rows) byStatus.set(row.status, (byStatus.get(row.status) ?? 0) + 1);
+  return { all: rows.length, byStatus };
+}
+
 export async function listAudienceContactIds(audience: NewsletterAudience): Promise<string[]> {
   const { data, error } = await audienceQuery(audience, "id");
   if (error) throw error;

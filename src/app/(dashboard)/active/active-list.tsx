@@ -78,7 +78,19 @@ export async function ActiveList({ mode }: { mode: ActiveMode }) {
           .is("last_customer_at", null)
           .order("last_any_at", { ascending: false, nullsFirst: false });
 
-  const { data: activityRaw, error: activityError } = await query;
+  // שלוש השאילתות שאינן תלויות בתצוגה יוצאות **יחד איתה** ולא אחריה. רק
+  // שליפת אנשי הקשר תלויה במזהים שהיא מחזירה, ולכן רק היא ממתינה — קודם
+  // שלושתן חיכו לה בלי סיבה, וזה גל נוסף בכל טעינה של המסך.
+  const activityPromise = query;
+  const statusesPromise = statusMap();
+  const templatesPromise = db
+    .from("message_templates")
+    .select("id, name")
+    .eq("channel", "whatsapp")
+    .not("meta_template_name", "is", null)
+    .order("name");
+
+  const { data: activityRaw, error: activityError } = await activityPromise;
 
   if (activityError) {
     // 42P01 = הטבלה/תצוגה לא קיימת. ההודעה הגולמית של PostgREST לא רומזת מה חסר.
@@ -97,13 +109,8 @@ export async function ActiveList({ mode }: { mode: ActiveMode }) {
     contactIds.length
       ? db.from("contacts").select("*").in("id", contactIds)
       : Promise.resolve({ data: [] as Contact[] }),
-    statusMap(),
-    db
-      .from("message_templates")
-      .select("id, name")
-      .eq("channel", "whatsapp")
-      .not("meta_template_name", "is", null)
-      .order("name"),
+    statusesPromise,
+    templatesPromise,
   ]);
 
   const contacts = new Map((contactsRaw ?? []).map((c) => [c.id, c as Contact]));

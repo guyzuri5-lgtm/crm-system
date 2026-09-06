@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { verifyTeamMember } from "@/lib/dal";
+import { SkelList } from "@/components/skeleton";
 import { ActiveList } from "./active-list";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +30,11 @@ export default async function ActivePage({
         </div>
       </div>
 
-      <ActiveList mode="inbound" />
+      {/* הרשימה בזרם: הכותרת וההסבר נצבעים מיד, והשורות מחליפות את השלד
+          כשהתצוגה חוזרת. בלי זה כל המסך המתין לשאילתה. */}
+      <Suspense fallback={<SkelList rows={7} />}>
+        <ActiveList mode="inbound" />
+      </Suspense>
     </div>
   );
 }

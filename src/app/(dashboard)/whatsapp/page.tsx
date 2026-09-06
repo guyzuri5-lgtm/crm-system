@@ -35,12 +35,15 @@ const QUALITY = {
 export default async function WhatsAppPage() {
   await verifyTeamMember();
 
-  const settings = await getWhatsAppSettings();
   const configured = isWhatsAppConfigured();
 
-  // שתי הקריאות יכולות להיכשל בנפרד, ואף אחת מהן אינה סיבה להפיל את הדף —
-  // זה גם הדף שבו משהים את השליחה כשמשהו משתבש.
-  const [sentToday, status, failures] = await Promise.all([
+  // גל אחד. קודם ההגדרות נשלפו לבד, ואחריהן שלוש קריאות, ואחריהן התבניות —
+  // שלוש נסיעות בטור בשביל חמישה נתונים שאינם תלויים זה בזה.
+  //
+  // כל אחת יכולה להיכשל בנפרד, ואף אחת מהן אינה סיבה להפיל את הדף — זה גם
+  // הדף שבו משהים את השליחה כשמשהו משתבש.
+  const [settings, sentToday, status, failures, { data: templatesRaw }] = await Promise.all([
+    getWhatsAppSettings(),
     countWhatsAppSentToday().catch(() => null),
     configured
       ? getPhoneNumberStatus().catch((error: unknown) => ({
@@ -48,17 +51,16 @@ export default async function WhatsAppPage() {
         }))
       : Promise.resolve(null),
     recentDeliveryFailures(),
+    // התבניות המאושרות שייכות למסך הזה: כשבודקים את מצב הערוץ, השאלה הבאה
+    // היא תמיד "ומה בכלל מותר לי לשלוח מחוץ לחלון". הן לקריאה בלבד כאן —
+    // העריכה נשארת ב"תבניות הודעה".
+    supabaseAdmin()
+      .from("message_templates")
+      .select("id, name, meta_template_name, meta_category, meta_status")
+      .eq("channel", "whatsapp")
+      .not("meta_template_name", "is", null)
+      .order("name"),
   ]);
-
-  // התבניות המאושרות שייכות למסך הזה: כשבודקים את מצב הערוץ, השאלה הבאה
-  // היא תמיד "ומה בכלל מותר לי לשלוח מחוץ לחלון". הן לקריאה בלבד כאן —
-  // העריכה נשארת ב"תבניות הודעה".
-  const { data: templatesRaw } = await supabaseAdmin()
-    .from("message_templates")
-    .select("id, name, meta_template_name, meta_category, meta_status")
-    .eq("channel", "whatsapp")
-    .not("meta_template_name", "is", null)
-    .order("name");
   const templates = templatesRaw ?? [];
 
   const statusError = status && "error" in status ? status.error : null;

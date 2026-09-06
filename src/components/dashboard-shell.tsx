@@ -261,7 +261,7 @@ function isTabActive(group: NavGroup, tab: NavTab, pathname: string): boolean {
   return hasNestedSibling ? pathname === tab.href : matchesPrefix(pathname, tab.href);
 }
 
-/** מצב ערוץ הוואטסאפ בשורה אחת. נקרא בשרת ומועבר פנימה — ראו dashboard/layout. */
+/** מצב ערוץ הוואטסאפ בשורה אחת. נקרא בשרת ומועבר פנימה — ראו components/channel-status. */
 export type ChannelState = { tone: "ok" | "warn" | "bad"; label: string; hint: string };
 
 const TONE_COLOR: Record<ChannelState["tone"], string> = {
@@ -269,6 +269,50 @@ const TONE_COLOR: Record<ChannelState["tone"], string> = {
   warn: "var(--warn)",
   bad: "var(--danger)",
 };
+
+/**
+ * הנורה עצמה, מופרדת מהמעטפת.
+ *
+ * המעטפת מקבלת אותה כ-ReactNode ולא כערך, כדי שהפריסה תוכל לעטוף אותה
+ * ב-<Suspense> — הסרגל נצבע מיד, והנורה נדלקת כשהשאילתה חוזרת. הרכיב הזה
+ * הוא רכיב לקוח רק בגלל שהוא יושב בקובץ אחד עם המעטפת; אין בו מצב.
+ */
+export function ChannelBadge({ channel }: { channel: ChannelState }) {
+  return (
+    <Link
+      href="/whatsapp"
+      className="flex items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--background)] px-2.5 py-2 transition-colors hover:border-[var(--border-strong)]"
+    >
+      <span
+        className="size-2 shrink-0 rounded-full"
+        style={{
+          backgroundColor: TONE_COLOR[channel.tone],
+          boxShadow: `0 0 0 3px color-mix(in srgb, ${TONE_COLOR[channel.tone]} 18%, transparent)`,
+        }}
+      />
+      <span className="min-w-0">
+        <span className="block text-xs font-semibold">{channel.label}</span>
+        <span className="block truncate text-[10.5px] text-[var(--subtle)]">{channel.hint}</span>
+      </span>
+    </Link>
+  );
+}
+
+/**
+ * מה שיושב במקום הנורה עד שהיא נדלקת. אותו גובה בדיוק, כדי שהסרגל לא יזוז
+ * מתחת לתפריט החשבון כשהמצב האמיתי מגיע.
+ */
+export function ChannelBadgeFallback() {
+  return (
+    <div className="flex items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--background)] px-2.5 py-2">
+      <span className="size-2 shrink-0 rounded-full bg-[var(--border-strong)]" />
+      <span className="flex min-w-0 flex-col gap-1.5">
+        <span className="skeleton block h-[9px] w-16" />
+        <span className="skeleton block h-[8px] w-24" />
+      </span>
+    </div>
+  );
+}
 
 export function DashboardShell({
   email,
@@ -278,7 +322,8 @@ export function DashboardShell({
 }: {
   email: string | null;
   signOutAction: () => Promise<void>;
-  channel: ChannelState;
+  /** הנורה כ-slot ולא כערך — ראו ChannelBadge למעלה. */
+  channel: ReactNode;
   children: ReactNode;
 }) {
   const pathname = usePathname();
@@ -407,25 +452,11 @@ export function DashboardShell({
           מצב הערוץ קבוע מול העין בכל מסך. מתג ההשהיה חוסם שליחה בשקט — הוא
           הדבר היחיד במערכת שיכול להיות שבור בלי שאף מסך יצעק — ולכן הוא
           יושב כאן ולא רק בעמוד הוואטסאפ.
+
+          מגיע כ-slot מהפריסה, עטוף ב-<Suspense>: הוא הדבר היחיד בסרגל שדורש
+          שאילתה, ואין סיבה שכל מסך במערכת יחכה לו.
         */}
-        <Link
-          href="/whatsapp"
-          className="flex items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--background)] px-2.5 py-2 transition-colors hover:border-[var(--border-strong)]"
-        >
-          <span
-            className="size-2 shrink-0 rounded-full"
-            style={{
-              backgroundColor: TONE_COLOR[channel.tone],
-              boxShadow: `0 0 0 3px color-mix(in srgb, ${TONE_COLOR[channel.tone]} 18%, transparent)`,
-            }}
-          />
-          <span className="min-w-0">
-            <span className="block text-xs font-semibold">{channel.label}</span>
-            <span className="block truncate text-[10.5px] text-[var(--subtle)]">
-              {channel.hint}
-            </span>
-          </span>
-        </Link>
+        {channel}
 
         <details className="group relative">
           <summary
