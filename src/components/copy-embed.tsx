@@ -101,7 +101,10 @@ export function CopyEmbed({
       accent.toLowerCase() === DEFAULT_ACCENT ? "" : `accent=${encodeURIComponent(accent)}`,
     ]
       .filter(Boolean)
-      .join("&");
+      // ‎&amp;‎ ולא ‎&‎: היעד הוא תכונת HTML, ושם ‎&‎ חשוף הוא תחילת ישות.
+      // עם שני הפרמטרים הנוכחיים זה עדיין עובד, אבל פרמטר עתידי בשם שהוא
+      // גם ישות (‎&copy=‎, ‎&reg=‎) היה נבלע בשקט אצל מי שכבר הדביק.
+      .join("&amp;");
     const src = `${origin}/${config.path}/${slug}/embed${query ? `?${query}` : ""}`;
 
     // display:block ו-margin אוטומטי: ה-iframe הוא אלמנט inline, ובתוך מיכל
