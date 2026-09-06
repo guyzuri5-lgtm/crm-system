@@ -72,7 +72,20 @@ export default async function UpcomingPage() {
                       {booking.invitee_name}
                     </Link>
                   ) : (
-                    <span className="font-medium">{booking.invitee_name}</span>
+                    <>
+                      <span className="font-medium">{booking.invitee_name}</span>
+                      {/* פגישה בלי כרטיס היא היוצא מן הכלל, ולכן היא מסומנת ולא
+                          מוצגת כרגיל: או שיצירת הכרטיס נכשלה בזמן הקביעה, או
+                          שהכרטיס נמחק מאז (bookings.contact_id הוא on delete
+                          set null). בלי הסימון האדם היה נראה ככל האחרים ברשימה
+                          הזו, ופשוט לא היה קיים ברשימת אנשי הקשר. */}
+                      <span
+                        className="mr-2 rounded-full bg-[var(--warn-soft)] px-2 py-0.5 text-xs font-medium text-[var(--warn)] ring-1 ring-inset ring-[var(--warn)]/25"
+                        title="אין לאדם הזה כרטיס ברשימת אנשי הקשר — אפשר להוסיף אותו ידנית מהפרטים כאן"
+                      >
+                        אין כרטיס
+                      </span>
+                    </>
                   )}
                   <span className="block text-xs text-[var(--subtle)]" dir="ltr">
                     {booking.invitee_email}

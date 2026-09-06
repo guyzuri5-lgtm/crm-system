@@ -118,6 +118,20 @@ async function upsertContact(input: {
     .single();
 
   if (error) {
+    // מרוץ: מישהו יצר את אותו טלפון בין החיפוש לכתיבה — הודעת וואטסאפ נכנסת,
+    // הרשמה לקורס, שורה מייבוא. הטלפון ייחודי בסכימה, ולכן הכתיבה השנייה
+    // נדחית (23505). בלי הניסיון החוזר הפגישה הייתה נשמרת עם contact_id ריק
+    // והאדם לא היה מופיע ברשימת אנשי הקשר — בשקט, כי הפגישה עצמה הצליחה.
+    // זה בדיוק מה שעושה findOrCreateContact בהרשמה לקורס ולאירוע
+    // (lib/registration.ts): מי שהפסיד במרוץ מאמץ את הכרטיס של מי שניצח.
+    if (error.code === "23505" && input.phone) {
+      const { data: raced } = await db
+        .from("contacts")
+        .select("*")
+        .eq("phone", input.phone)
+        .maybeSingle();
+      if (raced) return raced;
+    }
     console.error("[booking] failed to create contact:", error.message);
     return null;
   }
