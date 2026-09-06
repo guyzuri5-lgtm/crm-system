@@ -67,7 +67,7 @@ function LineGraph({ scores, lowest }: { scores: Record<string, number>; lowest:
             <circle cx={p.x} cy={p.y.toFixed(1)} r="9" fill="none" stroke="#D6332B"
                     strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
           )}
-          <circle cx={p.x} cy={p.y.toFixed(1)} r="5" fill="#fff" stroke={CHAKRAS[p.k].color}
+          <circle cx={p.x} cy={p.y.toFixed(1)} r="5" fill="var(--surface)" stroke={CHAKRAS[p.k].color}
                   strokeWidth="3" vectorEffect="non-scaling-stroke" />
         </g>
       ))}
@@ -94,7 +94,7 @@ function Figure({ chakra }: { chakra: ChakraKey }) {
       <circle cx={p.x} cy={p.y} r="15" fill={c.color} opacity="0.2" />
       <circle cx={p.x} cy={p.y} r="9.5" fill={c.color} opacity="0.42" />
       <circle cx={p.x} cy={p.y} r="5.5" fill={c.color} />
-      <circle cx={p.x} cy={p.y} r="5.5" fill="none" stroke="#fff" strokeWidth="1.5" opacity="0.9" />
+      <circle cx={p.x} cy={p.y} r="5.5" fill="none" stroke="var(--surface)" strokeWidth="1.5" opacity="0.9" />
     </svg>
   );
 }

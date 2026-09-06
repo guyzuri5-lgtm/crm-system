@@ -315,7 +315,7 @@ export function DashboardShell({
         className="mb-1 flex items-center gap-2.5 rounded-xl px-2 py-2 transition-colors hover:bg-[var(--background)]"
       >
         <span
-          className="grid size-8 shrink-0 place-items-center rounded-[10px] text-white"
+          className="grid size-8 shrink-0 place-items-center rounded-[10px] text-[var(--on-primary)]"
           style={{ backgroundColor: "var(--primary)" }}
         >
           <Icon name="home" size={15} />

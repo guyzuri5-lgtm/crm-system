@@ -164,7 +164,7 @@ export default async function AvailabilityCalendarPage({
                   <span
                     className={[
                       "text-sm font-medium",
-                      isToday ? "grid size-6 place-items-center rounded-full bg-[var(--foreground)] text-white" : "",
+                      isToday ? "grid size-6 place-items-center rounded-full bg-[var(--foreground)] text-[var(--background)]" : "",
                     ].join(" ")}
                   >
                     {Number(dateKey.slice(-2))}
