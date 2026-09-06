@@ -74,6 +74,10 @@ export default async function CourseManagePage({ params }: PageProps<"/courses/[
           <Link href={`/courses/${course.id}/edit`} className="btn-secondary">
             עיצוב הדף
           </Link>
+          {/* שליחה ידנית וחד-פעמית — להבדיל מהמסע שלידה, שרץ מעצמו לפי תנאי */}
+          <Link href={`/courses/${course.id}/broadcast`} className="btn-secondary">
+            שליחה לנרשמות
+          </Link>
           {/* פותח יצירת מסע עם הטריגר "נרשמה כמתעניינת לקורס" מסומן מראש */}
           <Link href={`/journeys?course=${course.id}`} className="btn-primary">
             מסע למתעניינות
