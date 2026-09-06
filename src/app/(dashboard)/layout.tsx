@@ -35,7 +35,9 @@ async function readChannel(): Promise<ChannelState> {
     return {
       tone: "bad",
       label:
-        failures.count === 1 ? "הודעה אחת לא נמסרה" : `${failures.count} הודעות לא נמסרו`,
+        failures.count === 1
+          ? "ההודעה האחרונה לא נמסרה"
+          : `${failures.count} הודעות ברצף לא נמסרו`,
       hint: failures.lastReason ?? "מטא דחתה את השליחה",
     };
   }

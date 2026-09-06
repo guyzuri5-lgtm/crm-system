@@ -84,17 +84,27 @@ export async function getWhatsAppSettings(): Promise<WhatsAppSettings> {
  */
 const NOT_DELIVERED_PREFIX = "[לא נמסר";
 
-/** כמה שעות אחורה נחשבות "עכשיו" לצורך התראה על כשלי מסירה. */
-const FAILURE_WINDOW_HOURS = 48;
+/**
+ * עד כמה אחורה מסתכלים בכלל.
+ *
+ * זה חסם על השאילתה ולא הגדרה של "לאחרונה": מה שקובע הוא ההצלחה האחרונה
+ * (ראו למטה), והחלון רק מונע סריקה של כל ההיסטוריה. שבוע בלי אף שליחה
+ * פירושו שאין ממה להסיק דבר, ואז אין התראה.
+ */
+const FAILURE_LOOKBACK_DAYS = 7;
+
+/** כמה שורות לבחון. השליחות האחרונות הן שקובעות; ישנות מהן לא ישנו את התשובה. */
+const FAILURE_SCAN_LIMIT = 100;
 
 export interface DeliveryFailureSummary {
+  /** כשלים **מאז ההצלחה האחרונה**. אפס = הערוץ מוסר כרגע. */
   count: number;
   /** הסיבה של הכישלון האחרון, כפי שמטא ניסחה אותה. null כשאין כשלים. */
   lastReason: string | null;
 }
 
 /**
- * כשלי מסירה אחרונים בוואטסאפ.
+ * האם הערוץ מוסר הודעות **כרגע**.
  *
  * ── למה זה קיים ──
  * דירוג האיכות של מטא (getPhoneNumberStatus) אומר אם נמענים מתלוננים. הוא
@@ -102,37 +112,66 @@ export interface DeliveryFailureSummary {
  * ירוקה" בזמן שכל תבנית נדחתה עם `Business eligibility payment issue` —
  * כלומר תקלת חיוב בחשבון. שני הדברים אמיתיים ואינם חופפים.
  *
- * מקור האמת כאן אינו מטא אלא היומן שלנו: ה-webhook כבר מסמן כל הודעה
- * שנכשלה. זה עדיף מלשאול את מטא על מצב החיוב — אין לכך שדה יציב ב-Graph,
- * והספירה הזו נכונה לכל סיבת כישלון ולא רק לחיוב.
+ * מקור האמת אינו מטא אלא היומן שלנו: ה-webhook כבר מסמן כל הודעה שנכשלה.
+ * זה עדיף מלשאול את מטא על מצב החיוב — אין לכך שדה יציב ב-Graph, והבדיקה
+ * הזו נכונה לכל סיבת כישלון ולא רק לחיוב.
+ *
+ * ── למה "מאז ההצלחה האחרונה" ולא "ב-48 השעות האחרונות" ──
+ * הגרסה הראשונה ספרה כשלים בחלון זמן קבוע, ולכן כישלון בודד היה מדליק נורה
+ * אדומה ליומיים — גם אחרי שהתקלה תוקנה ואפילו אם עשר הודעות נמסרו מאז. זה
+ * בדיוק מה שהורג מחוונים: נורה שדולקת כשהכול תקין נלמדת כרעש, ואז גם
+ * הפעם שבה היא צודקת לא נראית.
+ *
+ * הספירה כאן היא של הכשלים שקרו **אחרי** השליחה המוצלחת האחרונה. שליחה
+ * מוצלחת אחת מנקה את המחוון מיד — וזה נכון גם לוגית: היא ההוכחה היחידה
+ * שהערוץ מוסר.
  *
  * נכשל בשקט ומחזיר אפס: זו שורת מצב, ואסור שנפילה שלה תפיל מסך שלם.
  */
 export async function recentDeliveryFailures(
   now: Date = new Date()
 ): Promise<DeliveryFailureSummary> {
-  const since = new Date(now.getTime() - FAILURE_WINDOW_HOURS * 60 * 60 * 1000);
+  const since = new Date(now.getTime() - FAILURE_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
 
+  // כל השליחות בחלון, לא רק הכושלות: בלי ההצלחות אי אפשר לדעת איפה נגמרה
+  // סדרת הכשלים.
   const { data, error } = await supabaseAdmin()
     .from("interactions")
     .select("content")
     .eq("type", "whatsapp_out")
     .gte("created_at", since.toISOString())
-    .like("content", `${NOT_DELIVERED_PREFIX}%`)
     .order("created_at", { ascending: false })
-    .limit(50);
+    .limit(FAILURE_SCAN_LIMIT);
 
   if (error) {
-    console.error("[whatsapp] failed to count delivery failures:", error.message);
+    console.error("[whatsapp] failed to read delivery status:", error.message);
     return { count: 0, lastReason: null };
   }
 
-  const rows = data ?? [];
+  const failed = (content: string | null) => !!content?.startsWith(NOT_DELIVERED_PREFIX);
+
+  /**
+   * רק שליחות אוטומטיות/תבנית נחשבות — אלה שנרשמו עם קידומת בסוגריים
+   * (logPrefix ב-sendMessageToContact), וגם הכשלים שנושאים את "[לא נמסר".
+   *
+   * **בלי הסינון הזה המחוון משקר.** מענה בטקסט חופשי בתוך חלון 24 השעות
+   * הוא חינם ואינו עובר דרך החיוב, ולכן הוא מצליח גם כשהחשבון חסום. ב-5.9
+   * זה קרה בפועל: "היי" נמסר בהצלחה עשרים שניות אחרי שתבנית נדחתה על
+   * `Business eligibility payment issue`, והוא היה מנקה את ההתראה על
+   * הכישלון שקדם לו. שתי ההודעות אינן מעידות זו על זו.
+   */
+  const rows = (data ?? []).filter((row) => row.content?.startsWith("["));
+
+  // מהחדש לישן עד ההצלחה הראשונה שנתקלים בה. אם כולן נכשלו, כולן נספרות.
+  const firstSuccess = rows.findIndex((row) => !failed(row.content));
+  const streak = firstSuccess === -1 ? rows : rows.slice(0, firstSuccess);
+  if (!streak.length) return { count: 0, lastReason: null };
+
   // "[לא נמסר: Business eligibility payment issue] …" → הסיבה שבין הנקודתיים
   // לסוגר. בלי פירוט מטא שולחת רק "[לא נמסר]", ואז אין מה לחלץ.
-  const match = rows[0]?.content?.match(/^\[לא נמסר:\s*([^\]]+)\]/);
+  const match = streak[0].content?.match(/^\[לא נמסר:\s*([^\]]+)\]/);
 
-  return { count: rows.length, lastReason: match?.[1]?.trim() ?? null };
+  return { count: streak.length, lastReason: match?.[1]?.trim() ?? null };
 }
 
 export async function countWhatsAppSentToday(now: Date = new Date()): Promise<number> {

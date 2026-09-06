@@ -107,8 +107,8 @@ export default async function WhatsAppPage() {
         >
           <p className="font-semibold text-[var(--danger)]">
             {failures.count === 1
-              ? "הודעה אחת לא נמסרה ביומיים האחרונים"
-              : `${failures.count} הודעות לא נמסרו ביומיים האחרונים`}
+              ? "ההודעה האחרונה לא נמסרה"
+              : `${failures.count} ההודעות האחרונות לא נמסרו`}
           </p>
           {failures.lastReason && (
             <p className="mt-1 text-sm text-[var(--foreground)]">
@@ -119,6 +119,10 @@ export default async function WhatsAppPage() {
             {/^business eligibility/i.test(failures.lastReason ?? "")
               ? "זו תקלת חיוב בחשבון ה-WhatsApp Business, לא תקלה במערכת. בודקים באמצעי התשלום ב-Meta Business Suite ← הגדרות עסק ← חיוב ותשלומים. עד שזה מסודר, תבניות מחוץ לחלון 24 השעות לא יימסרו — אבל מענה בתוך החלון ממשיך לעבוד."
               : "השליחה התקבלה אצל מטא והיא דחתה אותה אחר כך. הסיבה מופיעה גם ביומן של איש הקשר, על ההודעה עצמה."}
+          </p>
+          {/* מה מנקה את ההתראה — כדי שלא יחכו לה שתיעלם מעצמה עם הזמן. */}
+          <p className="mt-1.5 text-xs text-[var(--subtle)]">
+            ההתראה נעלמת מעצמה ברגע שתבנית אחת תימסר בהצלחה.
           </p>
         </section>
       )}
