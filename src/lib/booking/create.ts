@@ -8,6 +8,7 @@ import {
   describeGoogleError,
   isCalendarConfigured,
 } from "@/lib/google-calendar";
+import { bookingGoogleCalendarUrl, bookingIcsUrl } from "./calendar";
 import { normalizePhone } from "@/lib/quiz";
 import {
   BOOKING_LOCATION_LABELS,
@@ -275,6 +276,10 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
       meetUrl,
       cancelUrl: `${appUrl()}/book/cancel/${booking.cancel_token}`,
       brandName: settings.brand_name,
+      // נבנים מהפגישה שנשמרה, כלומר אחרי שיש לה google_meet_url — כדי
+      // שהקישור לשיחה ייכנס גם לתיאור של האירוע ביומן של הלקוח.
+      addToCalendarUrl: bookingGoogleCalendarUrl(booking, eventType, settings.host_name),
+      icsUrl: bookingIcsUrl(booking),
     });
     await sendEmail({ to: input.email, subject, html });
   } catch (error) {

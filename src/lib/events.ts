@@ -1,6 +1,11 @@
 import "server-only";
 
 import { cache } from "react";
+import {
+  buildIcs as buildIcsFor,
+  googleCalendarUrl as googleCalendarUrlFor,
+  type CalendarEntry,
+} from "./calendar-links";
 import { supabaseAdmin } from "./supabase/admin";
 import type { EventRow } from "./supabase/database.types";
 
@@ -103,87 +108,29 @@ export function spotsLeft(event: EventRow, paid: number): number | null {
 }
 
 // ── קישורי יומן ────────────────────────────────────────────────────────────
+//
+// המימוש עצמו יושב ב-lib/calendar-links.ts ומשותף עם הפגישות. כאן נשארה רק
+// ההמרה מאירוע ל-CalendarEntry — הידע היחיד ששייך לדומיין הזה.
 
-/** ‎"20260903T110000Z"‎ — הפורמט שגוגל ו-ICS מצפים לו. */
-function toIcsUtc(instant: Date): string {
-  return `${instant.toISOString().replace(/[-:]/g, "").split(".")[0]}Z`;
-}
-
-function eventWindow(event: EventRow): { start: Date; end: Date } {
+function entryOf(event: EventRow): CalendarEntry {
   const start = new Date(event.starts_at);
-  return { start, end: new Date(start.getTime() + DEFAULT_DURATION_MINUTES * 60_000) };
+  return {
+    // "event-" כדי ששני מזהים מטבלאות שונות לא יתנגשו ביומן של אותו אדם.
+    uid: `event-${event.id}@crm`,
+    title: event.name,
+    start,
+    end: new Date(start.getTime() + DEFAULT_DURATION_MINUTES * 60_000),
+    location: event.location,
+    description: event.description,
+  };
 }
 
 /** "הוספה ליומן Google" — קישור ישיר, בלי OAuth ובלי הרשאות. */
 export function googleCalendarUrl(event: EventRow): string {
-  const { start, end } = eventWindow(event);
-  const params = new URLSearchParams({
-    action: "TEMPLATE",
-    text: event.name,
-    dates: `${toIcsUtc(start)}/${toIcsUtc(end)}`,
-  });
-  if (event.location) params.set("location", event.location);
-  if (event.description) params.set("details", event.description);
-
-  return `https://calendar.google.com/calendar/render?${params.toString()}`;
-}
-
-/**
- * שורה בקובץ ICS. שני דברים שהתקן דורש ושקל לפספס: תווי בקרה בטקסט חופשי
- * חייבים בריחה, ושורה ארוכה מ-75 בתים חייבת קיפול — בלעדיו חלק מהיומנים
- * פשוט חותכים את התיאור באמצע.
- */
-function icsLine(name: string, value: string): string {
-  const escaped = value
-    .replace(/\\/g, "\\\\")
-    .replace(/;/g, "\\;")
-    .replace(/,/g, "\\,")
-    .replace(/\r?\n/g, "\\n");
-
-  const line = `${name}:${escaped}`;
-  // הקיפול נמדד בבתים ולא בתווים: אות עברית היא שני בתים ב-UTF-8, ומדידה
-  // בתווים הייתה מייצרת שורות כפולות מהמותר.
-  const bytes = Buffer.from(line, "utf8");
-  if (bytes.length <= 75) return line;
-
-  const chunks: string[] = [];
-  let offset = 0;
-  let limit = 75;
-  while (offset < bytes.length) {
-    // חיתוך בגבול תו ולא בגבול בית — חצי אות עברית אינה UTF-8 תקין.
-    let take = Math.min(limit, bytes.length - offset);
-    while (take > 1 && (bytes[offset + take] & 0xc0) === 0x80) take -= 1;
-    chunks.push(bytes.subarray(offset, offset + take).toString("utf8"));
-    offset += take;
-    limit = 74; // לשורות ההמשך יש רווח מוביל שנספר גם הוא
-  }
-  return chunks.join("\r\n ");
+  return googleCalendarUrlFor(entryOf(event));
 }
 
 /** קובץ יומן תקני לכל מי שאינו גוגל — אאוטלוק, אפל, וכל השאר. */
 export function buildIcs(event: EventRow): string {
-  const { start, end } = eventWindow(event);
-
-  const lines = [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    "PRODID:-//CRM//Events//HE",
-    "CALSCALE:GREGORIAN",
-    "METHOD:PUBLISH",
-    "BEGIN:VEVENT",
-    // ה-UID חייב להיות יציב: יומן שמקבל את אותו קובץ פעמיים מעדכן את האירוע
-    // הקיים במקום ליצור כפילות.
-    icsLine("UID", `event-${event.id}@crm`),
-    icsLine("DTSTAMP", toIcsUtc(new Date())),
-    icsLine("DTSTART", toIcsUtc(start)),
-    icsLine("DTEND", toIcsUtc(end)),
-    icsLine("SUMMARY", event.name),
-    ...(event.location ? [icsLine("LOCATION", event.location)] : []),
-    ...(event.description ? [icsLine("DESCRIPTION", event.description)] : []),
-    "END:VEVENT",
-    "END:VCALENDAR",
-  ];
-
-  // CRLF ולא \n — התקן דורש זאת, ואאוטלוק באמת נכשל בלעדיו.
-  return `${lines.join("\r\n")}\r\n`;
+  return buildIcsFor(entryOf(event));
 }

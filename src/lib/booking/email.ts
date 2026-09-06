@@ -52,13 +52,27 @@ export interface ConfirmationEmailInput {
   meetUrl: string | null;
   cancelUrl: string;
   brandName: string;
+  /** "הוספה ליומן Google" — קישור ישיר, בלי הרשאות ובלי התקנה. */
+  addToCalendarUrl: string;
+  /** קובץ ICS, לכל מי שאינו על יומן גוגל. */
+  icsUrl: string;
 }
 
 export function buildConfirmationEmail(input: ConfirmationEmailInput): {
   subject: string;
   html: string;
 } {
-  const { eventType, inviteeName, start, timeZone, meetUrl, cancelUrl, brandName } = input;
+  const {
+    eventType,
+    inviteeName,
+    start,
+    timeZone,
+    meetUrl,
+    cancelUrl,
+    brandName,
+    addToCalendarUrl,
+    icsUrl,
+  } = input;
 
   const dateLabel = formatLongDate(start, timeZone);
   const timeLabel = formatTime(start, timeZone);
@@ -94,23 +108,29 @@ export function buildConfirmationEmail(input: ConfirmationEmailInput): {
         </table>
       </td>
     </tr>
-    ${
-      meetUrl
-        ? `<tr>
+    <!--
+      הפעולה הראשית היא "הוספה ליומן" ולא "הצטרפות לפגישה".
+      ברגע שהמייל נקרא הפגישה עוד רחוקה, ולכן קישור ההצטרפות אינו מה שהלקוח
+      צריך עכשיו — הוא צריך שהפגישה לא תישכח. קישור ה-Meet נשאר בשורת "איפה"
+      שלמעלה, ובאירוע היומן עצמו, ושם הוא ימצא אותו ביום הפגישה.
+    -->
+    <tr>
       <td style="padding:20px 26px 4px;">
-        <a href="${esc(meetUrl)}"
+        <a href="${esc(addToCalendarUrl)}"
            style="display:inline-block;background:${ACCENT};color:#ffffff;font:600 15px ${FONT};
                   text-decoration:none;padding:12px 22px;border-radius:9px;">
-          הצטרפות לפגישה
+          הוספה ליומן
         </a>
+        <p dir="rtl" style="margin:10px 0 0;font:400 12px ${FONT};color:${INK_SOFT};line-height:1.6;">
+          לא על יומן Google?
+          <a href="${esc(icsUrl)}" style="color:${ACCENT};">הורדת קובץ ליומן</a>
+          — מתאים לאאוטלוק, לאפל ולשאר.
+        </p>
       </td>
-    </tr>`
-        : ""
-    }
+    </tr>
     <tr>
       <td style="padding:18px 26px 26px;">
         <p dir="rtl" style="margin:0;font:400 13px ${FONT};color:${INK_SOFT};line-height:1.7;">
-          הפגישה נוספה גם ליומן שלך בהזמנה נפרדת מגוגל.<br>
           לא מסתדר? אפשר
           <a href="${esc(cancelUrl)}" style="color:${ACCENT};">לבטל את הפגישה כאן</a>.
         </p>

@@ -109,7 +109,12 @@ export function BookingFlow({
   const [form, setForm] = useState({ name: "", email: "", phone: "", notes: "" });
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [confirmed, setConfirmed] = useState<{ meetUrl: string | null; start: string } | null>(null);
+  const [confirmed, setConfirmed] = useState<{
+    meetUrl: string | null;
+    start: string;
+    addToCalendarUrl: string | null;
+    icsUrl: string | null;
+  } | null>(null);
 
   const monthKey = `${cursor.year}-${pad(cursor.month)}`;
   // מפתח הבקשה כולל את ה-nonce, כדי שרענון יזום (אחרי שהשעה נתפסה) יריץ את
@@ -263,7 +268,12 @@ export function BookingFlow({
         return;
       }
 
-      setConfirmed({ meetUrl: body.meetUrl ?? null, start: selectedSlot });
+      setConfirmed({
+        meetUrl: body.meetUrl ?? null,
+        start: selectedSlot,
+        addToCalendarUrl: body.addToCalendarUrl ?? null,
+        icsUrl: body.icsUrl ?? null,
+      });
       setStep("done");
     } catch {
       setSubmitError("קביעת הפגישה נכשלה. בדקו את החיבור ונסו שוב.");
@@ -286,26 +296,59 @@ export function BookingFlow({
           {formatSlotDate(confirmed.start)} · {formatSlotTime(confirmed.start)}
         </p>
         <p className="mt-3 text-sm text-[var(--subtle)]">
-          שלחנו אישור למייל {form.email}, וההזמנה נוספה ליומן שלך.
+          {/* לא מבטיחים שההזמנה "נוספה ליומן": גוגל אמנם שולחת הזמנה
+              (sendUpdates: "all"), אבל רק לכתובות גוגל והיא עלולה ליפול לספאם.
+              הכפתור שמתחת הוא הדרך שאינה תלויה בכך. */}
+          שלחנו אישור למייל {form.email}.
         </p>
-        {confirmed.meetUrl && (
+        {/*
+          הפעולה הראשית כאן היא "הוספה ליומן" ולא "הצטרפות לשיחה".
+          ברגע שהמסך הזה נקרא הפגישה עוד רחוקה, ולכן קישור ההצטרפות אינו מה
+          שהלקוח צריך *עכשיו* — הוא צריך שהפגישה לא תישכח. קישור ה-Meet יורד
+          לשורת משנה, והוא ממילא נכנס גם לאירוע ביומן וגם למייל האישור.
+        */}
+        {confirmed.addToCalendarUrl && (
           <div className="mx-auto mt-6 max-w-sm">
-            {/* הכפתור בצבעי Google ולא בצבע המבטא של הדף: כאן זה כבר לא קישוט
-                אלא זיהוי של היעד, והלקוח צריך לזהות מיד לאן הוא נכנס. */}
             <a
-              href={confirmed.meetUrl}
+              href={confirmed.addToCalendarUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex w-full items-center justify-center gap-2.5 rounded-lg bg-[#1a73e8] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-[transform,background-color] duration-150 ease-out hover:bg-[#1765cc] active:scale-[0.97]"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--accent-strong)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-[transform,opacity] duration-150 ease-out hover:opacity-90 active:scale-[0.97]"
             >
-              <span className="grid size-5 place-items-center rounded bg-white">
-                <GoogleMeetLogo className="size-3.5" />
-              </span>
-              הצטרפות לשיחה ב-<span dir="ltr">Google Meet</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="size-4">
+                <rect x="3" y="4.5" width="18" height="17" rx="2.5" />
+                <path d="M16 2.5v4M8 2.5v4M3 10h18M12 14v4M10 16h4" strokeLinecap="round" />
+              </svg>
+              הוספה ליומן
             </a>
-            <p className="mt-2 text-xs text-[var(--subtle)]">
-              הקישור שמור גם במייל האישור ובהזמנה ביומן — אין צורך לשמור אותו עכשיו.
-            </p>
+
+            {confirmed.icsUrl && (
+              <p className="mt-2.5 text-xs text-[var(--subtle)]">
+                לא על יומן Google?{" "}
+                <a href={confirmed.icsUrl} className="underline underline-offset-2">
+                  הורדת קובץ ליומן
+                </a>{" "}
+                — מתאים לאאוטלוק, לאפל ולשאר.
+              </p>
+            )}
+
+            {confirmed.meetUrl && (
+              <p className="mt-3 border-t border-[var(--border)] pt-3 text-xs text-[var(--subtle)]">
+                <span className="inline-flex items-center gap-1.5">
+                  <GoogleMeetLogo className="size-3" />
+                  <a
+                    href={confirmed.meetUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline underline-offset-2"
+                  >
+                    קישור לשיחה ב-<span dir="ltr">Google Meet</span>
+                  </a>
+                </span>
+                <br />
+                שמור גם במייל האישור ובאירוע ביומן — אין צורך לשמור אותו עכשיו.
+              </p>
+            )}
           </div>
         )}
       </div>

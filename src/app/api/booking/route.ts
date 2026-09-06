@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getActiveEventTypeBySlug } from "@/lib/booking/data";
+import { getActiveEventTypeBySlug, getBookingSettings } from "@/lib/booking/data";
+import { bookingGoogleCalendarUrl, bookingIcsUrl } from "@/lib/booking/calendar";
 import { createBooking } from "@/lib/booking/create";
 
 // POST /api/booking — קביעת פגישה מהדף הציבורי.
@@ -53,6 +54,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: result.error, code: result.code }, { status });
     }
 
+    // קישורי היומן נבנים בשרת ולא בדפדפן: הכותרת והתיאור של האירוע נגזרים
+    // משם המותג ומסוג הפגישה, וזה ידע שאין שום סיבה לשכפל לצד הלקוח.
+    const settings = await getBookingSettings();
+
     return NextResponse.json(
       {
         ok: true,
@@ -60,6 +65,8 @@ export async function POST(request: NextRequest) {
         cancelToken: result.booking.cancel_token,
         meetUrl: result.meetUrl,
         calendarSynced: result.calendarSynced,
+        addToCalendarUrl: bookingGoogleCalendarUrl(result.booking, eventType, settings.host_name),
+        icsUrl: bookingIcsUrl(result.booking),
       },
       { status: 201 }
     );
