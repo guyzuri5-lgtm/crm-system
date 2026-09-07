@@ -36,6 +36,99 @@ export interface SendEmailInput {
   listUnsubscribeUrl?: string;
 }
 
+// ── טקסט רגיל → HTML ──────────────────────────────────────────────────────
+
+/**
+ * האם הגוף שהתקבל כבר HTML.
+ *
+ * הבדיקה היא על תגית ממשית ולא על התו "<" לבדו, כדי שתבנית שכתוב בה
+ * "מחיר < 100" לא תיחשב בטעות ל-HTML ותאבד את ירידות השורה שלה.
+ */
+export function looksLikeHtml(body: string): boolean {
+  return /<[a-z!/][^>]*>/i.test(body);
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+/**
+ * הופכת כתובת גלויה בטקסט לקישור שאפשר ללחוץ עליו.
+ *
+ * ג'ימייל עושה זאת בעצמו, ולכן קל להחמיץ שלקוחות דואר אחרים לא — והקישור
+ * לקורס הוא כל תוכן ההודעה. ה-‎&amp;‎ שנוצר בהברחה הוא הצורה הנכונה של ‎&‎
+ * בתוך href, ולכן הסדר כאן הוא הברחה ואז קישור, ולא הפוך.
+ */
+function linkify(escaped: string): string {
+  return escaped.replace(
+    /https?:\/\/[^\s<]+[^\s<.,:;"')\]]/g,
+    // dir=ltr + unicode-bidi:isolate — בלעדיהם הלוכסן שבסוף הכתובת "קופץ"
+    // לתחילתה כשהיא יושבת בתוך פסקה בעברית, והקישור נקרא ‎/https://…‎.
+    // הכתובת עצמה תקינה גם בלי זה; מה שנשבר הוא רק מה שהעין רואה — וזה
+    // הקישור שכל המייל נכתב בשבילו.
+    (url) =>
+      `<a href="${url}" dir="ltr" style="color:#0c6b62;unicode-bidi:isolate;">${url}</a>`
+  );
+}
+
+/**
+ * גוף מייל שנכתב כטקסט רגיל, עטוף כ-HTML שנראה כמו שנכתב.
+ *
+ * ── הבאג שזה מתקן ──
+ * הגוף נמסר ל-Postmark כ-HtmlBody, וב-HTML ירידת שורה היא רווח. תבנית
+ * שנכתבה בפסקאות מסודרות הגיעה ללקוחה כגוש טקסט אחד רצוף. זה קרה בפועל
+ * במייל הראשון שיצא ללקוחה משלמת (7.9.2026).
+ *
+ * שורה ריקה פותחת פסקה חדשה, ירידת שורה בודדת היא ‎<br>‎ — בדיוק מה שמי
+ * שמקליד בתיבת טקסט מצפה לו, ואותו כלל שכבר נהוג בעורך הניוזלטר.
+ */
+export function plainTextToEmailHtml(text: string): string {
+  // ── נרמול סיומות שורה, וזה לא ניקיון אלא תיקון באג ──
+  //
+  // textarea בדפדפן שולח CRLF לפי תקן ה-HTML, ולכן "שורה ריקה" שמפרידה בין
+  // פסקאות שמורה במסד כ-‎\r\n\r\n‎. פיצול על ‎\n{2,}‎ לא מזהה אותה, כי ה-‎\r‎
+  // חוצץ בין שתי ירידות השורה — והתוצאה היא שכל המייל נחשב לפסקה אחת.
+  // נמדד על התבנית האמיתית: לפני הנרמול פסקה אחת, אחריו שמונה.
+  //
+  // הרווחים בסוף שורה נגזרים מאותה סיבה: שורה שנראית ריקה ויש בה רווח אינה
+  // ריקה, ומפרידה בין פסקאות שהמשתמש התכוון אליהן.
+  const normalized = text.replace(/\r\n?/g, "\n").replace(/[ \t]+$/gm, "");
+
+  const paragraphs = escapeHtml(normalized.trim())
+    .split(/\n{2,}/)
+    .map(
+      (block) =>
+        `<p style="margin:0 0 18px;font-size:16px;line-height:1.8;color:#1c1a17;">${linkify(block).replaceAll("\n", "<br>")}</p>`
+    )
+    .join("\n");
+
+  // טבלאות ועיצוב inline ולא flex/grid ו-<style>: לקוחות דואר (במיוחד
+  // Outlook) מתעלמים מגיליונות סגנון ומפריסות מודרניות. אותה מעטפת של
+  // הניוזלטר, בלי הפוטר שלו — כאן זו הודעה תפעולית ולא דיוור.
+  return `<!doctype html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+<body style="margin:0;padding:0;background:#faf9f7;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#faf9f7;">
+<tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" dir="rtl" style="width:600px;max-width:100%;background:#ffffff;border-radius:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Rubik,Arial,sans-serif;color:#1c1a17;text-align:right;">
+<tr><td style="padding:28px;">
+${paragraphs}
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+
 function streamId(stream: MessageStream): string {
   return stream === "broadcast"
     ? (process.env.POSTMARK_BROADCAST_STREAM ?? "broadcast")

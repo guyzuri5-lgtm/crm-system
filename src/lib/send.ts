@@ -8,7 +8,12 @@ import {
   waIdFromPhone,
 } from "./whatsapp-cloud";
 import { renderTemplate, unresolvedPlaceholders } from "./templates";
-import { sendEmail, type MessageStream } from "./email";
+import {
+  looksLikeHtml,
+  plainTextToEmailHtml,
+  sendEmail,
+  type MessageStream,
+} from "./email";
 import type {
   Contact,
   MessageChannel,
@@ -106,10 +111,21 @@ export async function sendMessageToContact(input: SendMessageInput): Promise<Sen
       if (!input.contact.email) throw new Error("לאיש הקשר אין כתובת מייל");
       if (!input.subject) throw new Error("חסרה כותרת (subject) למייל");
 
+      // ── טקסט רגיל נעטף, HTML עובר כמו שהוא ──
+      //
+      // רוב הקוראים כאן שולחים גוף של תבנית, כלומר טקסט שנכתב בתיבת טקסט
+      // עם פסקאות. הוא נמסר ל-Postmark כ-HtmlBody, ושם ירידת שורה היא
+      // רווח — ולכן הגיע ללקוחה כגוש רצוף (קרה בפועל ב-7.9.2026, במייל
+      // הראשון ללקוחה משלמת). מי שכבר בונה HTML מלא — הניוזלטר ודוח
+      // השאלון — מזוהה לפי תגית ועובר בלי שינוי.
+      //
+      // ההחלטה כאן ולא אצל הקוראים, כי יש שישה מהם: מסעות, כללים, תזכורות
+      // אירוע, הראוט הידני, הדוח והניוזלטר. תיקון שמשוכפל שש פעמים הוא
+      // תיקון שיישכח באחת מהן.
       await sendEmail({
         to: input.contact.email,
         subject: input.subject,
-        html: input.body,
+        html: looksLikeHtml(input.body) ? input.body : plainTextToEmailHtml(input.body),
         stream: input.stream,
         listUnsubscribeUrl: input.listUnsubscribeUrl,
       });
