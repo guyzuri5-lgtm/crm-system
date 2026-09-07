@@ -75,7 +75,7 @@ export default async function DashboardPage() {
 
       {/* ── היום · דורש טיפול ───────────────────────────────────────── */}
       {/* היום רחב יותר: ציר זמן צריך מקום לשמות מלאים, ורשימת המשימות לא.
-          שני הכרטיסים ב-Suspense נפרד — אין סיבה שספירת המתעניינות תעכב את
+          שני הכרטיסים ב-Suspense נפרד — אין סיבה שספירת המתעניינים תעכב את
           ציר הפגישות. */}
       <section className="grid gap-3.5 lg:grid-cols-[1.15fr_0.85fr]">
         <Suspense fallback={<TodayFallback />}>

@@ -14,7 +14,7 @@ import {
  *
  * הפעלת מסע היא חד-כיוונית, ולכן לפני שמדליקים צריך לראות לא ציור של גרף
  * אלא את מה שהלקוח באמת יקבל: אילו הודעות, באילו תאריכים, עם איזה תוכן.
- * הסימולציה מריצה לקוחה בדויה (דנה כהן, פגישה ביום רביעי הקרוב ב-11:15)
+ * הסימולציה מריצה לקוח בדוי (דן כהן, פגישה ביום רביעי הקרוב ב-11:15)
  * דרך אותן פונקציות בדיוק שהמנוע האמיתי משתמש בהן — stepDueAt לזמנים
  * ו-renderTemplate לתוכן — כך שאין לה דרך להציג משהו שהמנוע לא יעשה.
  *
@@ -25,9 +25,9 @@ import {
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const SAMPLE_CONTACT = {
-  full_name: "דנה כהן",
+  full_name: "דן כהן",
   phone: "050-1234567",
-  email: "dana@example.com",
+  email: "dan@example.com",
   status: "מתעניין",
 } as unknown as Contact;
 
@@ -146,13 +146,13 @@ export function JourneySimulation({
       <summary className="cursor-pointer font-medium">
         הצג מסע לדוגמה
         <span className="mr-2 text-sm font-normal text-[var(--muted)]">
-          — מה תקבל לקוחה בדויה, מתי, ועם איזה תוכן
+          — מה יקבל לקוח בדוי, מתי, ועם איזה תוכן
         </span>
       </summary>
 
       <div className="mt-4 flex flex-col gap-4">
         <p className="text-sm text-[var(--muted)]">
-          הלקוחה: <strong>דנה כהן</strong>, מצטרפת למסע עכשיו
+          הלקוח: <strong>דן כהן</strong>, מצטרף למסע עכשיו
           {booking && (
             <>
               , עם פגישה ב

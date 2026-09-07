@@ -91,7 +91,7 @@ function BlockView({ block }: { block: NewsletterBlock }) {
 
     case "image":
       return block.url ? (
-        // eslint-disable-next-line @next/next/no-img-element -- כתובת חיצונית שהמשתמשת מזינה; אין דומיין ידוע מראש ל-next/image
+        // eslint-disable-next-line @next/next/no-img-element -- כתובת חיצונית שהמשתמש מזין; אין דומיין ידוע מראש ל-next/image
         <img
           src={block.url}
           alt={block.alt}

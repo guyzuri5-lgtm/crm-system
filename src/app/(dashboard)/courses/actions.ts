@@ -191,11 +191,11 @@ export async function uploadCourseImageAction(formData: FormData): Promise<Uploa
 // ── מסך הניהול ─────────────────────────────────────────────────────────────
 
 /**
- * סימון ידני כשילמה — הגיבוי לגרואו.
+ * סימון ידני כשילם — הגיבוי לגרואו.
  *
- * כל עוד אין webhook מגרואו (שלב 6), זו הדרך היחידה לסגור את המעגל: בעלת
- * העסק רואה תשלום בגרואו ומסמנת כאן. paid_at נכתב רק בפעם הראשונה, כי
- * ה-neq מסנן החוצה מי שכבר מסומנת — סימון חוזר לא דוחף את התאריך קדימה.
+ * כל עוד אין webhook מגרואו (שלב 6), זו הדרך היחידה לסגור את המעגל: בעל
+ * העסק רואה תשלום בגרואו ומסמן כאן. paid_at נכתב רק בפעם הראשונה, כי
+ * ה-neq מסנן החוצה מי שכבר מסומן — סימון חוזר לא דוחף את התאריך קדימה.
  */
 export async function markCoursePaidAction(formData: FormData): Promise<ActionResult> {
   return toResult(async () => {
@@ -235,7 +235,7 @@ export async function toggleCourseActiveAction(formData: FormData): Promise<Acti
   });
 }
 
-// ── שליחה לנרשמות ──────────────────────────────────────────────────────────
+// ── שליחה לנרשמים ──────────────────────────────────────────────────────────
 
 export type CourseBroadcastResult =
   | { ok: true; count: number }
@@ -247,7 +247,7 @@ const broadcastSchema = z
     channel: z.enum(["whatsapp", "email"]),
     stages: z
       .array(z.enum(["interested", "registered", "paid"]))
-      .min(1, "צריך לבחור לפחות קבוצה אחת של נמענות"),
+      .min(1, "צריך לבחור לפחות קבוצה אחת של נמענים"),
     subject: z.string().trim().max(200).optional(),
     body: z.string().trim().max(5000).optional(),
     template_id: z.string().uuid().optional(),
@@ -265,12 +265,12 @@ const broadcastSchema = z
   });
 
 /**
- * יוצרת את השליחה ואת רשימת הנמענות, ומשאירה לקרון להוציא אותה.
+ * יוצרת את השליחה ואת רשימת הנמענים, ומשאירה לקרון להוציא אותה.
  *
  * ── למה לא שולחת כאן ובמקום ──
  * אותו נימוק כמו בניוזלטר: מאה שליחות לא נכנסות בטיימאאוט של Server Action
  * אחד, ושליחה שנקטעת באמצע בלי שורות נמענים היא שליחה שאי אפשר להמשיך.
- * מה שכן קורה כאן מיידית הוא ההחלטה *מי* מקבלת — כך שהמספר שגיא רואה
+ * מה שכן קורה כאן מיידית הוא ההחלטה *מי* מקבל — כך שהמספר שגיא רואה
  * ברגע הלחיצה הוא המספר האמיתי, ורשימה ריקה נתפסת מולו ולא בשקט בקרון.
  */
 export async function sendCourseBroadcastAction(
@@ -318,7 +318,7 @@ export async function sendCourseBroadcastAction(
     }
   }
 
-  // ── הנמענות ──
+  // ── הנמענים ──
   let contactIds: string[];
   try {
     const audience = await listCourseAudience(course_id);
@@ -332,8 +332,8 @@ export async function sendCourseBroadcastAction(
       ok: false,
       error:
         channel === "email"
-          ? "אין אף נמענת עם כתובת מייל בקבוצות שנבחרו (מי שהוסרה מרשימת התפוצה אינה נספרת)"
-          : "אין אף נמענת עם מספר טלפון תקין בקבוצות שנבחרו",
+          ? "אין אף נמען עם כתובת מייל בקבוצות שנבחרו (מי שהוסר מרשימת התפוצה אינו נספר)"
+          : "אין אף נמען עם מספר טלפון תקין בקבוצות שנבחרו",
     };
   }
 
@@ -366,7 +366,7 @@ export async function sendCourseBroadcastAction(
     .insert(contactIds.map((contactId) => ({ broadcast_id: broadcast.id, contact_id: contactId })));
 
   if (recipientsError) {
-    // שליחה בלי נמענות היא שורה שתישאר "יוצאת עכשיו" לנצח ולא תוציא דבר.
+    // שליחה בלי נמענים היא שורה שתישאר "יוצאת עכשיו" לנצח ולא תוציא דבר.
     // עדיף למחוק אותה ולהחזיר שגיאה מאשר להשאיר רוח רפאים במסך.
     await db.from("course_broadcasts").delete().eq("id", broadcast.id);
     return { ok: false, error: recipientsError.message };

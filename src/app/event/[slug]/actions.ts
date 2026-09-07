@@ -68,8 +68,8 @@ async function register(
   }
 
   // הקיבולת נבדקת כאן ולא רק ברינדור: בין רגע טעינת הדף לרגע השליחה יכולים
-  // להיכנס עוד אנשים, ומי שהגיעה למקום שכבר נתפס נרשמת כמתעניינת — לא
-  // כנרשמת שתישלח לתשלום על מקום שאין.
+  // להיכנס עוד אנשים, ומי שהגיע למקום שכבר נתפס נרשם כמתעניין — לא
+  // כנרשם שיישלח לתשלום על מקום שאין.
   const counts = await countStages(event.id);
   const left = spotsLeft(event, counts.paid);
   const isFull = left !== null && left === 0;
@@ -88,8 +88,8 @@ async function register(
   const { error: writeError } = existing
     ? await db
         .from("event_registrations")
-        // מיזוג ולא דריסה: מי שממלאת את הטופס שוב ומשאירה שדה לא-חובה ריק
-        // לא אמורה למחוק בכך את מה שענתה עליו בפעם הקודמת.
+        // מיזוג ולא דריסה: מי שממלא את הטופס שוב ומשאיר שדה לא-חובה ריק
+        // לא אמור למחוק בכך את מה שענה עליו בפעם הקודמת.
         .update({ stage, answers: { ...existing.answers, ...answers } })
         .eq("id", existing.id)
     : await db.from("event_registrations").insert({
@@ -112,10 +112,10 @@ async function register(
       contact_id: contact.id,
       type: "event_registered",
       content: isFull
-        ? `נרשמה לרשימת המתנה: ${event.name}`
-        : `נרשמה לאירוע: ${event.name}`,
+        ? `נרשם לרשימת המתנה: ${event.name}`
+        : `נרשם לאירוע: ${event.name}`,
     });
-    // נרשם ללוג ולא מוחזר למשתמשת: היומן הוא תיעוד פנימי, וכישלון שלו לא
+    // נרשם ללוג ולא מוחזר למשתמש: היומן הוא תיעוד פנימי, וכישלון שלו לא
     // מצדיק להכשיל הרשמה שכבר נשמרה. אבל הוא כן חייב להישמע — בדיוק השתיקה
     // הזו היא שהסתירה את העובדה ש-event_registered חסר ב-enum (ראו 0025).
     if (logError) console.error("[event] רישום ביומן איש הקשר נכשל:", logError.message);
@@ -123,7 +123,7 @@ async function register(
 
   revalidatePath(`/events/${event.id}`);
 
-  // אירוע מלא לא נשלח לתשלום גם אם יש לינק גרואו — היא ברשימת המתנה, לא נרשמת.
+  // אירוע מלא לא נשלח לתשלום גם אם יש לינק גרואו — הוא ברשימת המתנה, לא נרשם.
   return { growLink: isFull ? null : event.grow_link, slug: event.slug };
 }
 
@@ -148,7 +148,7 @@ export async function registerForEventAction(
  * הניווט נעשה בלקוח (ראו RegistrationEmbed ב-components/registration-page.tsx) כי רק שם
  * אפשר להבחין בין שני המקרים: תשלום חייב לקחת את *כל* החלון — דף גרואו בתוך
  * מסגרת של 420 פיקסלים אינו דף תשלום שמישהי תשלים — ואילו הודעת התודה דווקא
- * נכון שתופיע במקום, בלי לגרור את הגולשת מדף הנחיתה שלך.
+ * נכון שתופיע במקום, בלי לגרור את הגולש מדף הנחיתה שלך.
  */
 export async function registerForEventEmbedAction(
   slug: string,

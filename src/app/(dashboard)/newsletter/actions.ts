@@ -114,7 +114,7 @@ function previewContact(email: string): Contact {
   const now = new Date().toISOString();
   return {
     id: "00000000-0000-0000-0000-000000000000",
-    full_name: "ישראלה ישראלי",
+    full_name: "ישראל ישראלי",
     phone: "0500000000",
     email,
     status: "ליד_חדש",
@@ -136,7 +136,7 @@ function previewContact(email: string): Contact {
  * ── למה לא דרך sendMessageToContact ──
  * הכלל "כל שליחה עוברת דרך send.ts" קיים כדי ששום הודעה ל*לקוח* לא תצא בלי
  * שתירשם ביומן ובלי שתיכפף לבלמים. כאן אין לקוח: הנמען הוא בעל המערכת,
- * הנמענת המוצגת בדוגמה בדויה, ואין שורת איש קשר שאפשר או ראוי לרשום עליה
+ * הנמען המוצג בדוגמה בדוי, ואין שורת איש קשר שאפשר או ראוי לרשום עליה
  * את השליחה. רישום כזה היה מזהם את היומן של מישהו אחר.
  */
 export async function sendDraftToSelfAction(input: NewsletterDraft): Promise<NewsletterResult> {

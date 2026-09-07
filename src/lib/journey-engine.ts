@@ -34,6 +34,8 @@ export interface Journey {
   entry_value: { status?: string; event_id?: string; course_id?: string } | null;
   active: boolean;
   stop_on_reply: boolean;
+  /** נקרא רק ב-course_paid, שהצירוף אליו מסונן מרגע יצירת המסע והלאה. */
+  created_at: string;
 }
 
 export interface JourneyStep {
@@ -200,13 +202,17 @@ export function stepDueAt(
 /**
  * האינטראקציה שמסמנת כניסה, לסוגי המסע שנגזרים משורה ביומן.
  *
- * status, event_interest ו-course_interest אינם כאן ומטופלים בנפרד — שלושתם
- * שואלים "מי נמצא כרגע במצב מסוים" ולא "למי קרה אירוע כלשהו אי־פעם".
+ * status, event_interest, course_interest ו-course_paid אינם כאן ומטופלים
+ * בנפרד — כולם שואלים "מי נמצא כרגע במצב מסוים" ולא "למי קרה אירוע כלשהו
+ * אי־פעם".
  * event_registered ו-course_registered קיימים ביומן, אבל הם לא מבחינים בין
  * אירוע לאירוע ולא יודעים אם מאז כבר שולם.
  */
 const ENTRY_INTERACTION: Record<
-  Exclude<JourneyEntryType, "status" | "event_interest" | "course_interest">,
+  Exclude<
+    JourneyEntryType,
+    "status" | "event_interest" | "course_interest" | "course_paid"
+  >,
   InteractionType
 > = {
   quiz: "quiz_submitted",
@@ -239,7 +245,7 @@ async function enrollForJourney(journey: Journey, now: Date): Promise<number> {
     candidateIds = (data ?? []).map((c) => c.id);
   } else if (journey.entry_type === "event_interest") {
     // המועמדות נשלפות מ-event_registrations ולא מהיומן: stage הוא המצב
-    // *הנוכחי*, ולכן מי שבינתיים שילמה כבר לא תיכנס למסע שנועד לשכנע אותה
+    // *הנוכחי*, ולכן מי שבינתיים שילם כבר לא ייכנס למסע שנועד לשכנע אותו
     // להירשם. שורת היומן, לעומת זאת, נשארת נכונה לנצח ולא הייתה יודעת זאת.
     const eventId = journey.entry_value?.event_id;
     if (!eventId) return 0;
@@ -252,7 +258,7 @@ async function enrollForJourney(journey: Journey, now: Date): Promise<number> {
     candidateIds = Array.from(new Set((data ?? []).map((r) => r.contact_id)));
   } else if (journey.entry_type === "course_interest") {
     // אותו נימוק בדיוק כמו באירוע שמעליו: השלב הוא המצב הנוכחי, ולכן מי
-    // שכבר רכשה את הקורס לא תיכנס למסע שנועד לשכנע אותה לרכוש.
+    // שכבר רכש את הקורס לא ייכנס למסע שנועד לשכנע אותו לרכוש.
     const courseId = journey.entry_value?.course_id;
     if (!courseId) return 0;
     const { data, error } = await db
@@ -260,6 +266,27 @@ async function enrollForJourney(journey: Journey, now: Date): Promise<number> {
       .select("contact_id")
       .eq("course_id", courseId)
       .eq("stage", "interested");
+    if (error) throw error;
+    candidateIds = Array.from(new Set((data ?? []).map((r) => r.contact_id)));
+  } else if (journey.entry_type === "course_paid") {
+    const courseId = journey.entry_value?.course_id;
+    if (!courseId) return 0;
+
+    // ── הסינון בזמן, וזה מה שמבדיל את הטריגר הזה מכל האחרים ──
+    //
+    // "שילם" הוא מצב שלא יוצאים ממנו: מי שקנה לפני שנה עדיין paid היום.
+    // בלי התנאי על paid_at, הדלקת מסע ליווי הייתה מצרפת בבת אחת את כל
+    // הלקוחות מאי־פעם ושולחת להם "ברוך הבא, הנה הקישור לקורס". אצל
+    // course_interest הבעיה לא קיימת, כי משם יוצאים ברגע שקונים.
+    //
+    // gte על paid_at מוציא גם שורות שבהן הוא ריק — סימון ידני ישן שקדם
+    // לעמודה. אין ממה לספור, ועדיף לא לשלוח מאשר לשלוח למי שקנה מזמן.
+    const { data, error } = await db
+      .from("course_registrations")
+      .select("contact_id")
+      .eq("course_id", courseId)
+      .eq("stage", "paid")
+      .gte("paid_at", journey.created_at);
     if (error) throw error;
     candidateIds = Array.from(new Set((data ?? []).map((r) => r.contact_id)));
   } else {

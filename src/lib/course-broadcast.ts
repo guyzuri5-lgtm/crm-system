@@ -2,7 +2,7 @@ import "server-only";
 
 import { supabaseAdmin } from "./supabase/admin";
 import { sendMessageToContact } from "./send";
-import { renderTemplate } from "./templates";
+import { CONTACT_PLACEHOLDERS, renderTemplate, unresolvedPlaceholders } from "./templates";
 import { unsubscribeUrl } from "./newsletter";
 import { waIdFromPhone } from "./whatsapp-cloud";
 import { isSendingPaused } from "./whatsapp-throttle";
@@ -17,10 +17,10 @@ import type {
 } from "./supabase/database.types";
 
 /**
- * שליחה ידנית וחד-פעמית לנרשמות קורס — הכפתור "שליחה לנרשמות" במסך הקורס.
+ * שליחה ידנית וחד-פעמית לנרשמי קורס — הכפתור "שליחה לנרשמים" במסך הקורס.
  *
  * ── מה זה *לא* ──
- * לא מסע (שם נכנסים רק "מתעניינות", ולפי תנאי ולא לפי לחיצה), לא כלל
+ * לא מסע (שם נכנסים רק "מתעניינים", ולפי תנאי ולא לפי לחיצה), לא כלל
  * אוטומציה (מגיב לסטטוס של איש קשר, שההרשמה לקורס לא נוגעת בו), ולא
  * ניוזלטר (קהל לפי סטטוס, מייל בלבד, ועורך בלוקים). זו הודעה אחת שגיא
  * מחליט לשלוח, לקבוצה שהוא בוחר, עכשיו.
@@ -29,17 +29,17 @@ import type {
  * מייל  — כותרת וטקסט שנכתבים בטופס. אין מגבלה, אז אין סיבה לתבנית.
  * וואטסאפ — תבנית מאושרת ב-Meta בלבד. מחוץ לחלון 24 השעות מטא שולחת אך ורק
  *           את הטקסט *שאושר*, ולכן שדה טקסט חופשי כאן היה מציג לגיא משהו
- *           אחד ומוסר ללקוחה משהו אחר. אותה מסקנה בדיוק כמו ב-0027.
+ *           אחד ומוסר ללקוח משהו אחר. אותה מסקנה בדיוק כמו ב-0027.
  */
 
-// ── מי מקבלת ───────────────────────────────────────────────────────────────
+// ── מי מקבל ───────────────────────────────────────────────────────────────
 
 /**
- * הגדרה אחת של "מי מקבלת", שמשרתת גם את המונים שבמסך וגם את תמונת המצב
+ * הגדרה אחת של "מי מקבל", שמשרתת גם את המונים שבמסך וגם את תמונת המצב
  * שנוצרת בלחיצה. שתי גרסאות של התנאי הזה היו נפרדות ביום שבו מישהו יוסיף
  * לו סייג — בדיוק הנימוק של audienceQuery בניוזלטר.
  *
- * מי שאינה ניתנת להשגה בערוץ הנבחר אינה בקהל, ולכן היא גם לא נספרת. המספר
+ * מי שאינו ניתן להשגה בערוץ הנבחר אינו בקהל, ולכן הוא גם לא נספר. המספר
  * שמופיע ליד הכפתור הוא כמה הודעות באמת ייצאו, לא כמה שורות יש בטבלה.
  */
 export function isReachable(contact: Contact, channel: MessageChannel): boolean {
@@ -74,7 +74,7 @@ export async function listCourseAudience(
 }
 
 /**
- * כמה נמענות בכל שלב, לכל ערוץ בנפרד.
+ * כמה נמענים בכל שלב, לכל ערוץ בנפרד.
  *
  * שני הערוצים נספרים יחד ולא לפי הבחירה הנוכחית, כי המתג בין מייל
  * לוואטסאפ הוא מצב של הלקוח — והמספרים חייבים להתחלף איתו בלי סיבוב נוסף
@@ -108,6 +108,23 @@ export function selectRecipients(
     if (chosen.has(stage) && isReachable(contact, channel)) ids.add(contact.id);
   }
   return Array.from(ids);
+}
+
+/**
+ * האם התבנית יכולה בכלל להישלח לנרשמי קורס.
+ *
+ * תבנית שיש בה ‎{{booking_time}}‎ או ‎{{event_date}}‎ נראית תקינה ברשימה
+ * ונכשלת בזמן השליחה: sendMessageToContact חוסם הודעה שנשארו בה מציינים
+ * לא פתורים, ולנרשם לקורס אין פגישה ואין אירוע להחליף אותם. בפועל יש כאן
+ * תבנית אחת מאושרת בדיוק — של תזכורות פגישה — כך שבלי הסינון הזה האפשרות
+ * *היחידה* בתפריט הייתה זו שמובטח שתיכשל.
+ *
+ * נבדקים גם הכותרת וגם ה-meta_variables ולא רק הגוף: הם מסלול נפרד לגמרי
+ * אל מטא, ומציין שלא הוחלף שם מגיע ללקוח כטקסט גולמי בתוך הודעה מאושרת.
+ */
+export function usableForCourse(template: MessageTemplate): boolean {
+  const text = [template.body, template.subject ?? "", ...template.meta_variables].join(" ");
+  return unresolvedPlaceholders(text).every((key) => CONTACT_PLACEHOLDERS.includes(key));
 }
 
 // ── המייל ──────────────────────────────────────────────────────────────────
@@ -173,9 +190,9 @@ ${paragraphs}
 export interface CourseBroadcastSummary {
   sent: number;
   failed: number;
-  /** כמה שליחות סיימו את כל הנמענות שלהן בריצה הזו */
+  /** כמה שליחות סיימו את כל הנמענים שלהן בריצה הזו */
   completed: number;
-  /** כמה נמענות נשארו לריצה הבאה */
+  /** כמה נמענים נשארו לריצה הבאה */
   remaining: number;
   stopped: "paused" | "run_limit" | "time_budget" | null;
   errors: { broadcastId: string; contactId: string; error: string }[];
@@ -298,7 +315,7 @@ export async function runCourseBroadcasts(
               channel: "email",
               subject: renderTemplate(broadcast.subject ?? "", contact),
               body: renderBroadcastHtml(broadcast, contact),
-              logPrefix: `[שליחה לנרשמות: ${course.name}]`,
+              logPrefix: `[שליחה לנרשמים: ${course.name}]`,
               // דיוור ולא תפעולי: זו הודעה אחת לרשימה, וזה בדיוק מה
               // ש-Postmark מפריד לטווח IP נפרד — כדי שתלונה כאן לא תפגע
               // במסירה של אישור פגישה. ואיתו מגיעה חובת כותרת ההסרה.
@@ -309,10 +326,10 @@ export async function runCourseBroadcasts(
               contact,
               channel: "whatsapp",
               // גוף התבנית מרונדר גם כשתצא התבנית המאושרת: מחוץ לחלון הוא
-              // מה שנרשם ביומן, כדי שמי שקוראת אותו תראה מה הלקוחה קיבלה.
+              // מה שנרשם ביומן, כדי שמי שקורא אותו יראה מה הלקוח קיבל.
               body: renderTemplate(template!.body, contact),
               template,
-              logPrefix: `[שליחה לנרשמות: ${course.name}]`,
+              logPrefix: `[שליחה לנרשמים: ${course.name}]`,
             });
 
       if (result.ok) {

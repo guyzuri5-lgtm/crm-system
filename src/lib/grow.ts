@@ -50,7 +50,7 @@ export interface GrowPayer {
 const EMAIL_KEYS = /mail|מייל|אימייל/i;
 // "tel" לבדו היה תופס גם hotel; "telephone" מפורש במקומו.
 const PHONE_KEYS = /phone|mobile|cell|telephone|טלפון|נייד/i;
-// בלי "name" לבדו — הוא היה תופס customerName והופך את שם הלקוחה ל"שם המוצר"
+// בלי "name" לבדו — הוא היה תופס customerName והופך את שם הלקוח ל"שם המוצר"
 // בהודעת השגיאה. productName ו-pageName נתפסים ממילא דרך product ו-page.
 const PRODUCT_KEYS = /product|item|page|plan|description|title|מוצר/i;
 
@@ -121,9 +121,9 @@ interface OpenRegistration {
 /**
  * סימון ההרשמה כמשולמת.
  *
- * זורק בכל מקרה שאינו חד-משמעי, וזו החלטה ולא הימנעות: לסמן "שילמה" על
- * ההרשמה הלא נכונה גרוע יותר מלא לסמן כלום — הראשון שולח לה חומרים של מוצר
- * שלא קנתה ומוציא אותה מרשימת המתעניינות במוצר שכן, והשני משאיר שורה בתיבה
+ * זורק בכל מקרה שאינו חד-משמעי, וזו החלטה ולא הימנעות: לסמן "שילם" על
+ * ההרשמה הלא נכונה גרוע יותר מלא לסמן כלום — הראשון שולח לו חומרים של מוצר
+ * שלא קנה ומוציא אותו מרשימת המתעניינים במוצר שכן, והשני משאיר שורה בתיבה
  * שגיא סוגר בשתי לחיצות.
  *
  * מחזיר תיאור קריא של מה שעודכן, לצורך הלוג והתשובה.
@@ -137,7 +137,7 @@ export async function settlePayment(payer: GrowPayer): Promise<string> {
     throw new Error("לא נמצאו טלפון או אימייל תקינים ב-payload של התשלום");
   }
 
-  // ── מי שילמה ──
+  // ── מי שילם ──
   const contactIds = new Set<string>();
   if (phone) {
     const { data, error } = await db.from("contacts").select("id").eq("phone", phone);
@@ -157,7 +157,7 @@ export async function settlePayment(payer: GrowPayer): Promise<string> {
 
   const ids = Array.from(contactIds);
 
-  // ── על מה שילמה ──
+  // ── על מה שילם ──
   const open: OpenRegistration[] = [];
 
   const { data: eventRegs, error: eventError } = await db

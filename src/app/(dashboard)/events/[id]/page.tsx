@@ -90,16 +90,16 @@ export default async function EventPage({ params }: PageProps<"/events/[id]">) {
           <Link href={`/events/${event.id}/edit`} className="btn-secondary">
             עיצוב הדף
           </Link>
-          {/* פותח יצירת מסע עם הטריגר "נרשמה כמתעניינת לאירוע" מסומן מראש */}
+          {/* פותח יצירת מסע עם הטריגר "נרשם כמתעניין לאירוע" מסומן מראש */}
           <Link href={`/journeys?event=${event.id}`} className="btn-primary">
-            מסע למתעניינות
+            מסע למתעניינים
           </Link>
         </div>
       </div>
 
       <section className="card flex flex-col gap-5">
-        {/* תפוסה: הקיבולת מחולקת לשלושה פלחים — מי ששילמה, מי ששריינה ולא
-            שילמה, ומה שנשאר. זה המספר שנבדק כמה פעמים ביום לפני אירוע. */}
+        {/* תפוסה: הקיבולת מחולקת לשלושה פלחים — מי ששילם, מי ששריין ולא
+            שילם, ומה שנשאר. זה המספר שנבדק כמה פעמים ביום לפני אירוע. */}
         {event.capacity ? (
           <div>
             <div className="mb-2 flex items-baseline justify-between text-[11.5px] text-[var(--muted)]">
@@ -139,7 +139,7 @@ export default async function EventPage({ params }: PageProps<"/events/[id]">) {
         {/* המשפך קורא את אותם שלושה מספרים כירידה ולא כשלושה כרטיסים
             נפרדים — ההפרש בין השלבים הוא מה שמעניין, לא הערך המוחלט. */}
         <div className="flex flex-col gap-2.5">
-          <FunnelRow label="מתעניינות" value={counts.interested} max={counts.interested} tone="var(--nav-amber)" />
+          <FunnelRow label="מתעניינים" value={counts.interested} max={counts.interested} tone="var(--nav-amber)" />
           <FunnelRow label="נרשמו" value={counts.registered + counts.paid} max={counts.interested} tone="var(--nav-pink)" />
           <FunnelRow label="שילמו" value={counts.paid} max={counts.interested} tone="var(--primary)" />
         </div>
@@ -153,7 +153,7 @@ export default async function EventPage({ params }: PageProps<"/events/[id]">) {
 
       {registrations.length === 0 ? (
         <div className="card text-center text-sm text-[var(--muted)]">
-          עוד אף אחת לא נרשמה. הקישור לדף ההרשמה מוכן להעתקה למעלה.
+          עוד אף אחד לא נרשם. הקישור לדף ההרשמה מוכן להעתקה למעלה.
         </div>
       ) : (
         <div className="table-wrap">
@@ -165,7 +165,7 @@ export default async function EventPage({ params }: PageProps<"/events/[id]">) {
                 <th className="th">אימייל</th>
                 <th className="th">שלב</th>
                 <th className="th">מקור</th>
-                <th className="th">נרשמה</th>
+                <th className="th">נרשם</th>
                 <th className="th"></th>
               </tr>
             </thead>
@@ -210,7 +210,7 @@ export default async function EventPage({ params }: PageProps<"/events/[id]">) {
                         <input type="hidden" name="registration_id" value={row.id} />
                         <input type="hidden" name="event_id" value={event.id} />
                         <button type="submit" className="btn-ghost whitespace-nowrap">
-                          סימון כשילמה
+                          סימון כשילם
                         </button>
                       </ActionForm>
                     )}

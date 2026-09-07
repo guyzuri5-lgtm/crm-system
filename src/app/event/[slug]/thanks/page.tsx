@@ -7,7 +7,7 @@ import { RegistrationThanks } from "@/components/registration-page";
  *
  * כשיש תשלום, זו הכתובת שגרואו מפנה אליה אחרי תשלום מוצלח — כלומר הכניסה
  * אליו מגיעה מדומיין אחר, בלי session ובלי פרמטרים מהטופס. לכן הוא נגזר
- * מה-slug בלבד ואינו מנסה לדעת מי הנרשמת.
+ * מה-slug בלבד ואינו מנסה לדעת מי הנרשם.
  */
 export const dynamic = "force-dynamic";
 

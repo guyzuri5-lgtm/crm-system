@@ -20,20 +20,22 @@ const journeySchema = z.object({
 /**
  * מה נשמר ב-entry_value, לפי סוג הכניסה.
  *
- * שלושה סוגים נושאים ערך: סטטוס, אירוע וקורס. השאר נגזרים מהיומן ואין להם
+ * ארבעה סוגים נושאים ערך: סטטוס, אירוע וקורס — האחרון פעמיים, כי מסע
+ * למתעניינים ומסע לרוכשים נבדלים בשלב ולא בקורס. השאר נגזרים מהיומן ואין להם
  * מה לצמצם — ולכן אובייקט ריק ולא null, כדי שהעמודה תישאר בעלת צורה אחת.
  */
 function entryValueOf(data: z.infer<typeof journeySchema>) {
   if (data.entry_type === "status") return { status: data.status };
   if (data.entry_type === "event_interest") return { event_id: data.event_id };
   if (data.entry_type === "course_interest") return { course_id: data.course_id };
+  if (data.entry_type === "course_paid") return { course_id: data.course_id };
   return {};
 }
 
 /**
  * מחזירה תוצאה ולא זורקת.
  *
- * ההודעות כאן ("מסע למתעניינות בקורס חייב שיוגדר לו קורס") הן בדיוק הסוג
+ * ההודעות כאן ("מסע למתעניינים בקורס חייב שיוגדר לו קורס") הן בדיוק הסוג
  * שנמחק בפרודקשן והוחלף בשגיאה גנרית של React — ר' 8dbd26d. toResult עוטף
  * את הגוף הקיים בלי לשנות ולו ניסוח אחד, ומעביר את ה-redirect שבסופו הלאה
  * כמו שהוא.
@@ -56,10 +58,13 @@ export async function createJourneyAction(formData: FormData): Promise<ActionRes
       throw new Error("מסע שנכנסים אליו לפי סטטוס חייב שיוגדר לו סטטוס");
     }
     if (parsed.data.entry_type === "event_interest" && !parsed.data.event_id) {
-      throw new Error("מסע למתעניינות באירוע חייב שיוגדר לו אירוע");
+      throw new Error("מסע למתעניינים באירוע חייב שיוגדר לו אירוע");
     }
     if (parsed.data.entry_type === "course_interest" && !parsed.data.course_id) {
-      throw new Error("מסע למתעניינות בקורס חייב שיוגדר לו קורס");
+      throw new Error("מסע למתעניינים בקורס חייב שיוגדר לו קורס");
+    }
+    if (parsed.data.entry_type === "course_paid" && !parsed.data.course_id) {
+      throw new Error("מסע ללקוחות הקורס חייב שיוגדר לו קורס");
     }
 
     const { data, error } = await supabaseAdmin()

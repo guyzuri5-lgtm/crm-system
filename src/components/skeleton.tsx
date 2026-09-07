@@ -80,7 +80,7 @@ export function SkelMetricRow({ count = 4 }: { count?: number }) {
 }
 
 /**
- * שורה ברשימה עם אווטאר — "מי שיצר קשר", תוצאות חיפוש, נרשמות.
+ * שורה ברשימה עם אווטאר — "מי שיצר קשר", תוצאות חיפוש, נרשמים.
  * הגובה (72 פיקסלים) הוא זה של ContactRow הסגורה.
  */
 export function SkelListRow() {

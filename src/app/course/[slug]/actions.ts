@@ -16,7 +16,7 @@ import type { RegisterState } from "@/components/registration-page";
  * בלבד ואינו מחזיר שום מידע על הקורס או על מי שכבר נרשם.
  *
  * ההבדל היחיד מההרשמה לאירוע הוא מה שאין: אין קיבולת לבדוק, ולכן אין מסלול
- * "מלא → רשימת המתנה". כל נרשמת עוברת ישר ל-registered ומשם לתשלום.
+ * "מלא → רשימת המתנה". כל נרשם עובר ישר ל-registered ומשם לתשלום.
  */
 
 const registrationSchema = z.object({
@@ -82,7 +82,7 @@ async function register(
   const { error: writeError } = existing
     ? await db
         .from("course_registrations")
-        // מיזוג ולא דריסה: מי שממלאת את הטופס שוב ומשאירה שדה לא-חובה ריק לא
+        // מיזוג ולא דריסה: מי שממלא את הטופס שוב ומשאיר שדה לא-חובה ריק לא
         // אמורה למחוק בכך את מה שענתה עליו בפעם הקודמת.
         .update({ stage, answers: { ...existing.answers, ...answers } })
         .eq("id", existing.id)
@@ -105,9 +105,9 @@ async function register(
     const { error: logError } = await db.from("interactions").insert({
       contact_id: contact.id,
       type: "course_registered",
-      content: `נרשמה לקורס: ${course.name}`,
+      content: `נרשם לקורס: ${course.name}`,
     });
-    // נרשם ללוג ולא מוחזר למשתמשת: היומן הוא תיעוד פנימי, וכישלון שלו לא
+    // נרשם ללוג ולא מוחזר למשתמש: היומן הוא תיעוד פנימי, וכישלון שלו לא
     // מצדיק להכשיל הרשמה שכבר נשמרה. אבל הוא כן חייב להישמע — בדיוק השתיקה
     // הזו הסתירה ש-event_registered חסר ב-enum (ראו 0025), ו-course_registered
     // תלוי באותו אופן בכך ש-0028 הורצה.
@@ -140,7 +140,7 @@ export async function registerForCourseAction(
  * הניווט נעשה בלקוח (ראו RegistrationEmbed) כי רק שם אפשר להבחין בין שני
  * המקרים: תשלום חייב לקחת את *כל* החלון — דף גרואו בתוך מסגרת של 420
  * פיקסלים אינו דף תשלום שמישהי תשלים — ואילו הודעת התודה דווקא נכון שתופיע
- * במקום, בלי לגרור את הגולשת מדף הנחיתה שלך.
+ * במקום, בלי לגרור את הגולש מדף הנחיתה שלך.
  */
 export async function registerForCourseEmbedAction(
   slug: string,

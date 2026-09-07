@@ -85,7 +85,7 @@ export async function StatusRow() {
         </span>
         <span className="min-w-0">
           <span className="block text-[13.5px] font-semibold">
-            {courseInterestedCount} מתעניינות בקורסים
+            {courseInterestedCount} מתעניינים בקורסים
           </span>
           <span className="block text-[11.5px] text-[var(--muted)]">
             {newCourseInterestCount ?? 0} חדשות השבוע

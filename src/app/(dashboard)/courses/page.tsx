@@ -104,7 +104,7 @@ export default async function CoursesPage() {
                   <div className="flex shrink-0 gap-5 text-center">
                     <Metric value={c.paid} label="לקוחות" tone="var(--primary)" />
                     <Metric value={c.registered} label="לא שילמו" tone="var(--nav-pink)" />
-                    <Metric value={c.interested} label="מתעניינות" tone="var(--nav-amber)" />
+                    <Metric value={c.interested} label="מתעניינים" tone="var(--nav-amber)" />
                   </div>
                 </div>
               </Link>

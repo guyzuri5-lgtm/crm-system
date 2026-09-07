@@ -84,7 +84,7 @@ export interface CourseStageCounts {
 /**
  * שלושת המונים של קורס, בשאילתה אחת לכל שלב.
  *
- * נספרות השורות ולא נשלפות: קורס עם 300 נרשמות לא צריך להעביר 300 שורות
+ * נספרות השורות ולא נשלפות: קורס עם 300 נרשמים לא צריך להעביר 300 שורות
  * לשרת רק כדי להציג שלושה מספרים.
  */
 export async function countCourseStages(courseId: string): Promise<CourseStageCounts> {

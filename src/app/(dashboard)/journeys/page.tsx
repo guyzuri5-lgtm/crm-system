@@ -16,12 +16,17 @@ export const dynamic = "force-dynamic";
 export default async function JourneysPage({ searchParams }: PageProps<"/journeys">) {
   await verifyTeamMember();
 
-  // ‎?event=<id>‎ ו-‎?course=<id>‎ מגיעים מכפתור "מסע למתעניינות" במסך האירוע
-  // או הקורס, ותפקידם רק לפתוח את הטופס עם הטריגר הנכון מסומן מראש. הם
-  // אינם יוצרים דבר בעצמם.
+  // ‎?event=<id>‎ ו-‎?course=<id>‎ מגיעים מכפתורי "מסע..." במסך האירוע או
+  // הקורס, ותפקידם רק לפתוח את הטופס עם הטריגר הנכון מסומן מראש. הם אינם
+  // יוצרים דבר בעצמם.
+  //
+  // ‎?entry=‎ נוסף כי לקורס יש שני כפתורים ולא אחד — למתעניינים ולרוכשים —
+  // ושניהם מעבירים את אותו course_id. בלעדיו הכפתור השני היה פותח את הטופס
+  // עם הטריגר של הראשון, וזו בדיוק טעות שקטה שאיש לא היה שם לב אליה.
   const query = await searchParams;
   const eventId = typeof query.event === "string" ? query.event : null;
   const courseId = typeof query.course === "string" ? query.course : null;
+  const requestedEntry = JOURNEY_ENTRY_TYPES.find((t) => t === query.entry) ?? null;
 
   const db = supabaseAdmin();
   const [
@@ -98,7 +103,8 @@ export default async function JourneysPage({ searchParams }: PageProps<"/journey
               className="input"
               required
               defaultValue={
-                courseId ? "course_interest" : eventId ? "event_interest" : "status"
+                requestedEntry ??
+                (courseId ? "course_interest" : eventId ? "event_interest" : "status")
               }
             >
               {JOURNEY_ENTRY_TYPES.map((t) => (
@@ -183,7 +189,8 @@ export default async function JourneysPage({ searchParams }: PageProps<"/journey
                   {j.entry_type === "status" && j.entry_value?.status
                     ? `: ${j.entry_value.status}`
                     : ""}
-                  {j.entry_type === "course_interest" && j.entry_value?.course_id
+                  {(j.entry_type === "course_interest" || j.entry_type === "course_paid") &&
+                  j.entry_value?.course_id
                     ? `: ${courseNameById.get(j.entry_value.course_id) ?? "קורס שנמחק"}`
                     : ""}
                   {j.entry_type === "event_interest" && j.entry_value?.event_id

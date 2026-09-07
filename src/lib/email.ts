@@ -63,7 +63,7 @@ export async function sendEmail({
   }
 
   // כותרת הסרה בלחיצה אחת. שתי הכותרות יחד — בלי השנייה, ספקי הדואר מתייחסים
-  // לראשונה כקישור להצגה בלבד ולא כפעולה שהם יכולים לבצע בשם הנמענת.
+  // לראשונה כקישור להצגה בלבד ולא כפעולה שהם יכולים לבצע בשם הנמען.
   const headers = listUnsubscribeUrl
     ? [
         { Name: "List-Unsubscribe", Value: `<${listUnsubscribeUrl}>` },
@@ -99,7 +99,7 @@ export async function sendEmail({
   if (!response.ok || (result?.ErrorCode ?? 0) !== 0) {
     const code = result?.ErrorCode ?? response.status;
     const message = result?.Message ?? response.statusText;
-    // 406 = הנמענת מסומנת inactive אצל Postmark אחרי bounce קשה או תלונת ספאם.
+    // 406 = הנמען מסומן inactive אצל Postmark אחרי bounce קשה או תלונת ספאם.
     // ההודעה הגולמית באנגלית לא אומרת את זה למי שקורא את היומן בעברית.
     throw new Error(
       code === 406

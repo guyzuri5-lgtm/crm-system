@@ -46,7 +46,7 @@ export async function Attention() {
       .eq("stage", "registered")
       .lte("created_at", new Date(now.getTime() - DAY_MS).toISOString()),
     // ── קורסים (0028) ──
-    // שלוש שאילתות רזות שמחזירות contact_id בלבד: הצטלבות "מי מתעניינת"
+    // שלוש שאילתות רזות שמחזירות contact_id בלבד: הצטלבות "מי מתעניין"
     // מול "מי כבר במסע" נעשית בזיכרון, כי PostgREST לא יודע NOT IN על
     // תת-שאילתה. אם 0028 טרם רצה, השגיאה נבלעת ו-null הופך לרשימה ריקה —
     // דף הבית ממשיך לעבוד בדיוק כמו קודם.
@@ -86,11 +86,11 @@ export async function Attention() {
     .map((row) => contactById.get(row.contact_id))
     .filter((c): c is QuietContact => Boolean(c));
 
-  // ── מתעניינות ──
+  // ── מתעניינים ──
   const courseInterested = (courseInterestedRaw ?? []).map((r) => r.contact_id);
 
-  // מי שהשאירה פרטים ואף אחד לא בנה לה המשך. זו הרשימה שהמסעות נועדו לה,
-  // ולכן "מתעניינת שאינה באף מסע" היא הפער האמיתי — לא מספר המתעניינות.
+  // מי שהשאיר פרטים ואף אחד לא בנה לו המשך. זו הרשימה שהמסעות נועדו לה,
+  // ולכן "מתעניין שאינו באף מסע" הוא הפער האמיתי — לא מספר המתעניינים.
   const enrolledIds = new Set((enrolledRaw ?? []).map((r) => r.contact_id));
   const interestedIds = new Set([
     ...courseInterested,
@@ -179,8 +179,8 @@ export async function Attention() {
                   </Link>
                 )}
 
-                {/* מתעניינת שאינה באף מסע היא ליד שנפל בין הכיסאות: היא
-                    השאירה פרטים, ואיש לא בנה לה המשך. הקישור מוביל
+                {/* מתעניין שאינו באף מסע הוא ליד שנפל בין הכיסאות: הוא
+                    השאיר פרטים, ואיש לא בנה לו המשך. הקישור מוביל
                     למסעות, כי זו הפעולה שסוגרת את הפער. */}
                 {unlinkedInterestedCount > 0 && (
                   <Link href="/journeys" className="group-row">
@@ -190,7 +190,7 @@ export async function Attention() {
                     >
                       <Route size={13} />
                     </span>
-                    <b className="font-semibold">מתעניינות שאינן באף מסע</b>
+                    <b className="font-semibold">מתעניינים שאינם באף מסע</b>
                     <span className="flex-1" />
                     <span
                       className="pill"

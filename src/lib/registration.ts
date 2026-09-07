@@ -13,7 +13,7 @@ import type { EventStage } from "./supabase/database.types";
  *
  * הם עברו לכאן ולא שוכפלו, כי שכפול של findOrCreateContact הוא בדיוק הבאג
  * שהוא עצמו נכתב כדי למנוע: שתי הגדרות של "מי נחשב אותו אדם" פירושן שאותה
- * לקוחה תיווצר פעמיים ב-contacts — פעם מהאירוע ופעם מהקורס.
+ * לקוח ייווצר פעמיים ב-contacts — פעם מהאירוע ופעם מהקורס.
  */
 
 type Db = ReturnType<typeof supabaseAdmin>;
@@ -25,9 +25,9 @@ const STAGE_RANK: Record<EventStage, number> = { interested: 0, registered: 1, p
 /**
  * השלב עולה בדרגה בלבד.
  *
- * מי ששילמה וממלאת את הטופס שוב (רענון, לחיצה כפולה, חזרה מגרואו) לא חוזרת
- * להיות "נרשמה ולא שילמה" — אחרת היא הייתה מופיעה ברשימת "דורש טיפול"
- * ומקבלת מסע למתעניינות אחרי שכבר שילמה.
+ * מי ששילם וממלא את הטופס שוב (רענון, לחיצה כפולה, חזרה מגרואו) לא חוזר
+ * להיות "נרשם ולא שילם" — אחרת הוא היה מופיע ברשימת "דורש טיפול"
+ * ומקבל מסע למתעניינים אחרי שכבר שילם.
  */
 export function strongerStage(current: EventStage | undefined, incoming: EventStage): EventStage {
   if (!current) return incoming;

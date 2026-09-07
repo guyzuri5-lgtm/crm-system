@@ -56,7 +56,7 @@ export default async function EventsPage() {
       <div className="h-page">
         <div>
           <h1>כל האירועים</h1>
-          <p>כל אירוע מקבל דף הרשמה משלו בכתובת ציבורית, ותזכורות בוואטסאפ למי ששילמה.</p>
+          <p>כל אירוע מקבל דף הרשמה משלו בכתובת ציבורית, ותזכורות בוואטסאפ למי ששילם.</p>
         </div>
         <span className="flex-1" />
         <Link href="/events/new" className="btn-primary">
@@ -106,12 +106,12 @@ export default async function EventsPage() {
                   <div className="flex shrink-0 gap-5 text-center">
                     <Metric value={c.paid} label="שילמו" tone="var(--primary)" />
                     <Metric value={c.registered} label="לא שילמו" tone="var(--nav-pink)" />
-                    <Metric value={c.interested} label="מתעניינות" tone="var(--nav-amber)" />
+                    <Metric value={c.interested} label="מתעניינים" tone="var(--nav-amber)" />
                   </div>
                 </div>
 
-                {/* פס התפוסה מחלק את הקיבולת לשלושה: מי ששילמה, מי ששריינה
-                    ולא שילמה, ומה שנשאר פנוי. בלי קיבולת אין מה לחלק. */}
+                {/* פס התפוסה מחלק את הקיבולת לשלושה: מי ששילם, מי ששריין
+                    ולא שילם, ומה שנשאר פנוי. בלי קיבולת אין מה לחלק. */}
                 {event.capacity ? (
                   <div className="mt-3.5 flex items-center gap-2.5">
                     <span className="cap-track">

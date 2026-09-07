@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { verifyTeamMember } from "@/lib/dal";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getCourseById } from "@/lib/courses";
-import { countByStage, listCourseAudience } from "@/lib/course-broadcast";
+import { countByStage, listCourseAudience, usableForCourse } from "@/lib/course-broadcast";
 import { formatDateTime } from "@/lib/dates";
 import { SendingPausedNotice } from "@/components/sending-paused-notice";
 import {
@@ -46,9 +46,10 @@ export default async function CourseBroadcastPage({
   const counts = countByStage(audience);
 
   // רק תבניות שמטא אישרה מוצעות: רק הן יכולות לצאת מחוץ לחלון 24 השעות,
-  // ושם נמצאות כמעט כל הנרשמות. אותו סינון בדיוק כמו בתזכורות האירועים.
+  // ושם נמצאים כמעט כל הנרשמים. אותו סינון בדיוק כמו בתזכורות האירועים.
   const templates = ((templatesRaw ?? []) as MessageTemplate[]).filter(
-    (t) => Boolean(t.meta_template_name) && t.meta_status === "APPROVED"
+    (t) =>
+      Boolean(t.meta_template_name) && t.meta_status === "APPROVED" && usableForCourse(t)
   );
 
   const migrationMissing = ["42P01", "PGRST205"].includes(historyError?.code ?? "");
@@ -62,9 +63,9 @@ export default async function CourseBroadcastPage({
             {course.name}
           </Link>
         </p>
-        <h1 className="page-title mt-1">שליחה לנרשמות</h1>
+        <h1 className="page-title mt-1">שליחה לנרשמים</h1>
         <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">
-          הודעה אחת, עכשיו, לקבוצה שתבחר מתוך הנרשמות לקורס. בניגוד למסע ולתזכורת
+          הודעה אחת, עכשיו, לקבוצה שתבחר מתוך הנרשמים לקורס. בניגוד למסע ולתזכורת
           — שרצים מעצמם לפי תנאי — כאן אתה מחליט מה יוצא ומתי, פעם אחת.
         </p>
       </div>

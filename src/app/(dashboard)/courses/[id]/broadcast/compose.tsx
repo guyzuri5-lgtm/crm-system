@@ -15,7 +15,7 @@ import {
 } from "../../actions";
 
 /**
- * טופס השליחה הידנית לנרשמות הקורס.
+ * טופס השליחה הידנית לנרשמי הקורס.
  *
  * ── למה הערוץ הוא המתג העליון ולא שדה בין השאר ──
  * הוא משנה את כל מה שמתחתיו: גם מי ניתנת להשגה (מייל דורש כתובת, וואטסאפ
@@ -34,8 +34,26 @@ export function BroadcastCompose({
   const [channel, setChannel] = useState<MessageChannel>("whatsapp");
   const [stages, setStages] = useState<CourseStage[]>([...COURSE_STAGES]);
 
+  // ── למה הכותרת והגוף מוחזקים ב-state ולא כשדות חופשיים ──
+  //
+  // React מאפס טופס לא-מבוקר אחרי שפעולת שרת חוזרת. כשהשליחה נכשלת — אין
+  // נמענים, השליחה מושהית — הטקסט שנכתב פשוט נמחק, והכותב מגלה שהוא איבד
+  // מה שניסח. זה קרה בפועל. ה-state שומר עליו כדי שיהיה אפשר לתקן את
+  // הבחירה ולשלוח שוב, בלי לכתוב הכול מחדש.
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+
   const [state, formAction, pending] = useActionState<CourseBroadcastResult | null, FormData>(
-    async (_prev, formData) => sendCourseBroadcastAction(null, formData),
+    async (_prev, formData) => {
+      const result = await sendCourseBroadcastAction(null, formData);
+      // מנוקה רק אחרי הצלחה. כישלון משאיר את הטקסט על המסך — זו כל הנקודה
+      // של ה-state שמעליו.
+      if (result.ok) {
+        setSubject("");
+        setBody("");
+      }
+      return result;
+    },
     null
   );
 
@@ -71,7 +89,7 @@ export function BroadcastCompose({
         </div>
       </fieldset>
 
-      {/* ── הנמענות ── */}
+      {/* ── הנמענים ── */}
       <fieldset className="flex flex-col gap-2">
         <legend className="field-label mb-2">למי</legend>
         <div className="flex flex-col gap-2">
@@ -99,14 +117,14 @@ export function BroadcastCompose({
                   <span className="font-medium">{COURSE_STAGE_LABELS[stage]}</span>
                 </span>
                 {/* המספר הוא של הערוץ הנבחר, ולכן הוא מתחלף עם המתג. זו לא
-                    קוסמטיקה: מי שאין לה מייל פשוט לא תקבל, ועדיף לראות את
+                    קוסמטיקה: מי שאין לו מייל פשוט לא יקבל, ועדיף לראות את
                     זה לפני הלחיצה מאשר בעמודת הכשלים אחריה. */}
                 {/* --muted ולא --subtle: על רקע ה-tint של שורה מסומנת נמדד
                     --subtle ב-4.2 בשני המצבים, כלומר מתחת ל-AA לטקסט קטן.
                     המספר הזה הוא המידע שמכריע את הלחיצה — הוא חייב להיקרא. */}
                 <span className="shrink-0 text-xs text-[var(--muted)]">
                   {count === 0
-                    ? "אף אחת"
+                    ? "אף אחד"
                     : `${count} ${channel === "email" ? "עם מייל" : "עם טלפון"}`}
                 </span>
               </label>
@@ -124,6 +142,8 @@ export function BroadcastCompose({
               name="subject"
               required
               maxLength={200}
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
               className="input"
               placeholder="עדכון חשוב לגבי הקורס"
             />
@@ -135,6 +155,8 @@ export function BroadcastCompose({
               required
               rows={9}
               maxLength={5000}
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
               className="input resize-y"
               placeholder={"היי {{first_name}},\n\nרציתי לעדכן אותך ש…"}
             />
@@ -143,7 +165,7 @@ export function BroadcastCompose({
             שורה ריקה פותחת פסקה חדשה. אפשר להשתמש ב-
             <span dir="ltr" className="font-medium">{" {{first_name}} "}</span>,
             <span dir="ltr" className="font-medium">{" {{full_name}} "}</span> —
-            הם יוחלפו בשם של כל נמענת. בתחתית המייל נוסף קישור הסרה, כמו בניוזלטר.
+            הם יוחלפו בשם של כל נמען. בתחתית המייל נוסף קישור הסרה, כמו בניוזלטר.
           </p>
         </div>
       ) : (
@@ -160,10 +182,10 @@ export function BroadcastCompose({
           {pending
             ? "יוצר…"
             : total === 0
-              ? "לא נבחרו נמענות"
+              ? "לא נבחרו נמענים"
               : total === 1
-                ? "שליחה לנמענת אחת"
-                : `שליחה ל-${total} נמענות`}
+                ? "שליחה לנמען אחד"
+                : `שליחה ל-${total} נמענים`}
         </button>
         <span className="text-xs text-[var(--subtle)]">
           ההודעות יוצאות ברקע, בקצב מבוקר — לא הכול בבת אחת.
@@ -177,7 +199,7 @@ export function BroadcastCompose({
       )}
       {state?.ok && (
         <p className="rounded-lg bg-[var(--ok-soft)] px-3 py-2 text-sm text-[var(--ok)]">
-          נוצרה שליחה ל-{state.count} נמענות. היא יוצאת ברקע — ההתקדמות מופיעה למטה
+          נוצרה שליחה ל-{state.count} נמענים. היא יוצאת ברקע — ההתקדמות מופיעה למטה
           ומתעדכנת עם רענון הדף.
         </p>
       )}
@@ -226,10 +248,10 @@ function WhatsAppContent({ templates }: { templates: MessageTemplate[] }) {
       <div className="rounded-xl bg-[var(--nav-amber-soft)] px-4 py-3 text-sm">
         <p className="font-semibold text-[var(--nav-amber)]">אין עדיין תבנית מאושרת</p>
         <p className="mt-1 leading-relaxed text-[var(--muted)]">
-          מטא מרשה לשלוח למי שלא כתבה לך ב-24 השעות האחרונות רק תבנית שהיא אישרה מראש —
-          ורוב הנרשמות לקורס נמצאות שם. צור תבנית במסך{" "}
+          מטא מרשה לשלוח למי שלא כתב לך ב-24 השעות האחרונות רק תבנית שהיא אישרה מראש —
+          ורוב הנרשמים לקורס נמצאים שם. צור תבנית במסך{" "}
           <span className="font-medium">תבניות הודעה</span>, שלח אותה לאישור, וכשהיא תאושר
-          היא תופיע כאן. עד אז אפשר לשלוח להן במייל.
+          היא תופיע כאן. עד אז אפשר לשלוח להם במייל.
         </p>
       </div>
     );
@@ -251,7 +273,7 @@ function WhatsAppContent({ templates }: { templates: MessageTemplate[] }) {
         </select>
       </label>
       <p className="text-xs leading-relaxed text-[var(--subtle)]">
-        בוואטסאפ בוחרים תבנית ולא כותבים טקסט, כי מטא שולחת למי שלא כתבה לך לאחרונה רק את
+        בוואטסאפ בוחרים תבנית ולא כותבים טקסט, כי מטא שולחת למי שלא כתב לך לאחרונה רק את
         הנוסח <span className="font-medium">שהיא אישרה</span>. שינוי הניסוח נעשה במסך
         תבניות ההודעה ועובר אישור מחדש.
       </p>

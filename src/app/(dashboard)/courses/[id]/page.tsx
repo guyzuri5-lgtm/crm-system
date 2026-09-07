@@ -76,11 +76,19 @@ export default async function CourseManagePage({ params }: PageProps<"/courses/[
           </Link>
           {/* שליחה ידנית וחד-פעמית — להבדיל מהמסע שלידה, שרץ מעצמו לפי תנאי */}
           <Link href={`/courses/${course.id}/broadcast`} className="btn-secondary">
-            שליחה לנרשמות
+            שליחה לנרשמים
           </Link>
-          {/* פותח יצירת מסע עם הטריגר "נרשמה כמתעניינת לקורס" מסומן מראש */}
-          <Link href={`/journeys?course=${course.id}`} className="btn-primary">
-            מסע למתעניינות
+          {/* שני מסעות ולא אחד, כי הם מדברים עם שני אנשים שונים: הראשון
+              משכנע מי שעוד לא קנה, השני מלווה את מי שכבר קנה. ‎entry=‎ הוא
+              מה שמבדיל ביניהם בטופס — שניהם מעבירים את אותו course_id. */}
+          <Link href={`/journeys?course=${course.id}`} className="btn-secondary">
+            מסע למתעניינים
+          </Link>
+          <Link
+            href={`/journeys?course=${course.id}&entry=course_paid`}
+            className="btn-primary"
+          >
+            ליווי אחרי הרכישה
           </Link>
         </div>
       </div>
@@ -106,7 +114,7 @@ export default async function CourseManagePage({ params }: PageProps<"/courses/[
       {/* משפך ולא שלושה כרטיסים: ההפרש בין השלבים הוא מה שמעניין בקורס,
           לא הערך המוחלט של כל אחד מהם. */}
       <section className="card flex flex-col gap-2.5">
-        <FunnelRow label="מתעניינות" value={counts.interested} max={counts.interested} tone="var(--nav-amber)" />
+        <FunnelRow label="מתעניינים" value={counts.interested} max={counts.interested} tone="var(--nav-amber)" />
         <FunnelRow
           label="התחילו"
           value={counts.registered + counts.paid}
@@ -118,7 +126,7 @@ export default async function CourseManagePage({ params }: PageProps<"/courses/[
 
       {registrations.length === 0 ? (
         <div className="card text-center text-sm text-[var(--muted)]">
-          עוד אף אחת לא נרשמה. הקישור לדף ההרשמה וקוד ההטמעה מוכנים להעתקה למעלה.
+          עוד אף אחד לא נרשם. הקישור לדף ההרשמה וקוד ההטמעה מוכנים להעתקה למעלה.
         </div>
       ) : (
         <div className="table-wrap">
@@ -130,7 +138,7 @@ export default async function CourseManagePage({ params }: PageProps<"/courses/[
                 <th className="th">אימייל</th>
                 <th className="th">שלב</th>
                 <th className="th">מקור</th>
-                <th className="th">נרשמה</th>
+                <th className="th">נרשם</th>
                 <th className="th"></th>
               </tr>
             </thead>
@@ -173,7 +181,7 @@ export default async function CourseManagePage({ params }: PageProps<"/courses/[
                         <input type="hidden" name="registration_id" value={row.id} />
                         <input type="hidden" name="course_id" value={course.id} />
                         <button type="submit" className="btn-ghost whitespace-nowrap">
-                          סימון כשילמה
+                          סימון כשילם
                         </button>
                       </ActionForm>
                     )}

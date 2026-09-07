@@ -24,7 +24,7 @@ alter type interaction_type add value if not exists 'course_registered';
 -- ── טריגר כניסה חדש למסע ───────────────────────────────────────────────────
 --
 -- journeys.entry_type הוא text עם check constraint (0016, הורחב ב-0025).
--- בלי ההרחבה כאן, מסע עם הטריגר "נרשמה כמתעניינת לקורס" נדחה על ידי המסד —
+-- בלי ההרחבה כאן, מסע עם הטריגר "נרשם כמתעניין לקורס" נדחה על ידי המסד —
 -- כלומר הכפתור בממשק פשוט לא היה עובד.
 alter table journeys drop constraint if exists journeys_entry_type_check;
 

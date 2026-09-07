@@ -69,11 +69,15 @@ export const JOURNEY_ENTRY_TYPES = [
   "quiz",
   "booking",
   "course_lead",
-  // נוסף ב-0024: מתעניינת באירוע מסוים — הראשון שדורש *איזה* אירוע, ולכן
+  // נוסף ב-0024: מתעניין באירוע מסוים — הראשון שדורש *איזה* אירוע, ולכן
   // entry_value נושא event_id בדיוק כפי שהוא נושא status לכניסה לפי סטטוס.
   "event_interest",
   // נוסף ב-0028: אותו דפוס בדיוק, עם course_id ב-entry_value.
   "course_interest",
+  // נוסף ב-0034: הראשון שמדבר עם מי שכבר *קנה*, ולכן גם היחיד שמסונן
+  // בזמן (ראו enrollForJourney). "שילם" הוא מצב קבוע, ובלי הסינון כל
+  // לקוח מאי־פעם היה נכנס למסע ליווי ברגע שהוא נדלק.
+  "course_paid",
 ] as const;
 export type JourneyEntryType = (typeof JOURNEY_ENTRY_TYPES)[number];
 
@@ -83,8 +87,9 @@ export const JOURNEY_ENTRY_LABELS: Record<JourneyEntryType, string> = {
   booking: "קבע פגישה",
   // "בדף הקורס" הישן — דף הנחיתה של קורס המדיטציה, שקדם לטבלת courses.
   course_lead: "השאיר פרטים בדף הקורס (הישן)",
-  event_interest: "נרשמה כמתעניינת לאירוע",
-  course_interest: "נרשמה כמתעניינת לקורס",
+  event_interest: "נרשם כמתעניין לאירוע",
+  course_interest: "נרשם כמתעניין לקורס",
+  course_paid: "רכש את הקורס",
 };
 
 /**
@@ -169,17 +174,17 @@ export type NewsletterAudience = { type: "all" } | { type: "statuses"; statuses:
 /**
  * שלב ההרשמה לאירוע, לפי סדר עולה של מחויבות.
  *
- * "מתעניינת" אינה כישלון של "שילמה" אלא שלב לפניה: היא מי שהאירוע מלא עבורה,
- * או שהשאירה פרטים ולא סיימה תשלום. השלב עולה בדרגה בלבד (ראו stageRank
- * ב-src/lib/events.ts) — הרשמה חוזרת לא מורידה מי ששילמה בחזרה למתעניינת.
+ * "מתעניין" אינו כישלון של "שילם" אלא שלב לפניו: הוא מי שהאירוע מלא עבורו,
+ * או שהשאיר פרטים ולא סיים תשלום. השלב עולה בדרגה בלבד (ראו stageRank
+ * ב-src/lib/events.ts) — הרשמה חוזרת לא מורידה מי ששילם בחזרה למתעניין.
  */
 export const EVENT_STAGES = ["interested", "registered", "paid"] as const;
 export type EventStage = (typeof EVENT_STAGES)[number];
 
 export const EVENT_STAGE_LABELS: Record<EventStage, string> = {
-  interested: "מתעניינת",
-  registered: "נרשמה, לא שילמה",
-  paid: "שילמה",
+  interested: "מתעניין",
+  registered: "נרשם, לא שילם",
+  paid: "שילם",
 };
 
 /** מאיפה הגיעה ההרשמה. meta שמור לקליטת לידים ממטא (שלב 6). */
@@ -195,8 +200,8 @@ export const EVENT_SOURCE_LABELS: Record<EventSource, string> = {
 /**
  * ממה נספר מועד התזכורת (0027).
  *
- * event מתזמן את כל הנרשמות לאותו רגע ("יום לפני"); purchase נותן לכל אחת
- * שעון משלה, שמתחיל ברגע שהיא שילמה ("שעה אחרי הרכישה").
+ * event מתזמן את כל הנרשמים לאותו רגע ("יום לפני"); purchase נותן לכל אחד
+ * שעון משלו, שמתחיל ברגע שהוא שילם ("שעה אחרי הרכישה").
  */
 export const EVENT_REMINDER_BASES = ["event", "purchase"] as const;
 export type EventReminderBasis = (typeof EVENT_REMINDER_BASES)[number];
@@ -239,14 +244,14 @@ export const COURSE_STAGES = EVENT_STAGES;
 export type CourseStage = EventStage;
 
 /**
- * התוויות, לעומת זאת, כן משלהן — כי הן מדברות על מוצר אחר. באירוע "נרשמה"
- * היא מי שתפסה מקום באולם; בקורס אין מקומות, ומה שקרה בפועל הוא שהיא התחילה
- * את התהליך ולא סיימה תשלום.
+ * התוויות, לעומת זאת, כן משלהן — כי הן מדברות על מוצר אחר. באירוע "נרשם"
+ * הוא מי שתפס מקום באולם; בקורס אין מקומות, ומה שקרה בפועל הוא שהוא התחיל
+ * את התהליך ולא סיים תשלום.
  */
 export const COURSE_STAGE_LABELS: Record<CourseStage, string> = {
-  interested: "מתעניינת",
-  registered: "התחילה, לא שילמה",
-  paid: "לקוחה בקורס",
+  interested: "מתעניין",
+  registered: "התחיל, לא שילם",
+  paid: "לקוח בקורס",
 };
 
 /**
@@ -272,7 +277,7 @@ export type CourseCustomField = EventCustomField;
 // ── נוספו ב-0032_course_broadcasts.sql ──────────────────────────────────
 
 /**
- * מצב השליחה הידנית לנרשמות.
+ * מצב השליחה הידנית לנרשמים.
  *
  * שניים ולא ארבעה כמו בניוזלטר: אין כאן טיוטה (הכפתור שולח) ואין תזמון
  * לעתיד (מי שרוצה לתזמן הודעה שיוצאת מעצמה מתאר בכך מסע, לא שליחה אחת).
@@ -947,7 +952,7 @@ export type Database = {
       /**
        * המנעול שמונע תזכורת כפולה. הקרון רץ כל רבע שעה וחלון התזכורת פתוח
        * לכמה ריצות — המפתח הראשי (registration_id, reminder_id) הוא מה
-       * שמבטיח שהנרשמת תקבל כל תזכורת פעם אחת.
+       * שמבטיח שהנרשם יקבל כל תזכורת פעם אחת.
        */
       event_reminders_sent: {
         Row: {
@@ -1027,7 +1032,7 @@ export type Database = {
 
       // ── נוספו ב-0032_course_broadcasts.sql ─────────────────────────────
       /**
-       * שליחה חד-פעמית וידנית לנרשמות קורס.
+       * שליחה חד-פעמית וידנית לנרשמי קורס.
        *
        * subject+body או template_id, אף פעם לא שניהם: מטא שולחת מחוץ לחלון
        * 24 השעות רק תבנית שאישרה, ולכן טקסט חופשי לוואטסאפ אינו אפשרי. את
@@ -1060,7 +1065,7 @@ export type Database = {
         Relationships: Relationships;
       };
       /**
-       * תמונת מצב של הנמענות ברגע הלחיצה — אותו תפקיד בדיוק כמו
+       * תמונת מצב של הנמענים ברגע הלחיצה — אותו תפקיד בדיוק כמו
        * newsletter_recipients, ומאותה סיבה: היא מה שהופך שליחה שנפרסת על
        * כמה ריצות קרון לבטוחה ולניתנת להמשכה.
        */

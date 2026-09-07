@@ -33,7 +33,7 @@ export interface ActiveRowData {
   statusName: string | null;
   /** מחלקות Tailwind מוכנות מהשרת — הן חייבות להיות מחרוזות שלמות בקוד. */
   statusClasses: string;
-  /** מה קרה — "שלח הודעה", "נרשמה לאירוע". */
+  /** מה קרה — "שלח הודעה", "נרשם לאירוע". */
   summaryLabel: string;
   /** סוג האינטראקציה, לבחירת האייקון שליד התווית. */
   activityType: InteractionType | null;

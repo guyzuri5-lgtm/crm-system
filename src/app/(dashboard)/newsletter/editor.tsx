@@ -213,7 +213,7 @@ export function NewsletterEditor({
             className="input"
             value={subject}
             onChange={(event) => setSubject(event.target.value)}
-            placeholder="מה כתוב בשורת הנושא בתיבה של הנמענת"
+            placeholder="מה כתוב בשורת הנושא בתיבה של הנמען"
           />
         </label>
       </section>

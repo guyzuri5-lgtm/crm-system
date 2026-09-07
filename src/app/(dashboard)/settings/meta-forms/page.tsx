@@ -24,7 +24,7 @@ import {
  * קיים רק בראש של מי שבנה את הקמפיין — כאן הוא נאמר בקול.
  *
  * למטה יושבת תיבת ה-webhooks: כל מה שנקלט ולא הצלחנו לעבד. זה לא לוג טכני
- * אלא רשימת משימות — כל שורה בה היא לקוחה או תשלום שממתינים.
+ * אלא רשימת משימות — כל שורה בה היא לקוח או תשלום שממתינים.
  */
 export default async function MetaFormsPage() {
   await verifyTeamMember();
@@ -53,7 +53,7 @@ export default async function MetaFormsPage() {
         <h1 className="page-title">טפסי מטא</h1>
         <p className="mt-1 text-sm text-[var(--muted)]">
           מטא שולחת בליד את מזהה הטופס בלבד, בלי לומר לאיזה מוצר הוא שייך. השיוך כאן הוא מה
-          שמכניס את הלקוחה לאירוע או לקורס הנכון. את המזהה מעתיקים מ־Meta Business Suite ←
+          שמכניס את הלקוח לאירוע או לקורס הנכון. את המזהה מעתיקים מ־Meta Business Suite ←
           כלי לידים ← הטופס.
         </p>
       </div>
@@ -225,7 +225,7 @@ function PendingInbox({ rows }: { rows: Awaited<ReturnType<typeof listPending>> 
           {rows.length} נקלטו ולא עובדו
         </h2>
         <p className="mt-1 text-sm text-[var(--muted)]">
-          כל שורה כאן היא לידה או תשלום שהגיעו למערכת ולא נקלטו עד הסוף. המידע נשמר במלואו —
+          כל שורה כאן היא ליד או תשלום שהגיעו למערכת ולא נקלטו עד הסוף. המידע נשמר במלואו —
           אחרי תיקון הסיבה אפשר לנסות שוב.
         </p>
       </div>

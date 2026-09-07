@@ -19,7 +19,7 @@ export default async function EditCoursePage({ params }: PageProps<"/courses/[id
         <div>
           <h1 className="page-title">עיצוב דף ההרשמה — {course.name}</h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            כל שינוי מופיע מיד בתצוגה שמימין. זה בדיוק מה שהלקוחה תראה.
+            כל שינוי מופיע מיד בתצוגה שמימין. זה בדיוק מה שהלקוח יראה.
           </p>
         </div>
         <Link href={`/courses/${course.id}`} className="btn-secondary">

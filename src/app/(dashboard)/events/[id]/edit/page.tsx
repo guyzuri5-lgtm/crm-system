@@ -25,7 +25,7 @@ export default async function EditEventPage({ params }: PageProps<"/events/[id]/
         <div>
           <h1 className="page-title">עיצוב דף ההרשמה — {event.name}</h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            כל שינוי מופיע מיד בתצוגה שמימין. זה בדיוק מה שהלקוחה תראה.
+            כל שינוי מופיע מיד בתצוגה שמימין. זה בדיוק מה שהלקוח יראה.
           </p>
         </div>
         <Link href={`/events/${event.id}`} className="btn-secondary">

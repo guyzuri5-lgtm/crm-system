@@ -20,7 +20,7 @@ import type { MetaFormTarget } from "./supabase/database.types";
  *      יגיע כ-full_name בטופס אחד וכ-"שם מלא" בטופס הבא. לכן החילוץ כאן
  *      סלחני ומסתמך גם על *צורת הערך* ולא רק על שמו.
  *   3. **מזהה הטופס לא אומר לאן הליד שייך.** השיוך לאירוע או לקורס נשמר
- *      בטבלת meta_form_targets, ובלעדיו אין לנו לאן לרשום את הלקוחה.
+ *      בטבלת meta_form_targets, ובלעדיו אין לנו לאן לרשום את הלקוח.
  */
 
 // גרסת Graph API. מיושרת לזו שבלקוח הוואטסאפ, ומאותה סיבה — היא מה שהקונסולה
@@ -314,7 +314,7 @@ export async function processLeadgenEvent(event: LeadgenEvent): Promise<void> {
   const { error: logError } = await db.from("interactions").insert({
     contact_id: contact.id,
     type: target.type === "event" ? "event_registered" : "course_registered",
-    content: `הגיעה כליד מטופס במטא — ${label}: ${target.name}`,
+    content: `הגיע כליד מטופס במטא — ${label}: ${target.name}`,
   });
   if (logError) console.error("[meta-leads] רישום ביומן איש הקשר נכשל:", logError.message);
 }
@@ -326,8 +326,8 @@ type Db = ReturnType<typeof supabaseAdmin>;
  * שונות והלקוח המוטפס של supabase לא מקבל שם טבלה כמשתנה. איחוד שלהן היה
  * דורש לוותר על הטיפוסים בדיוק במקום שבו הם שווים משהו.
  *
- * השלב הוא interested ועולה בדרגה בלבד: ליד ממטא שכבר נרשמה או שילמה בדף
- * ההרשמה לא תוחזר אחורה למתעניינת. המסע שמיועד למתעניינות נשען על השדה הזה.
+ * השלב הוא interested ועולה בדרגה בלבד: ליד ממטא שכבר נרשם או שילם בדף
+ * ההרשמה לא יוחזר אחורה למתעניין. המסע שמיועד למתעניינים נשען על השדה הזה.
  */
 async function upsertEventRegistration(
   db: Db,

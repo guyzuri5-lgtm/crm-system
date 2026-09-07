@@ -49,8 +49,8 @@ const SYSTEM_LABELS: Partial<Record<InteractionType, string>> = {
   booking_created: "קבע פגישה",
   booking_cancelled: "ביטל פגישה",
   course_lead: "השאיר פרטים לקורס",
-  event_registered: "נרשמה לאירוע",
-  course_registered: "נרשמה לקורס",
+  event_registered: "נרשם לאירוע",
+  course_registered: "נרשם לקורס",
 };
 
 const timeFmt = new Intl.DateTimeFormat("he-IL", {
