@@ -46,6 +46,38 @@ export const SCALE_LABELS = ["בכלל לא נכון", "קצת נכון", "נכ�
 // לקבל גם רשומה חלקית, ולא להישבר אם יתווסף מרכז בעתיד.
 const scoreMap = z.partialRecord(z.enum(CHAKRA_KEYS), z.number().int().min(0).max(100));
 
+// ── שאלות הפרופיל ────────────────────────────────────────────────────────
+// שש שאלות שהשאלון אוסף ללקוח בלבד. הן אינן מנוקדות, אינן שייכות לאף מרכז
+// ואינן משפיעות על התוצאה — ולכן הן מגיעות בשדה נפרד ולא בתוך answers.
+// המפרט המלא: "שאלון צ׳אקרות/PROFILE-CONTRACT.md".
+//
+// הכול optional ו-nullable בכוונה: בחוץ יש טאבים פתוחים עם גרסה קודמת של
+// הדף ששולחת רשומות בלי profile כלל, והן חייבות להמשיך להיקלט.
+//
+// z.string ולא z.enum: נוסח של אפשרות בשאלון הוא תוכן שיווקי שישתנה, ו-enum
+// היה הופך כל שינוי מילה לדחיית קליטה שקטה בשרת. הערכים הצפויים מתועדים
+// בחוזה; הוולידציה כאן שומרת על הטיפוס והאורך בלבד.
+const profileSchema = z
+  .object({
+    gender: z.string().max(40).nullable().optional(),
+    age: z.string().max(40).nullable().optional(),
+    romantic: z.number().int().min(1).max(10).nullable().optional(),
+    career: z.number().int().min(1).max(10).nullable().optional(),
+    energy: z.number().int().min(1).max(10).nullable().optional(),
+    pain: z.array(z.string().max(60)).max(10).optional().default([]),
+  })
+  .optional();
+
+export type QuizProfile = NonNullable<z.infer<typeof profileSchema>>;
+
+/** האם יש בפרופיל תשובה כלשהי? ריק = לא נענה, ואסור שידרוס מה שכבר נשמר. */
+export function hasProfileData(profile: unknown): boolean {
+  if (!profile || typeof profile !== "object") return false;
+  return Object.values(profile as Record<string, unknown>).some((v) =>
+    Array.isArray(v) ? v.length > 0 : v !== null && v !== undefined && v !== ""
+  );
+}
+
 export const quizPayloadSchema = z.object({
   type: z.enum(["anonymous", "lead", "booking_click"]).default("anonymous"),
   sessionId: z.string().min(6).max(100),
@@ -81,6 +113,7 @@ export const quizPayloadSchema = z.object({
   source: z.string().max(500).optional().default(""),
   utm: z.record(z.string().max(40), z.string().max(300)).optional().default({}),
   bookingFrom: z.string().max(60).optional(),
+  profile: profileSchema,
 })
   // רשומה חייבת לשאת תוצאה אמיתית. בלי זה כל POST עם sessionId תקין
   // היה יוצר שורה ריקה — רעש שקל לייצר נגד endpoint ציבורי.

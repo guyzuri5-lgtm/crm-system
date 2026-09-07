@@ -11,6 +11,7 @@ import {
   flowStatus,
   SCALE_LABELS,
   type ChakraKey,
+  type QuizProfile,
 } from "@/lib/quiz";
 import { QUIZ_KIND_LABELS, type QuizKind } from "@/lib/supabase/database.types";
 
@@ -27,6 +28,25 @@ export interface QuizSubmissionView {
   submitted_at: string;
   booking_clicked_at: string | null;
   utm: Record<string, string>;
+  profile?: QuizProfile | null;
+}
+
+/** שורות הפרופיל שיש בהן תשובה, בסדר קבוע ובתוויות של הממשק */
+function profileRows(profile: QuizProfile) {
+  const scale = (v: number | null | undefined) => (v == null ? null : `${v} מתוך 10`);
+  const rows: { label: string; value: string }[] = [];
+  const add = (label: string, value: string | null | undefined) => {
+    if (value) rows.push({ label, value });
+  };
+  add("מין", profile.gender);
+  add("גיל", profile.age);
+  add("שביעות רצון מהזוגיות", scale(profile.romantic));
+  add("תקיעות בקריירה", scale(profile.career));
+  add("רמת אנרגיה", scale(profile.energy));
+  if (profile.pain && profile.pain.length > 0) {
+    rows.push({ label: "כאבים כרוניים", value: profile.pain.join(", ") });
+  }
+  return rows;
 }
 
 function isChakraKey(v: string | null): v is ChakraKey {
@@ -167,6 +187,21 @@ export function QuizResult({ submission }: { submission: QuizSubmissionView }) {
           </div>
         </div>
       </div>
+
+      {/* שאלות הפרופיל. לא חלק מהתוצאה — הקשר לשיחה, ולכן פתוח ולא מקופל. */}
+      {s.profile && profileRows(s.profile).length > 0 && (
+        <div className="flex flex-col gap-1">
+          <span className="text-[11px] text-[var(--subtle)]">מהשאלון, לשיחה</span>
+          <div className="flex flex-wrap gap-1">
+            {profileRows(s.profile).map((r) => (
+              <span key={r.label} className="rounded border px-2 py-1 text-xs">
+                <span className="text-[var(--subtle)]">{r.label}: </span>
+                <b>{r.value}</b>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {s.answers.length > 0 && (
         <details className="text-sm">

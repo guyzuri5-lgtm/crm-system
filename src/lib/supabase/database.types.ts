@@ -418,6 +418,14 @@ export type Database = {
           spread: number | null;
           source: string | null;
           utm: Record<string, string>;
+          profile: {
+            gender?: string | null;
+            age?: string | null;
+            romantic?: number | null;
+            career?: number | null;
+            energy?: number | null;
+            pain?: string[];
+          };
           booking_clicked_at: string | null;
           results_email_sent_at: string | null;
           submitted_at: string;

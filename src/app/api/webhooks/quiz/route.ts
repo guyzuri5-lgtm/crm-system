@@ -7,6 +7,7 @@ import {
   quizPayloadSchema,
   usableEmail,
   normalizePhone,
+  hasProfileData,
   CHAKRAS,
   type QuizPayload,
 } from "@/lib/quiz";
@@ -110,6 +111,7 @@ export async function POST(request: NextRequest) {
     spread: p.spread ?? null,
     source: p.source || null,
     utm: p.utm ?? {},
+    profile: p.profile ?? {},
     booking_clicked_at:
       p.type === "booking_click"
         ? (existing?.booking_clicked_at ?? new Date().toISOString())
@@ -121,6 +123,11 @@ export async function POST(request: NextRequest) {
     for (const k of ["full_name", "email", "phone"] as const) {
       if (!row[k]) delete (row as Record<string, unknown>)[k];
     }
+    // אותו כלל לפרופיל. שלוש רשומות מתמזגות לשורה אחת, ורשומה מאוחרת
+    // עלולה להגיע בלי תשובות פרופיל — גרסה ישנה של הדף שלא שולחת אותן
+    // בכלל, או booking_click שנשלחת מטאב אחר. פרופיל ריק לא מוחק פרופיל
+    // מלא שכבר נשמר.
+    if (!hasProfileData(row.profile)) delete (row as Record<string, unknown>).profile;
   }
 
   const { data: submission, error: writeErr } = existing
