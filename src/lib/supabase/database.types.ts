@@ -274,26 +274,6 @@ export const COURSE_SOURCE_LABELS: Record<CourseSource, string> = {
 /** שדה מותאם בטופס הקורס. מבנה זהה לאירוע — ראו EventCustomField. */
 export type CourseCustomField = EventCustomField;
 
-// ── נוספו ב-0032_course_broadcasts.sql ──────────────────────────────────
-
-/**
- * מצב השליחה הידנית לנרשמים.
- *
- * שניים ולא ארבעה כמו בניוזלטר: אין כאן טיוטה (הכפתור שולח) ואין תזמון
- * לעתיד (מי שרוצה לתזמן הודעה שיוצאת מעצמה מתאר בכך מסע, לא שליחה אחת).
- * מרגע הלחיצה יש רק "באוויר" ו"הסתיים".
- */
-export const COURSE_BROADCAST_STATUSES = ["sending", "sent"] as const;
-export type CourseBroadcastStatus = (typeof COURSE_BROADCAST_STATUSES)[number];
-
-export const COURSE_BROADCAST_STATUS_LABELS: Record<CourseBroadcastStatus, string> = {
-  sending: "יוצאת עכשיו",
-  sent: "הסתיימה",
-};
-
-export const COURSE_BROADCAST_RECIPIENT_STATUSES = ["pending", "sent", "failed"] as const;
-export type CourseBroadcastRecipientStatus =
-  (typeof COURSE_BROADCAST_RECIPIENT_STATUSES)[number];
 
 // ── נוספו ב-0030_webhook_inbox.sql ──────────────────────────────────────
 
@@ -1030,63 +1010,6 @@ export type Database = {
         Relationships: Relationships;
       };
 
-      // ── נוספו ב-0032_course_broadcasts.sql ─────────────────────────────
-      /**
-       * שליחה חד-פעמית וידנית לנרשמי קורס.
-       *
-       * subject+body או template_id, אף פעם לא שניהם: מטא שולחת מחוץ לחלון
-       * 24 השעות רק תבנית שאישרה, ולכן טקסט חופשי לוואטסאפ אינו אפשרי. את
-       * ההפרדה אוכף גם check constraint במסד.
-       */
-      course_broadcasts: {
-        Row: {
-          id: string;
-          course_id: string;
-          channel: MessageChannel;
-          /** מייל בלבד */
-          subject: string | null;
-          /** מייל בלבד — טקסט רגיל, לא HTML. העטיפה נבנית בשליחה. */
-          body: string | null;
-          /** וואטסאפ בלבד — התבנית המאושרת שיוצאת בפועל */
-          template_id: string | null;
-          /** אילו שלבים נכללו ברגע הלחיצה, לתצוגה בהיסטוריה */
-          stages: CourseStage[];
-          status: CourseBroadcastStatus;
-          sent_count: number;
-          failed_count: number;
-          created_at: string;
-        };
-        Insert: Partial<Database["public"]["Tables"]["course_broadcasts"]["Row"]> & {
-          course_id: string;
-          channel: MessageChannel;
-          stages: CourseStage[];
-        };
-        Update: Partial<Database["public"]["Tables"]["course_broadcasts"]["Row"]>;
-        Relationships: Relationships;
-      };
-      /**
-       * תמונת מצב של הנמענים ברגע הלחיצה — אותו תפקיד בדיוק כמו
-       * newsletter_recipients, ומאותה סיבה: היא מה שהופך שליחה שנפרסת על
-       * כמה ריצות קרון לבטוחה ולניתנת להמשכה.
-       */
-      course_broadcast_recipients: {
-        Row: {
-          broadcast_id: string;
-          contact_id: string;
-          status: CourseBroadcastRecipientStatus;
-          error: string | null;
-          sent_at: string | null;
-        };
-        Insert: Partial<
-          Database["public"]["Tables"]["course_broadcast_recipients"]["Row"]
-        > & {
-          broadcast_id: string;
-          contact_id: string;
-        };
-        Update: Partial<Database["public"]["Tables"]["course_broadcast_recipients"]["Row"]>;
-        Relationships: Relationships;
-      };
-
       // ── נוספו ב-0030_webhook_inbox.sql ─────────────────────────────────
       /**
        * כל payload שנקלט מ-webhook חיצוני, גולמי, לפני שניסינו להבין אותו.
@@ -1194,9 +1117,6 @@ export type EventReminder = Database["public"]["Tables"]["event_reminders"]["Row
 /** CourseRow ולא Course, באותו נימוק כמו EventRow — עקביות, לא התנגשות. */
 export type CourseRow = Database["public"]["Tables"]["courses"]["Row"];
 export type CourseRegistration = Database["public"]["Tables"]["course_registrations"]["Row"];
-export type CourseBroadcast = Database["public"]["Tables"]["course_broadcasts"]["Row"];
-export type CourseBroadcastRecipient =
-  Database["public"]["Tables"]["course_broadcast_recipients"]["Row"];
 
 /** נוספו ב-0030_webhook_inbox.sql — התשתית לקליטת מטא וגרואו. */
 export type WebhookInboxRow = Database["public"]["Tables"]["webhook_inbox"]["Row"];

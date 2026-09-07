@@ -74,10 +74,6 @@ export default async function CourseManagePage({ params }: PageProps<"/courses/[
           <Link href={`/courses/${course.id}/edit`} className="btn-secondary">
             עיצוב הדף
           </Link>
-          {/* שליחה ידנית וחד-פעמית — להבדיל מהמסע שלידה, שרץ מעצמו לפי תנאי */}
-          <Link href={`/courses/${course.id}/broadcast`} className="btn-secondary">
-            שליחה לנרשמים
-          </Link>
           {/* שני מסעות ולא אחד, כי הם מדברים עם שני אנשים שונים: הראשון
               משכנע מי שעוד לא קנה, השני מלווה את מי שכבר קנה. ‎entry=‎ הוא
               מה שמבדיל ביניהם בטופס — שניהם מעבירים את אותו course_id. */}

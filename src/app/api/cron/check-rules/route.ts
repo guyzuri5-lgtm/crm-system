@@ -3,7 +3,6 @@ import { runTimeSinceNoReplyRules } from "@/lib/automation-engine";
 import { runJourneys } from "@/lib/journey-engine";
 import { runNewsletters } from "@/lib/newsletter-engine";
 import { runEventReminders } from "@/lib/event-engine";
-import { runCourseBroadcasts } from "@/lib/course-broadcast";
 
 // GET /api/cron/check-rules — per spec section 4, runs once a day (see vercel.json).
 // Vercel Cron always calls with GET, and automatically sends
@@ -96,12 +95,6 @@ export async function GET(request: NextRequest) {
 
   const newsletters = await runNewsletters(new Date(), Math.floor(remaining() * 0.75));
 
-  // השליחה לנרשמי קורס נכנסת לפני תזכורות האירועים ועם נתח משלה, ולא אחריהן
-  // עם השארית: היא נמדדת בעשרות נמענים כמו הניוזלטר, בעוד שתזכורת היא בדרך
-  // כלל אפס שליחות בחלון. סדר הפוך היה נותן את רוב הזמן למי שלרוב לא צריך
-  // אותו — וזו בדיוק הטעות שחנקה את הניוזלטר עד 5.9.2026.
-  const courseBroadcasts = await runCourseBroadcasts(new Date(), Math.floor(remaining() * 0.6));
-
   const eventReminders = await runEventReminders(new Date(), remaining());
 
   return NextResponse.json({
@@ -127,14 +120,6 @@ export async function GET(request: NextRequest) {
       remaining: newsletters.remaining,
       stopped: newsletters.stopped,
       errors: newsletters.errors,
-    },
-    course_broadcasts: {
-      sent: courseBroadcasts.sent,
-      failed: courseBroadcasts.failed,
-      completed: courseBroadcasts.completed,
-      remaining: courseBroadcasts.remaining,
-      stopped: courseBroadcasts.stopped,
-      errors: courseBroadcasts.errors,
     },
     event_reminders: {
       sent: eventReminders.sent,
