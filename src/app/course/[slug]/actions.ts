@@ -1,11 +1,13 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getActiveCourseBySlug } from "@/lib/courses";
 import { findOrCreateContact, strongerStage } from "@/lib/registration";
+import { kickoffJourneysForContact } from "@/lib/journey-engine";
 import type { RegisterState } from "@/components/registration-page";
 
 /**
@@ -115,6 +117,13 @@ async function register(
   }
 
   revalidatePath(`/courses/${course.id}`);
+
+  // ── המסע יוצא לדרך עכשיו, לא ברבע השעה הבא ──
+  //
+  // after() ולא await: הנרשם כבר מקבל את תשובת הטופס, והשליחה קורית אחריה.
+  // בלי זה, מגנט לידים שמבטיח מתנה תמורת מייל היה משאיר אותו ממתין עד
+  // שהקרון יגיע — והמתנה שמאחרת היא ההבטחה היחידה שהוא בדק.
+  after(() => kickoffJourneysForContact(contact.id));
 
   return { growLink: course.grow_link, slug: course.slug };
 }

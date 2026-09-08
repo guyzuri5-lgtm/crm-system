@@ -108,6 +108,8 @@ export async function GET(request: NextRequest) {
       completed: journeys.completed,
       dead_ended: journeys.deadEnded,
       stopped_replied: journeys.stoppedReplied,
+      stopped_purchased: journeys.stoppedPurchased,
+      stopped_unsubscribed: journeys.stoppedUnsubscribed,
       failed: journeys.failed.length,
       skipped: journeys.skipped,
       stopped: journeys.stopped,

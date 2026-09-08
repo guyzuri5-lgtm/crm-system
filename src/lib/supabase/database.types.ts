@@ -87,8 +87,11 @@ export const JOURNEY_ENTRY_LABELS: Record<JourneyEntryType, string> = {
   booking: "קבע פגישה",
   // "בדף הקורס" הישן — דף הנחיתה של קורס המדיטציה, שקדם לטבלת courses.
   course_lead: "השאיר פרטים בדף הקורס (הישן)",
-  event_interest: "נרשם כמתעניין לאירוע",
-  course_interest: "נרשם כמתעניין לקורס",
+  // מ-0039 הכניסה היא כל מי שנרשם ועדיין לא שילם, ולא רק מי שסומן "מתעניין".
+  // הטופס הציבורי כותב 'registered', ולכן הניסוח הישן החריג בשקט את כל מי
+  // שנרשם מדף נחיתה — כלומר את הקהל שהמסע הזה נועד לו.
+  event_interest: "נרשם לאירוע ועדיין לא שילם",
+  course_interest: "נרשם לקורס ועדיין לא שילם",
   course_paid: "רכש את הקורס",
 };
 
@@ -125,6 +128,10 @@ export const JOURNEY_STATES = [
   "completed",
   "stopped_replied",
   "stopped_manual",
+  // שניהם נוספו ב-0039. שניהם "נעצר", ובכל זאת נפרדים: האחד הוא הצלחת המסע
+  // והשני סופו, ומסך התוצאות היה משקר אילו קרא לשניהם "סיים".
+  "stopped_purchased",
+  "stopped_unsubscribed",
 ] as const;
 export type JourneyState = (typeof JOURNEY_STATES)[number];
 
@@ -133,6 +140,8 @@ export const JOURNEY_STATE_LABELS: Record<JourneyState, string> = {
   completed: "סיים",
   stopped_replied: "נעצר — ענה",
   stopped_manual: "נעצר ידנית",
+  stopped_purchased: "נעצר — קנה",
+  stopped_unsubscribed: "נעצר — הסיר את עצמו",
 };
 
 // ── נוספו ב-0022_newsletters.sql ────────────────────────────────────────
@@ -359,7 +368,7 @@ export type Database = {
           /** wa_id של Meta — המספר בפורמט בינלאומי בלי +, "972501234567" */
           whatsapp_id: string | null;
           last_incoming_message_at: string | null;
-          /** נוסף ב-0022 — ביקש/ה לצאת מרשימת התפוצה. חוסם ניוזלטרים בלבד. */
+          /** נוסף ב-0022 — ביקש לצאת מרשימת התפוצה. חוסם ניוזלטרים ומסעות שיווקיים (0039). */
           unsubscribed_at: string | null;
           notes: string | null;
           /** ערכי השדות המותאמים, ממופתחים לפי contact_fields.key */
@@ -718,6 +727,23 @@ export type Database = {
           /** נוסף ב-0017 — תגובה של הלקוח מסיימת את המסע כולו */
           stop_on_reply: boolean;
           /**
+           * נוסף ב-0039 — דיוור שיווקי ולא הודעה תפעולית.
+           *
+           * קובע שלושה דברים בשליחת מייל: ערוץ broadcast ב-Postmark, קישור
+           * הסרה בגוף ההודעה ובכותרת, וכיבוד unsubscribed_at. false = תפעולי,
+           * וזו ברירת המחדל כדי שמסע "הנה הקישור לקורס" לא ייחסם ממי
+           * שהסיר את עצמו מהניוזלטר.
+           */
+          marketing: boolean;
+          /**
+           * נוסף ב-0039 — איזו רכישה מסיימת את המסע. ריק = אף אחת.
+           *
+           * אותה צורה כמו entry_value ומאותה סיבה. המוצר כאן אינו בהכרח זה
+           * שבכניסה: מגנט לידים הוא קורס אחד, והרכישה שהוא מוביל אליה היא
+           * קורס אחר.
+           */
+          stop_on_purchase: { course_id?: string; event_id?: string } | null;
+          /**
            * נוספו ב-0031 — מיקום צומת הכניסה על הלוח. null = לא נגרר מעולם,
            * והלוח מציב אותו בעוגן הימני. לשלבים עצמם יש pos_x/pos_y משלהם
            * ב-journey_steps; לכניסה אין שורה שם, כי היא צומת וירטואלי.
@@ -795,7 +821,7 @@ export type Database = {
           next_run_at: string;
           /** נוסף ב-0018 — הפגישה שאליה הצירוף קשור, במסע מעוגן-פגישה */
           booking_id: string | null;
-          /** active | completed | stopped_replied | stopped_manual */
+          /** ר' JOURNEY_STATES — הורחב ב-0039 בשני מצבי עצירה */
           state: JourneyState;
           enrolled_at: string;
           updated_at: string;

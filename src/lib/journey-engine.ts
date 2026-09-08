@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "./supabase/admin";
 import { sendMessageToContact } from "./send";
 import { renderTemplate } from "./templates";
+import { unsubscribeUrl } from "./newsletter";
 import { SendBudget } from "./whatsapp-throttle";
 import type {
   Contact,
@@ -34,6 +35,10 @@ export interface Journey {
   entry_value: { status?: string; event_id?: string; course_id?: string } | null;
   active: boolean;
   stop_on_reply: boolean;
+  /** נוסף ב-0039 — ר' ההערה על העמודה ב-database.types.ts */
+  marketing: boolean;
+  /** נוסף ב-0039 — איזו רכישה מסיימת את המסע. ריק = אף אחת. */
+  stop_on_purchase: { course_id?: string; event_id?: string } | null;
   /** נקרא רק ב-course_paid, שהצירוף אליו מסונן מרגע יצירת המסע והלאה. */
   created_at: string;
 }
@@ -81,6 +86,10 @@ export interface JourneyRunSummary {
   deadEnded: number;
   failed: { contactId: string; error: string }[];
   stoppedReplied: number;
+  /** נעצרו כי קנו את מה שהמסע מכר (0039) */
+  stoppedPurchased: number;
+  /** נעצרו כי ביקשו להסיר את עצמם מהדיוור (0039) */
+  stoppedUnsubscribed: number;
   completed: number;
   /** למה הריצה נעצרה לפני שסיימה את כל מי שהיה מועמד */
   stopped: "paused" | "daily_limit" | "time_budget" | null;
@@ -98,6 +107,14 @@ const MINUTE_MS = 60 * 1000;
  * שמסע לגיטימי לא ייתקל בו, ונמוך מספיק שטעות תיעצר תוך יום-יומיים.
  */
 const MAX_STEPS_PER_ENROLLMENT = 50;
+
+/**
+ * לכמה זמן ריצה "תופסת" צירוף לפני שהיא שולחת.
+ *
+ * רבע שעה — בדיוק מחזור קרון אחד. ארוך מספיק ששתי ריצות מקבילות לא ידרכו
+ * זו על זו, וקצר מספיק ששליחה שנכשלה תנוסה שוב בהזדמנות הבאה ולא מחר.
+ */
+const CLAIM_MS = 15 * 60 * 1000;
 
 /**
  * ההיסט של אזור זמן ברגע נתון, במילישניות.
@@ -220,6 +237,46 @@ const ENTRY_INTERACTION: Record<
   course_lead: "course_lead",
 };
 
+// ── מי כבר קנה ─────────────────────────────────────────────────────────────
+
+/**
+ * אנשי הקשר ששילמו על המוצר שהמסע מנסה למכור, או null אם אין מוצר כזה.
+ *
+ * null ולא קבוצה ריקה, וההבדל אינו סגנוני: קבוצה ריקה פירושה "נבדק, ואיש
+ * לא קנה", ואילו null פירושו "אין מה לבדוק" — מסע בלי stop_on_purchase לא
+ * אמור לעבור בכלל את הסינון.
+ *
+ * המוצר שנבדק כאן אינו בהכרח זה שבכניסה. זו כל הנקודה: במשפך של מגנט לידים
+ * הכניסה היא המתנה החינמית, והרכישה שעוצרת היא הקורס שמנסים למכור.
+ */
+async function purchasedContactIds(
+  stop: Journey["stop_on_purchase"]
+): Promise<Set<string> | null> {
+  const db = supabaseAdmin();
+
+  if (stop?.course_id) {
+    const { data, error } = await db
+      .from("course_registrations")
+      .select("contact_id")
+      .eq("course_id", stop.course_id)
+      .eq("stage", "paid");
+    if (error) throw error;
+    return new Set((data ?? []).map((r) => r.contact_id));
+  }
+
+  if (stop?.event_id) {
+    const { data, error } = await db
+      .from("event_registrations")
+      .select("contact_id")
+      .eq("event_id", stop.event_id)
+      .eq("stage", "paid");
+    if (error) throw error;
+    return new Set((data ?? []).map((r) => r.contact_id));
+  }
+
+  return null;
+}
+
 // ── צירוף ──────────────────────────────────────────────────────────────────
 
 /**
@@ -232,7 +289,11 @@ const ENTRY_INTERACTION: Record<
  * ה-unique על (journey_id, contact_id) הוא מה שהופך את זה לבטוח: ריצה חוזרת
  * לא תצרף שוב את מי שכבר צורף, גם אם הוא סיים את המסע מזמן.
  */
-async function enrollForJourney(journey: Journey, now: Date): Promise<number> {
+async function enrollForJourney(
+  journey: Journey,
+  now: Date,
+  onlyContactId?: string
+): Promise<number> {
   const db = supabaseAdmin();
 
   let candidateIds: string[] = [];
@@ -247,25 +308,28 @@ async function enrollForJourney(journey: Journey, now: Date): Promise<number> {
     // המועמדות נשלפות מ-event_registrations ולא מהיומן: stage הוא המצב
     // *הנוכחי*, ולכן מי שבינתיים שילם כבר לא ייכנס למסע שנועד לשכנע אותו
     // להירשם. שורת היומן, לעומת זאת, נשארת נכונה לנצח ולא הייתה יודעת זאת.
+    //
+    // שני שלבים ולא אחד (0039): הטופס הציבורי כותב 'registered', ורק ליד
+    // ממטא נכתב 'interested'. עם 'interested' בלבד, מסע למי שנרשם מדף נחיתה
+    // לא צירף איש — הקהל שלו כולו יושב בשלב השני.
     const eventId = journey.entry_value?.event_id;
     if (!eventId) return 0;
     const { data, error } = await db
       .from("event_registrations")
       .select("contact_id")
       .eq("event_id", eventId)
-      .eq("stage", "interested");
+      .in("stage", ["interested", "registered"]);
     if (error) throw error;
     candidateIds = Array.from(new Set((data ?? []).map((r) => r.contact_id)));
   } else if (journey.entry_type === "course_interest") {
-    // אותו נימוק בדיוק כמו באירוע שמעליו: השלב הוא המצב הנוכחי, ולכן מי
-    // שכבר רכש את הקורס לא ייכנס למסע שנועד לשכנע אותו לרכוש.
+    // אותו נימוק בדיוק כמו באירוע שמעליו, כולל הרחבת השלבים ב-0039.
     const courseId = journey.entry_value?.course_id;
     if (!courseId) return 0;
     const { data, error } = await db
       .from("course_registrations")
       .select("contact_id")
       .eq("course_id", courseId)
-      .eq("stage", "interested");
+      .in("stage", ["interested", "registered"]);
     if (error) throw error;
     candidateIds = Array.from(new Set((data ?? []).map((r) => r.contact_id)));
   } else if (journey.entry_type === "course_paid") {
@@ -298,6 +362,19 @@ async function enrollForJourney(journey: Journey, now: Date): Promise<number> {
       .not("contact_id", "is", null);
     if (error) throw error;
     candidateIds = Array.from(new Set((data ?? []).map((i) => i.contact_id).filter(Boolean)));
+  }
+
+  // הצירוף המיידי (ר' kickoffJourneysForContact) עובד על אדם אחד שזה עתה
+  // נרשם. הסינון כאן ולא בתוך חמשת הענפים שלמעלה, כי הוא נכון לכולם באותה
+  // מידה — ובענף אחד ממנו הוא היה נשכח.
+  if (onlyContactId) candidateIds = candidateIds.filter((id) => id === onlyContactId);
+
+  // מי שכבר קנה אינו נכנס מלכתחילה. אותה בדיקה עוצרת גם מי שקונה באמצע
+  // (ר' הלולאה למטה), וכאן היא מכסה את המקרה השני: מסע שנדלק היום ומצרף
+  // אליו את כל מי שנרשם בעבר, ובהם מי שכבר שילם.
+  if (candidateIds.length) {
+    const purchased = await purchasedContactIds(journey.stop_on_purchase);
+    if (purchased) candidateIds = candidateIds.filter((id) => !purchased.has(id));
   }
 
   // דרישת הפגישה נגזרת מהשלבים ולא מהמסע: אם יש בו ולו כרטיסייה אחת שמעוגנת
@@ -402,7 +479,14 @@ async function enrollForJourney(journey: Journey, now: Date): Promise<number> {
  */
 export async function runJourneys(
   now: Date = new Date(),
-  budgetMs = 45_000
+  budgetMs = 45_000,
+  /**
+   * צמצום הריצה לאיש קשר אחד.
+   *
+   * זה מה שמאפשר לשלוח מיד עם ההרשמה במקום להמתין לקרון הבא: אותה ריצה
+   * בדיוק, על מועמד אחד. אין כאן מסלול שני שאפשר לשכוח לתקן.
+   */
+  opts: { contactId?: string } = {}
 ): Promise<JourneyRunSummary> {
   const db = supabaseAdmin();
   const budget = await SendBudget.open(budgetMs, now);
@@ -413,6 +497,8 @@ export async function runJourneys(
     deadEnded: 0,
     failed: [],
     stoppedReplied: 0,
+    stoppedPurchased: 0,
+    stoppedUnsubscribed: 0,
     completed: 0,
     stopped: null,
     skipped: 0,
@@ -428,7 +514,7 @@ export async function runJourneys(
   if (!journeys.length) return summary;
 
   for (const journey of journeys) {
-    summary.enrolled += await enrollForJourney(journey, now);
+    summary.enrolled += await enrollForJourney(journey, now, opts.contactId);
   }
 
   const journeyIds = journeys.map((j) => j.id);
@@ -461,18 +547,30 @@ export async function runJourneys(
     edgesFrom.set(key, list);
   }
 
-  const { data: dueRaw, error: dueError } = await db
+  const dueQuery = db
     .from("journey_enrollments")
     .select("*")
     .eq("state", "active")
     .in("journey_id", journeyIds)
-    .lte("next_run_at", now.toISOString())
+    .lte("next_run_at", now.toISOString());
+
+  const { data: dueRaw, error: dueError } = await (
+    opts.contactId ? dueQuery.eq("contact_id", opts.contactId) : dueQuery
+  )
     .order("next_run_at", { ascending: true })
     .limit(500);
   if (dueError) throw dueError;
 
   const due = (dueRaw ?? []) as unknown as Enrollment[];
   if (!due.length) return summary;
+
+  // מי כבר קנה, לכל מסע שיש לו עצירה ברכישה. פעם אחת לריצה ולא פעם לכל
+  // צירוף: מסע עם מאה אנשים באמצע היה שולח מאה שאילתות זהות.
+  const purchasedByJourney = new Map<string, Set<string>>();
+  for (const journey of journeys) {
+    const purchased = await purchasedContactIds(journey.stop_on_purchase);
+    if (purchased) purchasedByJourney.set(journey.id, purchased);
+  }
 
   const contactIds = Array.from(new Set(due.map((e) => e.contact_id)));
   const bookingIds = Array.from(
@@ -528,6 +626,34 @@ export async function runJourneys(
       contact.last_incoming_message_at &&
         contact.last_incoming_message_at > enrollment.enrolled_at
     );
+
+    // ── קנה ──
+    //
+    // העצירה החשובה במשפך מכירה: מי שקנה אחרי המייל השני לא אמור לקבל את
+    // השלישי, שמנסה למכור לו את מה שכבר בידיו. הבדיקה כאן ולא בצירוף, כי
+    // הרכישה קורית *באמצע* — וזה בדיוק ההבדל מכל שאר תנאי הכניסה.
+    if (purchasedByJourney.get(enrollment.journey_id)?.has(contact.id)) {
+      await db
+        .from("journey_enrollments")
+        .update({ state: "stopped_purchased" })
+        .eq("id", enrollment.id);
+      summary.stoppedPurchased += 1;
+      continue;
+    }
+
+    // ── ביקש להסיר את עצמו ──
+    //
+    // רק במסע שיווקי ורק בערוץ המייל, ושתי ההגבלות נחוצות: unsubscribed_at
+    // נאמר על דיוור, ולכן אינו אמור לחסום את "הנה הקישור לקורס ששילמת עליו"
+    // ואינו אומר דבר על וואטסאפ.
+    if (journey?.marketing && step.channel === "email" && contact.unsubscribed_at) {
+      await db
+        .from("journey_enrollments")
+        .update({ state: "stopped_unsubscribed" })
+        .eq("id", enrollment.id);
+      summary.stoppedUnsubscribed += 1;
+      continue;
+    }
 
     // עצירה ברמת המסע: הלקוח ענה, ואין טעם להמשיך לרדוף אחריו. זה המקרה
     // השכיח, ולכן ברירת המחדל — אבל מכבים אותו כשרוצים מסלול נפרד לעונים.
@@ -596,6 +722,25 @@ export async function runJourneys(
       continue;
     }
 
+    // ── תפיסת הצירוף לפני השליחה ──
+    //
+    // מאז שההרשמה מפעילה ריצה מיידית (0039), שתי ריצות יכולות להיפגש על אותו
+    // אדם: זו שההרשמה הדליקה וזו של הקרון. שתיהן ראו אותו "מוכן לשליחה",
+    // ושתיהן היו שולחות — כלומר אותו מייל פעמיים.
+    //
+    // העדכון המותנה הוא הנעילה: מי ש-next_run_at עוד לא זז אצלו זוכה, והשנייה
+    // מקבלת אפס שורות ומדלגת. אם השליחה תיכשל אחרי התפיסה, הצירוף יחזור
+    // לתור בעוד רבע שעה כרגיל — הדחייה כאן קצרה בכוונה.
+    const { data: claimed, error: claimError } = await db
+      .from("journey_enrollments")
+      .update({ next_run_at: new Date(now.getTime() + CLAIM_MS).toISOString() })
+      .eq("id", enrollment.id)
+      .eq("next_run_at", enrollment.next_run_at)
+      .eq("state", "active")
+      .select("id");
+    if (claimError) throw claimError;
+    if (!claimed?.length) continue;
+
     const result = await sendMessageToContact({
       contact,
       channel: step.channel,
@@ -607,6 +752,12 @@ export async function runJourneys(
       template,
       booking,
       logPrefix: `[${template.name}]`,
+      // דיוור שיווקי מקבל ערוץ נפרד ב-Postmark וקישור הסרה; הודעה תפעולית
+      // לא מקבלת אף אחד מהם. ההבחנה היא ברמת המסע ולא ברמת ההודעה, כי היא
+      // תכונה של מה שהמסע *עושה* — למכור או ליידע.
+      ...(journey?.marketing && step.channel === "email"
+        ? { stream: "broadcast" as const, listUnsubscribeUrl: unsubscribeUrl(contact.id) }
+        : {}),
     });
 
     if (!result.ok) {
@@ -672,4 +823,34 @@ function conditionHolds(condition: JourneyCondition, replied: boolean): boolean 
   if (condition === "if_replied") return replied;
   if (condition === "if_not_replied") return !replied;
   return true;
+}
+
+// ── שליחה מיידית עם ההרשמה ─────────────────────────────────────────────────
+
+/**
+ * מצרף אדם אחד למסעות שמתאימים לו ומריץ מיד את השלב הראשון שהגיע זמנו.
+ *
+ * נקרא מתוך `after()` בטופסי ההרשמה הציבוריים, כלומר אחרי שהתשובה כבר יצאה
+ * לדפדפן — ההרשמה עצמה אינה ממתינה לשליחה, ותקלה בשליחה אינה מכשילה אותה.
+ *
+ * הסיבה שהוא קיים: מגנט לידים שמבטיח מתנה תמורת מייל חייב למסור אותה
+ * *עכשיו*. הקרון רץ כל רבע שעה, ורבע שעה של המתנה למתנה שהובטחה היא בדיוק
+ * הרגע שבו אדם מחליט שהדבר הזה לא עובד.
+ *
+ * לא זורק: הקורא כבר סיים, ואין למי לדווח מלבד הלוג.
+ */
+export async function kickoffJourneysForContact(contactId: string): Promise<void> {
+  try {
+    // תקציב זמן קצר: זו אינה ריצת הקרון אלא הודעה אחת לאדם אחד, והפונקציה
+    // רצה בתוך חלון הזמן של בקשת ההרשמה.
+    const summary = await runJourneys(new Date(), 10_000, { contactId });
+    if (summary.sent) {
+      console.log(`[journeys] שליחה מיידית עם ההרשמה: ${summary.sent} הודעות ל-${contactId}`);
+    }
+    for (const failure of summary.failed) {
+      console.error("[journeys] שליחה מיידית נכשלה:", failure.error);
+    }
+  } catch (err) {
+    console.error("[journeys] הצירוף המיידי נכשל:", err instanceof Error ? err.message : err);
+  }
 }

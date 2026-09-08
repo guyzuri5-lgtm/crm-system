@@ -19,7 +19,9 @@ import {
   deleteJourneyAction,
   stopEnrollmentAction,
   toggleStopOnReplyAction,
+  saveJourneySalesAction,
 } from "../actions";
+import { ActionForm } from "@/components/action-form";
 import { JourneyCanvas } from "./canvas";
 import { JourneySimulation } from "./simulation";
 
@@ -49,6 +51,8 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
     { data: otherRaw },
     { data: statesRaw },
     stepStatsRes,
+    { data: coursesRaw },
+    { data: eventsRaw },
   ] = await Promise.all([
     db.from("journeys").select("*").eq("id", id).maybeSingle(),
     db.from("journey_steps").select("*").eq("journey_id", id).order("created_at"),
@@ -71,6 +75,9 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
     db.from("journey_enrollments").select("state").eq("journey_id", id),
     // התצוגה נוצרת ב-0038. עד שהמיגרציה תרוץ המסך ממשיך לעבוד בלעדיה.
     db.from("journey_step_stats").select("*").eq("journey_id", id),
+    // המוצרים, לבחירת "עצור כשרוכש". באותו גל ולא בשאילתה נוספת אחריו.
+    db.from("courses").select("id, name").order("name"),
+    db.from("events").select("id, name").order("starts_at", { ascending: false }),
   ]);
 
   if (error) throw error;
@@ -133,7 +140,15 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
     active: states.filter((s) => s.state === "active").length,
     completed: states.filter((s) => s.state === "completed").length,
     replied: states.filter((s) => s.state === "stopped_replied").length,
+    // הצלחת המשפך, ולא עוד מצב עצירה: במסע מכירה זה המספר היחיד שנחשב.
+    purchased: states.filter((s) => s.state === "stopped_purchased").length,
+    // מחיר הסדרה. לא כרטיס מדד אלא שורה בתחתית — הוא נבדק פעם בכמה זמן,
+    // לא בכל פתיחה של המסך, וכרטיס שישי היה דוחק את החמישה שכן.
+    unsubscribed: states.filter((s) => s.state === "stopped_unsubscribed").length,
   };
+  const tracksPurchase = Boolean(
+    journey.stop_on_purchase?.course_id || journey.stop_on_purchase?.event_id
+  );
   const replyRate = outcome.total ? Math.round((outcome.replied / outcome.total) * 100) : 0;
 
   // כמה יצא וכמה נקרא בכל כרטיסייה. שגיאה = המיגרציה עוד לא רצה, והמקטע
@@ -182,6 +197,72 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
           אמיתיות. שינוי שלבים עכשיו משפיע גם על מי שכבר באמצע.
         </div>
       )}
+
+      {/* ── מכירה ודיוור ───────────────────────────────────────────────── */}
+      <section className="card">
+        <h2 className="mb-1 font-medium">מכירה ודיוור</h2>
+        <p className="mb-4 text-sm text-[var(--muted)]">
+          שתי ההגדרות שהופכות מסע לסדרת מכירה: איך המיילים נשלחים, ומתי המסע מפסיק
+          לרדוף אחרי מי שכבר קנה.
+        </p>
+
+        <ActionForm action={saveJourneySalesAction} className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <input type="hidden" name="id" value={journey.id} />
+
+          <label className="flex items-start gap-2.5 self-start text-sm font-medium">
+            <input
+              type="checkbox"
+              name="marketing"
+              defaultChecked={journey.marketing}
+              className="mt-0.5 size-4 accent-[var(--primary)]"
+            />
+            <span>
+              זהו דיוור שיווקי
+              <span className="mt-0.5 block text-xs font-normal text-[var(--subtle)]">
+                מיילים מהמסע ייצאו בערוץ הדיוור של Postmark, יישאו קישור הסרה, ולא
+                יישלחו למי שביקש לצאת מרשימת התפוצה. השאירו כבוי במסע תפעולי — קישור
+                לקורס שנרכש, תזכורת לפגישה.
+              </span>
+            </span>
+          </label>
+
+          <label className="field-label self-start">
+            עצור את המסע כשהוא רוכש
+            <select
+              name="stop_on_purchase"
+              defaultValue={
+                journey.stop_on_purchase?.course_id
+                  ? `course:${journey.stop_on_purchase.course_id}`
+                  : journey.stop_on_purchase?.event_id
+                    ? `event:${journey.stop_on_purchase.event_id}`
+                    : ""
+              }
+              className="input"
+            >
+              <option value="">לא לעצור — המסע רץ עד סופו</option>
+              {(coursesRaw ?? []).map((c) => (
+                <option key={c.id} value={`course:${c.id}`}>
+                  קורס: {c.name}
+                </option>
+              ))}
+              {(eventsRaw ?? []).map((e) => (
+                <option key={e.id} value={`event:${e.id}`}>
+                  אירוע: {e.name}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs font-normal text-[var(--subtle)]">
+              מי שישלם על המוצר הזה יפסיק לקבל את שאר ההודעות. זה לא חייב להיות המוצר
+              שדרכו נכנסים למסע — במשפך של מתנה חינם, הכניסה היא המתנה והרכישה היא
+              הקורס.
+            </span>
+          </label>
+
+          <button type="submit" className="btn-primary self-start md:col-span-2">
+            שמירה
+          </button>
+        </ActionForm>
+      </section>
 
       {/* ── הקנבס ─────────────────────────────────────────────────────── */}
       <section className="card">
@@ -266,7 +347,11 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
           <div className="card-h">
             <h2>תוצאות המסע</h2>
           </div>
-          <div className="card-b grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4">
+          <div
+            className={`card-b grid grid-cols-2 gap-x-4 gap-y-5 ${
+              tracksPurchase ? "sm:grid-cols-5" : "sm:grid-cols-4"
+            }`}
+          >
             <div>
               <p className="metric-value">{outcome.total}</p>
               <p className="mt-1 text-[11.5px] font-semibold text-[var(--muted)]">נכנסו למסע</p>
@@ -285,6 +370,19 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
                 ענו ונעצרו · {replyRate}%
               </p>
             </div>
+            {tracksPurchase && (
+              <div>
+                <p
+                  className="metric-value"
+                  style={{ "--metric-color": "var(--primary)" } as CSSProperties}
+                >
+                  {outcome.purchased}
+                </p>
+                <p className="mt-1 text-[11.5px] font-semibold text-[var(--muted)]">
+                  קנו ונעצרו
+                </p>
+              </div>
+            )}
             <div>
               <p className="metric-value">{outcome.completed}</p>
               <p className="mt-1 text-[11.5px] font-semibold text-[var(--muted)]">
@@ -293,9 +391,13 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
             </div>
           </div>
           <div className="card-f">
+            {tracksPurchase && <>&rdquo;קנו ונעצרו&ldquo; הוא מה שהמשפך הזה נמדד בו. </>}
             &rdquo;ענו ונעצרו&ldquo; הוא מה שהמסע נכתב בשבילו. &rdquo;עברו את כולו&ldquo; פירושו
             ששלחנו את כל מה שהיה לנו ולא קיבלנו תשובה — אם זה הרוב, התוכן הוא מה שצריך
             לשנות, לא התזמון.
+            {outcome.unsubscribed > 0 && (
+              <> {outcome.unsubscribed} ביקשו להסיר את עצמם מהדיוור ולכן ירדו מהמסע.</>
+            )}
           </div>
         </section>
       )}

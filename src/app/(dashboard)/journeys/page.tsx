@@ -71,17 +71,36 @@ export default async function JourneysPage({ searchParams }: PageProps<"/journey
   // מסע שכל הנכנסים אליו הגיעו לסופו אינו הצלחה — הוא אומר ששלחנו הכל ואיש
   // לא הגיב. stopped_replied הוא המדד ההפוך: הלקוח ענה באמצע, המסע נעצר
   // מרצון, ובדיוק בשביל זה הוא נכתב. לכן הוא מוצג ולא נבלע ב"סיימו".
+  //
+  // ── ולמה גם "קנו" (0039) ──
+  // באותו היגיון בדיוק, צעד אחד קדימה: במסע שמוכר, תגובה היא אמצעי והרכישה
+  // היא המטרה. stopped_purchased נכתב רק כשיש למסע "עצור כשרוכש", ולכן הוא
+  // אפס בכל מסע שאינו משפך מכירה — ומוצג רק כשיש בו משהו.
+  //
+  // ── ולמה גם "הסירו" ──
+  // המחיר של הסדרה, ודווקא כאן ולא רק בדף המסע: מסע שמייצר הסרות הוא בדיוק
+  // המסע שלא תיכנס אליו לבדוק, כי מבחוץ הוא נראה כמו כל השאר.
   const countById = new Map<
     string,
-    { active: number; total: number; completed: number; replied: number }
+    {
+      active: number;
+      total: number;
+      completed: number;
+      replied: number;
+      purchased: number;
+      unsubscribed: number;
+    }
   >();
   for (const row of enrollmentsRaw ?? []) {
     const counts =
-      countById.get(row.journey_id) ?? { active: 0, total: 0, completed: 0, replied: 0 };
+      countById.get(row.journey_id) ??
+      { active: 0, total: 0, completed: 0, replied: 0, purchased: 0, unsubscribed: 0 };
     counts.total += 1;
     if (row.state === "active") counts.active += 1;
     if (row.state === "completed") counts.completed += 1;
     if (row.state === "stopped_replied") counts.replied += 1;
+    if (row.state === "stopped_purchased") counts.purchased += 1;
+    if (row.state === "stopped_unsubscribed") counts.unsubscribed += 1;
     countById.set(row.journey_id, counts);
   }
 
@@ -222,6 +241,16 @@ export default async function JourneysPage({ searchParams }: PageProps<"/journey
                     <span>{c.completed} סיימו</span>
                   </>
                 )}
+                {/* לפני "ענו", כי במסע שמוכר זו התוצאה ולא התגובה. */}
+                {!!c?.purchased && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <b className="font-semibold text-[var(--primary)]">
+                      {c.purchased} קנו ונעצרו
+                      {c.total ? ` (${Math.round((c.purchased / c.total) * 100)}%)` : ""}
+                    </b>
+                  </>
+                )}
                 {/* מוצג רק כשיש מה להראות: "0 ענו" על מסע שרק נוצר נראה
                     ככישלון במקום כהיעדר נתונים. */}
                 {!!c?.replied && (
@@ -231,6 +260,16 @@ export default async function JourneysPage({ searchParams }: PageProps<"/journey
                       {c.replied} ענו ונעצרו
                       {c.total ? ` (${Math.round((c.replied / c.total) * 100)}%)` : ""}
                     </b>
+                  </>
+                )}
+                {/* אחרון, ולא מודגש: זה מספר שמסתכלים בו כשהוא גדול, ולא
+                    מדד שהמסע נמדד בו. */}
+                {!!c?.unsubscribed && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span className="text-[var(--danger)]">
+                      {c.unsubscribed} הסירו את עצמם
+                    </span>
                   </>
                 )}
               </p>

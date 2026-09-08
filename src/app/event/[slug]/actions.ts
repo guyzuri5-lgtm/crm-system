@@ -1,11 +1,13 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { countStages, getActiveEventBySlug, spotsLeft } from "@/lib/events";
 import { findOrCreateContact, strongerStage } from "@/lib/registration";
+import { kickoffJourneysForContact } from "@/lib/journey-engine";
 import type { EventStage } from "@/lib/supabase/database.types";
 import type { RegisterState } from "@/components/registration-page";
 
@@ -122,6 +124,12 @@ async function register(
   }
 
   revalidatePath(`/events/${event.id}`);
+
+  // ── המסע יוצא לדרך עכשיו, לא ברבע השעה הבא ──
+  //
+  // after() ולא await: הנרשם כבר מקבל את תשובת הטופס, והשליחה קורית אחריה.
+  // ר' ההסבר המלא ב-kickoffJourneysForContact.
+  after(() => kickoffJourneysForContact(contact.id));
 
   // אירוע מלא לא נשלח לתשלום גם אם יש לינק גרואו — הוא ברשימת המתנה, לא נרשם.
   return { growLink: isFull ? null : event.grow_link, slug: event.slug };

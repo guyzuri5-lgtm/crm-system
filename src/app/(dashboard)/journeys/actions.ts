@@ -163,3 +163,48 @@ export async function toggleStopOnReplyAction(formData: FormData) {
 
   revalidatePath(`/journeys/${id}`);
 }
+
+/**
+ * שתי ההגדרות שהופכות מסע למשפך מכירה: האם הוא דיוור שיווקי, ואיזו רכישה
+ * מסיימת אותו.
+ *
+ * שדה אחד ולא שניים ל"עצור כשרוכש", כי המוצר הוא או קורס או אירוע ולעולם
+ * לא שניהם — "course:<id>" / "event:<id>" נשמר כאותה צורה שיש ל-entry_value.
+ */
+export async function saveJourneySalesAction(formData: FormData): Promise<ActionResult> {
+  return toResult(async () => {
+    await verifyTeamMember();
+
+    const id = String(formData.get("id") ?? "");
+    if (!id) throw new Error("חסר מזהה מסע");
+
+    const raw = String(formData.get("stop_on_purchase") ?? "").trim();
+    let stopOnPurchase: { course_id: string } | { event_id: string } | null = null;
+
+    if (raw) {
+      const [kind, targetId] = raw.split(":");
+      if (!targetId) throw new Error("בחירת המוצר אינה תקינה");
+      if (kind === "course") stopOnPurchase = { course_id: targetId };
+      else if (kind === "event") stopOnPurchase = { event_id: targetId };
+      else throw new Error("בחירת המוצר אינה תקינה");
+    }
+
+    const { error } = await supabaseAdmin()
+      .from("journeys")
+      .update({
+        marketing: formData.get("marketing") === "on",
+        stop_on_purchase: stopOnPurchase,
+      })
+      .eq("id", id);
+    // 42703 = העמודה אינה קיימת, כלומר מיגרציה 0039 טרם הורצה. ההודעה הגולמית
+    // של PostgREST נכונה טכנית ולא אומרת למי שקורא אותה מה לעשות.
+    if (error?.code === "42703") {
+      throw new Error(
+        "ההגדרות האלה דורשות את מיגרציה 0039 (supabase/migrations/0039_journey_marketing.sql), שעדיין לא הורצה במסד."
+      );
+    }
+    if (error) throw error;
+
+    revalidatePath(`/journeys/${id}`);
+  });
+}
