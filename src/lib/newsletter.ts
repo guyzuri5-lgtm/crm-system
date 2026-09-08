@@ -137,11 +137,62 @@ function escapedContact(contact: Contact): Contact {
 
 const CONTENT_WIDTH = 544;
 
+/** כתובת גלויה בטקסט. נעצרת ב-‎<‎ כדי לא לבלוע את התגית שאחריה. */
+const BARE_URL = /https?:\/\/[^\s<]+[^\s<.,:;"')\]]/g;
+
+/**
+ * הופכת כתובת שנכתבה כטקסט לקישור אמיתי.
+ *
+ * ── הבאג שזה מתקן ──
+ * בלוק הטקסט עובר כמו שהוא, בלי להפוך כתובות לקישורים. ג'ימייל מקשר אותן
+ * בעצמו, ולכן מי שבודק את עצמו בג'ימייל רואה מייל תקין — וב-Outlook וב-Mail
+ * של אפל אותה כתובת היא טקסט מת שאי אפשר ללחוץ עליו. זו תקלה שלא מתגלה
+ * בבדיקה, ובדיוק זו שתפיל מייל שכל תוכנו הוא לינק למתנה.
+ *
+ * ובנוסף: קישור שאינו ‎<a>‎ אינו נספר. Postmark מחליף עוגנים, ולכן כתובת
+ * גלויה בטקסט לא הייתה מופיעה לעולם בעמודת "נלחצו".
+ *
+ * ── למה זה לא regex אחד על כל המחרוזת ──
+ * הבלוק הוא HTML שגיא כותב, כלומר יכולות להיות בו תגיות משלו. החלפה עיוורת
+ * הייתה תופסת גם כתובת שכבר יושבת בתוך ‎href="…"‎ ומייצרת עוגן בתוך עוגן.
+ * לכן המחרוזת מפוצלת לתגיות ולטקסט שביניהן, ורק הטקסט מומר — ולא זה שכבר
+ * נמצא בתוך ‎<a>…</a>‎.
+ */
+export function linkifyHtml(html: string): string {
+  // הפיצול שומר את התגיות עצמן (קבוצה בסוגריים), כך שהן חוזרות כפי שהן.
+  const parts = html.split(/(<[^>]*>)/);
+  let insideAnchor = 0;
+
+  return parts
+    .map((part) => {
+      if (part.startsWith("<")) {
+        if (/^<a[\s>]/i.test(part)) insideAnchor += 1;
+        else if (/^<\/a\s*>/i.test(part)) insideAnchor = Math.max(0, insideAnchor - 1);
+        return part;
+      }
+      if (insideAnchor > 0) return part;
+
+      // dir=ltr + unicode-bidi:isolate — בלעדיהם הלוכסן שבסוף הכתובת "קופץ"
+      // לתחילתה כשהיא יושבת בפסקה בעברית. אותו תיקון כמו במיילים התפעוליים.
+      return part.replace(
+        BARE_URL,
+        (url) =>
+          `<a href="${url}" target="_blank" rel="noopener" dir="ltr" style="color:#0c6b62;unicode-bidi:isolate;">${url}</a>`
+      );
+    })
+    .join("");
+}
+
 function renderBlock(block: NewsletterBlock, contact: Contact): string {
   switch (block.type) {
     case "text": {
+      // הסדר קובע: המציינים נפתרים, ואז הכתובות הופכות לקישורים, ורק אז
+      // ירידות השורה. הפוך — ‎<br>‎ שנדבק לסוף כתובת היה נכנס לתוך ה-href.
       // שורה ריקה בעורך היא פסקה חדשה במייל. מי שכותב בתיבת טקסט מצפה לזה.
-      const html = renderTemplate(block.html, escapedContact(contact)).replaceAll("\n", "<br>");
+      const html = linkifyHtml(renderTemplate(block.html, escapedContact(contact))).replaceAll(
+        "\n",
+        "<br>"
+      );
       return `<div style="margin:0 0 20px;font-size:16px;line-height:1.75;color:#1c1a17;">${html}</div>`;
     }
     case "image":
