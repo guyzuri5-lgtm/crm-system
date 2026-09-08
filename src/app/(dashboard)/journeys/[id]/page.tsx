@@ -11,6 +11,7 @@ import {
   type JourneyStep,
   type JourneyEdge,
   type JourneyEnrollment,
+  type JourneyStepStats,
   type MessageTemplate,
 } from "@/lib/supabase/database.types";
 import {
@@ -46,6 +47,8 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
     edgesRes,
     { data: activeRaw },
     { data: otherRaw },
+    { data: statesRaw },
+    stepStatsRes,
   ] = await Promise.all([
     db.from("journeys").select("*").eq("id", id).maybeSingle(),
     db.from("journey_steps").select("*").eq("journey_id", id).order("created_at"),
@@ -63,6 +66,11 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
     // שאר המסעות, לצד המשפך. מסע נערך כמעט תמיד מתוך השוואה לאחרים — "כמה
     // אנשים במסע הזה לעומת ההוא" — ועד עכשיו זה דרש לחזור לרשימה ולחזור.
     db.from("journeys").select("id, name, active").neq("id", id).order("name"),
+    // כל המצבים, ולא רק חמישים השורות של הרשימה למטה: זו ההיסטוריה של המסע
+    // מהיום הראשון, ומ-50 שורות אי אפשר לגזור אחוז תגובה.
+    db.from("journey_enrollments").select("state").eq("journey_id", id),
+    // התצוגה נוצרת ב-0038. עד שהמיגרציה תרוץ המסך ממשיך לעבוד בלעדיה.
+    db.from("journey_step_stats").select("*").eq("journey_id", id),
   ]);
 
   if (error) throw error;
@@ -114,6 +122,26 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
   }
 
   const otherJourneys = (otherRaw ?? []) as { id: string; name: string; active: boolean }[];
+
+  // ── תוצאות המסע ──
+  // ארבעה מספרים שעונים על השאלה היחידה שמעניינת: האם זה עבד. "ענו ונעצרו"
+  // הוא ההצלחה — הלקוח הגיב באמצע והמסע נסוג מרצון. "סיימו" הוא דווקא
+  // הצד השני: שלחנו את כל מה שהיה לנו ואיש לא הגיב.
+  const states = (statesRaw ?? []) as { state: JourneyEnrollment["state"] }[];
+  const outcome = {
+    total: states.length,
+    active: states.filter((s) => s.state === "active").length,
+    completed: states.filter((s) => s.state === "completed").length,
+    replied: states.filter((s) => s.state === "stopped_replied").length,
+  };
+  const replyRate = outcome.total ? Math.round((outcome.replied / outcome.total) * 100) : 0;
+
+  // כמה יצא וכמה נקרא בכל כרטיסייה. שגיאה = המיגרציה עוד לא רצה, והמקטע
+  // פשוט לא מוצג — הוא תוספת מדידה, לא חלק מהפעלת המסע.
+  const stepStats = new Map(
+    ((stepStatsRes.data ?? []) as JourneyStepStats[]).map((row) => [row.step_id, row])
+  );
+  const anySent = [...stepStats.values()].some((s) => s.sent > 0);
 
   return (
     <div className="flex flex-col gap-8">
@@ -227,6 +255,51 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
         />
       </section>
 
+      {/* ── תוצאות ─────────────────────────────────────────────────────── */}
+      {/*
+        המשפך שמתחת מראה איפה אנשים עומדים *עכשיו*; זה מראה מה יצא מהמסע
+        מאז שנדלק. שני מספרים שונים לגמרי, ובלי השני אי אפשר לדעת אם המסע
+        עשה משהו או רק רץ.
+      */}
+      {outcome.total > 0 && (
+        <section className="card p-0">
+          <div className="card-h">
+            <h2>תוצאות המסע</h2>
+          </div>
+          <div className="card-b grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4">
+            <div>
+              <p className="metric-value">{outcome.total}</p>
+              <p className="mt-1 text-[11.5px] font-semibold text-[var(--muted)]">נכנסו למסע</p>
+            </div>
+            <div>
+              <p className="metric-value" style={{ "--metric-color": "var(--nav-purple)" } as CSSProperties}>
+                {outcome.active}
+              </p>
+              <p className="mt-1 text-[11.5px] font-semibold text-[var(--muted)]">במסע כרגע</p>
+            </div>
+            <div>
+              <p className="metric-value" style={{ "--metric-color": "var(--ok)" } as CSSProperties}>
+                {outcome.replied}
+              </p>
+              <p className="mt-1 text-[11.5px] font-semibold text-[var(--muted)]">
+                ענו ונעצרו · {replyRate}%
+              </p>
+            </div>
+            <div>
+              <p className="metric-value">{outcome.completed}</p>
+              <p className="mt-1 text-[11.5px] font-semibold text-[var(--muted)]">
+                עברו את כולו בלי לענות
+              </p>
+            </div>
+          </div>
+          <div className="card-f">
+            &rdquo;ענו ונעצרו&ldquo; הוא מה שהמסע נכתב בשבילו. &rdquo;עברו את כולו&ldquo; פירושו
+            ששלחנו את כל מה שהיה לנו ולא קיבלנו תשובה — אם זה הרוב, התוכן הוא מה שצריך
+            לשנות, לא התזמון.
+          </div>
+        </section>
+      )}
+
       {/* ── איפה כולם עומדים ───────────────────────────────────────────── */}
       {/*
         הלוח מראה את המבנה; המשפך מראה מה קורה בו בפועל. שני מסעות יכולים
@@ -262,6 +335,44 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
           </div>
           <div className="card-f">
             נספרים רק צירופים פעילים. מי שסיים, נעצר או ענה כבר אינו כאן.
+          </div>
+        </section>
+      )}
+
+      {/* ── מה נקרא ─────────────────────────────────────────────────────── */}
+      {/*
+        ההפרש בין "יצא" ל"נקרא" הוא מה שמפריד בין כרטיסייה שעובדת לכרטיסייה
+        שמדברת לקיר. וואטסאפ נמדד לפי הסימון הכחול — פעולה של אדם; מייל נמדד
+        לפי טעינת תמונה, ולכן הוא הערכה בלבד.
+      */}
+      {anySent && (
+        <section className="card flex flex-col p-0">
+          <div className="card-h">
+            <h2>מה נקרא</h2>
+          </div>
+          <div className="card-b flex flex-col gap-2.5">
+            {steps.map((step) => {
+              const s = stepStats.get(step.id);
+              if (!s?.sent) return null;
+              const pct = Math.round((s.opened / s.sent) * 100);
+              return (
+                <div key={step.id} className="fn-row">
+                  <span className="fn-label truncate">{stepLabelById.get(step.id)}</span>
+                  <span className="fn-track">
+                    <i style={{ width: `${pct}%`, backgroundColor: "var(--ok)" }} />
+                  </span>
+                  {/* המונה והמכנה ולא רק האחוז: "2 מתוך 3" ו-67% נראים אותו
+                      דבר על הפס, ורק הראשון אומר שאין כאן מספיק כדי להסיק. */}
+                  <span className="fn-value w-auto whitespace-nowrap text-[12.5px]">
+                    {s.opened}/{s.sent}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="card-f">
+            נמדד רק על הודעות שיצאו מאז שהמדידה נוספה. במייל זו הערכה — אפל פותחת
+            אוטומטית, וחוסמי תמונות אינם נספרים.
           </div>
         </section>
       )}

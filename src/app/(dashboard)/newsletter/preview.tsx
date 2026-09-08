@@ -42,7 +42,7 @@ export function NewsletterPreview({
 
       {empty ? (
         <p className="py-10 text-center text-sm text-[var(--subtle)]">
-          מה שתכתבי יופיע כאן, בדיוק כפי שהוא ייראה בתיבה.
+          מה שתכתוב יופיע כאן, בדיוק כפי שהוא ייראה בתיבה.
         </p>
       ) : (
         <div
@@ -116,6 +116,23 @@ function BlockView({ block }: { block: NewsletterBlock }) {
         </figure>
       ) : (
         <Placeholder label="סרטון — עוד אין מזהה" />
+      );
+
+    case "button":
+      return block.label || block.url ? (
+        // הצבע קבוע ולא אסימון עיצוב: זה מה שהמייל שולח בפועל (‎#0c6b62‎
+        // ב-renderBlock), והמייל אינו מכיר מצב כהה. תצוגה מקדימה שמתחלפת
+        // עם ערכת הנושא של המסך הייתה מציגה משהו שלא ייצא לאיש.
+        <div className="mb-4 text-center last:mb-0">
+          <span
+            className="inline-block rounded-[10px] px-8 py-3.5 text-[15px] font-semibold text-white"
+            style={{ backgroundColor: "#0c6b62" }}
+          >
+            {block.label || "כפתור בלי טקסט"}
+          </span>
+        </div>
+      ) : (
+        <Placeholder label="כפתור — עוד אין טקסט וכתובת" />
       );
   }
 }

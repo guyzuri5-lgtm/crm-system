@@ -165,7 +165,10 @@ export async function runNewsletters(
       if (result.ok) {
         await db
           .from("newsletter_recipients")
-          .update({ status: "sent", error: null })
+          // message_id נשמר כאן ולא רק ביומן: היומן יודע שיצא מייל בכותרת
+          // הזו, אבל לא לאיזה דיוור הוא שייך. בלי העמודה הזו אי אפשר לומר
+          // "בדיוור של אתמול נפתחו 34%".
+          .update({ status: "sent", error: null, message_id: result.messageId ?? null })
           .eq("id", row.id);
         summary.sent += 1;
       } else {

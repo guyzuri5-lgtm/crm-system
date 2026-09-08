@@ -10,6 +10,7 @@ import {
   type WhatsAppWebhook,
 } from "@/lib/whatsapp-cloud";
 import { phoneVariants } from "@/lib/contact-import";
+import { recordReceipts, type RecordReceiptInput } from "@/lib/receipts";
 
 /**
  * /api/webhooks/whatsapp — הודעות נכנסות ועדכוני מסירה מ-Meta.
@@ -67,12 +68,14 @@ export async function POST(request: NextRequest) {
       if (result) handled.push(result);
     }
 
+    const receiptsFailed = await recordReceipts(toReceipts(statuses));
     const unmatchedFailures = await recordFailures(statuses);
 
     return NextResponse.json({
       ok: true,
       messages: handled.length,
       statuses: statuses.length,
+      receiptsFailed,
       unmatchedFailures,
     });
   } catch (error) {
@@ -204,6 +207,45 @@ async function findOrCreateContact(message: ParsedInboundMessage) {
   }
 
   return created;
+}
+
+/**
+ * דיווחי מטא → שורות ב-message_receipts.
+ *
+ * ── למה זה נפרד מ-recordFailures, שרץ על אותם דיווחים ──
+ * שתי מטרות שונות לשני קוראים שונים. recordFailures מסמנת "[לא נמסר]" על
+ * גוף ההודעה ביומן, כדי שמי שקורא שיחה יראה שההודעה לא הגיעה — ובשביל זה
+ * היא **חייבת** למצוא את שורת היומן, ולכן היא מתעקשת ומנסה שוב. כאן המפתח
+ * הוא ה-wamid עצמו, ואין למה לחכות: הרישום מצליח גם כשההודעה עוד לא ביומן.
+ *
+ * "sent" מסונן — הוא חוזר על מה שכבר ידענו בשליחה עצמה.
+ */
+function toReceipts(statuses: ParsedStatus[]): RecordReceiptInput[] {
+  const receipts: RecordReceiptInput[] = [];
+
+  for (const status of statuses) {
+    // "נקרא" הוא opened ולא event משלו: אותה עמודה משרתת את הסימון הכחול
+    // בוואטסאפ ואת פתיחת המייל, וההבדל במשמעות שייך למסך שמציג אותם.
+    const event =
+      status.status === "delivered"
+        ? "delivered"
+        : status.status === "read"
+          ? "opened"
+          : status.status === "failed"
+            ? "failed"
+            : null;
+    if (!event) continue;
+
+    receipts.push({
+      externalId: status.messageId,
+      channel: "whatsapp",
+      event,
+      at: status.at,
+      error: status.error,
+    });
+  }
+
+  return receipts;
 }
 
 /**

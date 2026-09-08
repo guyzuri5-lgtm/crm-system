@@ -462,6 +462,7 @@ export interface WhatsAppChangeValue {
   statuses?: {
     id?: string;
     status?: string;
+    timestamp?: string;
     recipient_id?: string;
     errors?: { code?: number; title?: string; message?: string }[];
   }[];
@@ -603,13 +604,28 @@ export function parseInboundMessages(payload: WhatsAppWebhook): ParsedInboundMes
 
 export interface ParsedStatus {
   messageId: string;
+  /** sent · delivered · read · failed */
   status: string;
   error: string | null;
+  /**
+   * מתי זה קרה **לפי מטא**, ולא מתי ה-webhook הגיע אלינו.
+   *
+   * ההבדל אינו תיאורטי: webhook שנתקע בתור או שנשלח שוב אחרי תקלת רשת מגיע
+   * דקות אחרי המעשה, ורישום "עכשיו" היה הופך "נקרא מיד" ל"נקרא בעוד רבע
+   * שעה" — כלומר משבש בדיוק את המדד שבגללו נאסף.
+   */
+  at: string;
 }
 
 /**
- * עדכוני מסירה. מעניין אותנו בעיקר "failed" — הודעה שנשלחה בהצלחה מבחינת
- * ה-API אבל לא הגיעה ליעד, וזה נודע רק כאן.
+ * עדכוני מסירה: נמסר, נקרא, נכשל.
+ *
+ * "failed" הוא הקריטי — הודעה שנשלחה בהצלחה מבחינת ה-API אבל לא הגיעה ליעד,
+ * וזה נודע רק כאן. "delivered" ו-"read" נאספים ל-message_receipts (0037):
+ * הם הגיעו אלינו מאז ומעולם ופשוט נזרקו, והם המדד האמין ביותר שיש למערכת —
+ * אישור קריאה בוואטסאפ הוא פעולה של אדם, לא טעינת תמונה.
+ *
+ * "sent" אינו מעניין: זה מה שכבר ידענו כשקיבלנו את ה-wamid בתשובה לשליחה.
  */
 export function parseStatuses(payload: WhatsAppWebhook): ParsedStatus[] {
   const parsed: ParsedStatus[] = [];
@@ -621,6 +637,10 @@ export function parseStatuses(payload: WhatsAppWebhook): ParsedStatus[] {
         messageId: status.id,
         status: status.status,
         error: firstError ? (firstError.message ?? firstError.title ?? null) : null,
+        // שניות מאז ה-epoch כמחרוזת, כמו בהודעות הנכנסות.
+        at: status.timestamp
+          ? new Date(Number(status.timestamp) * 1000).toISOString()
+          : new Date().toISOString(),
       });
     }
   }

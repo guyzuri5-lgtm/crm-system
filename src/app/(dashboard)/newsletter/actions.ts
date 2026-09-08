@@ -24,6 +24,20 @@ const blockSchema = z.discriminatedUnion("type", [
     videoId: z.string().regex(/^[\w-]{11}$/),
     caption: z.string(),
   }),
+  z.object({
+    type: z.literal("button"),
+    label: z.string().trim().min(1, "לכפתור חסר טקסט"),
+    // http/https בלבד, ולא כל מה ש-URL תקני.
+    //
+    // z.url() מקבל גם javascript: — הוא בודק תחביר, לא כוונה. הכתובת הזו
+    // נשתלת כ-href גם במייל וגם בתצוגה המקדימה שרצה בדפדפן, ולכן סכימה
+    // סלחנית כאן היא נתיב הרצת קוד. הבדיקה במקום שבו הערך נכנס למערכת,
+    // ולא בכל מקום שבו הוא מוצג.
+    url: z
+      .string()
+      .url("כתובת הכפתור אינה תקינה")
+      .refine((value) => /^https?:\/\//i.test(value), "כתובת הכפתור חייבת להתחיל ב-http או https"),
+  }),
 ]);
 
 const draftSchema = z.object({

@@ -65,12 +65,23 @@ export default async function JourneysPage({ searchParams }: PageProps<"/journey
   const courses = (coursesRaw ?? []) as { id: string; name: string }[];
   const courseNameById = new Map(courses.map((c) => [c.id, c.name]));
 
-  // ספירה לכל מסע: כמה במסע עכשיו וכמה סיימו — מתוך השורות שכבר נשלפו.
-  const countById = new Map<string, { active: number; total: number }>();
+  // ספירה לכל מסע, מתוך אותן שורות שכבר נשלפו.
+  //
+  // ── למה "ענו" ולא רק "סיימו" ──
+  // מסע שכל הנכנסים אליו הגיעו לסופו אינו הצלחה — הוא אומר ששלחנו הכל ואיש
+  // לא הגיב. stopped_replied הוא המדד ההפוך: הלקוח ענה באמצע, המסע נעצר
+  // מרצון, ובדיוק בשביל זה הוא נכתב. לכן הוא מוצג ולא נבלע ב"סיימו".
+  const countById = new Map<
+    string,
+    { active: number; total: number; completed: number; replied: number }
+  >();
   for (const row of enrollmentsRaw ?? []) {
-    const counts = countById.get(row.journey_id) ?? { active: 0, total: 0 };
+    const counts =
+      countById.get(row.journey_id) ?? { active: 0, total: 0, completed: 0, replied: 0 };
     counts.total += 1;
     if (row.state === "active") counts.active += 1;
+    if (row.state === "completed") counts.completed += 1;
+    if (row.state === "stopped_replied") counts.replied += 1;
     countById.set(row.journey_id, counts);
   }
 
@@ -201,8 +212,27 @@ export default async function JourneysPage({ searchParams }: PageProps<"/journey
               {j.description && (
                 <p className="mt-1 text-sm text-[var(--muted)]">{j.description}</p>
               )}
-              <p className="mt-2 text-xs text-[var(--subtle)]">
-                {c?.active ?? 0} במסע כרגע · {c?.total ?? 0} נכנסו בסך הכול
+              <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--subtle)]">
+                <span>{c?.active ?? 0} במסע כרגע</span>
+                <span aria-hidden="true">·</span>
+                <span>{c?.total ?? 0} נכנסו בסך הכול</span>
+                {!!c?.completed && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span>{c.completed} סיימו</span>
+                  </>
+                )}
+                {/* מוצג רק כשיש מה להראות: "0 ענו" על מסע שרק נוצר נראה
+                    ככישלון במקום כהיעדר נתונים. */}
+                {!!c?.replied && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <b className="font-semibold text-[var(--ok)]">
+                      {c.replied} ענו ונעצרו
+                      {c.total ? ` (${Math.round((c.replied / c.total) * 100)}%)` : ""}
+                    </b>
+                  </>
+                )}
               </p>
             </Link>
           );

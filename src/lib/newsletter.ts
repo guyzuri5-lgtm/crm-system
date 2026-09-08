@@ -154,6 +154,23 @@ function renderBlock(block: NewsletterBlock, contact: Contact): string {
         : "";
       return `<div style="margin:0 0 20px;"><a href="https://www.youtube.com/watch?v=${escapeHtml(block.videoId)}" target="_blank" rel="noopener"><img src="https://img.youtube.com/vi/${escapeHtml(block.videoId)}/hqdefault.jpg" alt="${escapeHtml(block.caption) || "צפייה בסרטון"}" width="${CONTENT_WIDTH}" style="display:block;width:100%;max-width:${CONTENT_WIDTH}px;height:auto;border-radius:12px;" /></a>${caption}</div>`;
     }
+    case "button": {
+      // ── טבלה סביב קישור, ולא <button> ולא <div> ──
+      // אין טפסים במיילים, ולכן כפתור הוא תמיד קישור שנראה ככפתור. הטבלה
+      // ו-bgcolor הם בשביל Outlook: הוא מרנדר עם מנוע Word, מתעלם מ-padding
+      // על <a> ולא תמיד צובע רקע שהוגדר ב-CSS בלבד. זה נראה כמו HTML מ-2005
+      // מאותה סיבה שכל שאר המייל נראה כך.
+      //
+      // אין כאן data-pm-no-track — בכוונה. זה הקישור שכל הבלוק נבנה בשבילו,
+      // והוא מה ש-Postmark סופר. היחיד שמוחרג הוא קישור ההסרה שבפוטר.
+      const label = escapeHtml(block.label);
+      const url = escapeHtml(block.url);
+      return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:4px auto 24px;">
+<tr><td bgcolor="#0c6b62" align="center" style="border-radius:10px;">
+<a href="${url}" target="_blank" rel="noopener" style="display:inline-block;padding:14px 34px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Rubik,Arial,sans-serif;font-size:16px;font-weight:600;line-height:1.2;color:#ffffff;text-decoration:none;border-radius:10px;">${label}</a>
+</td></tr>
+</table>`;
+    }
   }
 }
 
@@ -184,7 +201,12 @@ ${blocks}
 </td></tr>
 <tr><td style="padding:16px 28px 28px;border-top:1px solid #e7e2dc;font-size:12px;line-height:1.7;color:#a39a8c;">
 קיבלת את המייל כי נרשמת אצל גיא ·
-<a href="${escapeHtml(unsubscribeUrl(contact.id))}" style="color:#6b6459;">להסרה מרשימת התפוצה</a>
+<!--
+  data-pm-no-track מוציא את הקישור הזה ממעקב הקליקים של Postmark (0037).
+  בלעדיו לחיצה על "הסר אותי" נספרת כקליק, כלומר כמעורבות — והמדד היחיד
+  שנועד לומר "התוכן עבד" היה מתוגמל דווקא על מי שביקש לעזוב.
+-->
+<a href="${escapeHtml(unsubscribeUrl(contact.id))}" data-pm-no-track style="color:#6b6459;">להסרה מרשימת התפוצה</a>
 </td></tr>
 </table>
 </td></tr>

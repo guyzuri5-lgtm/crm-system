@@ -14,6 +14,19 @@ import "server-only";
  * שכל שליחה המונית תעבור ב-Broadcast Stream. זה לטובתנו: אישור פגישה לא ייתקע
  * מאחורי ניוזלטר, וניוזלטר שיקבל תלונות לא יפגע במסירה של האישורים.
  * https://postmarkapp.com/support/article/can-i-send-bulk-emails
+ *
+ * ── מעקב פתיחות וקליקים (0037) ──
+ * שני מעקבים נפרדים, ולכן שתי החלטות נפרדות:
+ *
+ * פתיחה — תמונה שקופה בגוף ההודעה. אינה נוגעת בקישורים, ולכן דלוקה בכל
+ * שליחה. אינה מדד מדויק: אפל פותחת אוטומטית כל מייל של מי שמשתמש ב-Mail
+ * באייפון (מנפח), ומי שחוסם תמונות אינו נספר כלל (מקזז). שווה כמגמה בין
+ * דיוורים, לא כמספר מוחלט.
+ *
+ * קליק — Postmark מחליף כל קישור בגוף בכתובת הפניה משלו. **דלוק רק בדיוור.**
+ * הקישור לקורס הוא כל תוכן ההודעה התפעולית, ואין סיבה להעמיד הפניה של צד
+ * שלישי בין הלקוח לבין מה שהוא שילם עליו: מספיק שהיא תיחסם או תאט, והלקוח
+ * לא הגיע. בניוזלטר הקליק הוא כל מה שיש למדוד, ושם התמורה שווה את הסיכון.
  */
 
 const API_URL = "https://api.postmarkapp.com/email";
@@ -86,7 +99,7 @@ function linkify(escaped: string): string {
  * שורה ריקה פותחת פסקה חדשה, ירידת שורה בודדת היא ‎<br>‎ — בדיוק מה שמי
  * שמקליד בתיבת טקסט מצפה לו, ואותו כלל שכבר נהוג בעורך הניוזלטר.
  */
-export function plainTextToEmailHtml(text: string): string {
+export function plainTextToEmailHtml(text: string, unsubscribeHref?: string): string {
   // ── נרמול סיומות שורה, וזה לא ניקיון אלא תיקון באג ──
   //
   // textarea בדפדפן שולח CRLF לפי תקן ה-HTML, ולכן "שורה ריקה" שמפרידה בין
@@ -106,9 +119,21 @@ export function plainTextToEmailHtml(text: string): string {
     )
     .join("\n");
 
+  // ── פוטר ההסרה ──
+  //
+  // רק כשנמסרה כתובת, כלומר רק בדיוור שיווקי. כותרת List-Unsubscribe לבדה
+  // אינה מספיקה: היא נקראת בידי ספק הדואר, וחוק הדואר האלקטרוני מדבר על
+  // הנמען — הוא צריך לראות דרך יציאה בגוף ההודעה עצמה.
+  const footer = unsubscribeHref
+    ? `<p style="margin:28px 0 0;padding-top:16px;border-top:1px solid #e7e2da;font-size:13px;line-height:1.7;color:#8a8178;">
+קיבלת את המייל הזה כי השארת פרטים אצלנו.
+<a href="${escapeHtml(unsubscribeHref)}" style="color:#8a8178;">להסרה מרשימת התפוצה</a>
+</p>`
+    : "";
+
   // טבלאות ועיצוב inline ולא flex/grid ו-<style>: לקוחות דואר (במיוחד
   // Outlook) מתעלמים מגיליונות סגנון ומפריסות מודרניות. אותה מעטפת של
-  // הניוזלטר, בלי הפוטר שלו — כאן זו הודעה תפעולית ולא דיוור.
+  // הניוזלטר; הפוטר שלה מופיע רק כשההודעה היא דיוור.
   return `<!doctype html>
 <html dir="rtl" lang="he">
 <head>
@@ -121,6 +146,7 @@ export function plainTextToEmailHtml(text: string): string {
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" dir="rtl" style="width:600px;max-width:100%;background:#ffffff;border-radius:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Rubik,Arial,sans-serif;color:#1c1a17;text-align:right;">
 <tr><td style="padding:28px;">
 ${paragraphs}
+${footer}
 </td></tr>
 </table>
 </td></tr>
@@ -139,13 +165,23 @@ export function isEmailConfigured(): boolean {
   return Boolean(process.env.POSTMARK_SERVER_TOKEN && process.env.POSTMARK_FROM);
 }
 
+/**
+ * המזהה שאצל Postmark, ואצלנו המפתח לכל מה שיקרה להודעה אחר כך.
+ *
+ * הוא נשמר על שורת היומן ועל שורת נמען הניוזלטר, ו-webhook הפתיחות מדבר
+ * עליו. בלי להחזיר אותו מכאן, דיווח פתיחה שיגיע מחר לא היה שייך לאיש.
+ */
+export interface SendEmailResult {
+  messageId: string;
+}
+
 export async function sendEmail({
   to,
   subject,
   html,
   stream = "transactional",
   listUnsubscribeUrl,
-}: SendEmailInput): Promise<void> {
+}: SendEmailInput): Promise<SendEmailResult> {
   const token = process.env.POSTMARK_SERVER_TOKEN;
   const from = process.env.POSTMARK_FROM;
 
@@ -177,6 +213,9 @@ export async function sendEmail({
       Subject: subject,
       HtmlBody: html,
       MessageStream: streamId(stream),
+      TrackOpens: true,
+      // ראו הנימוק בראש הקובץ: הפניה של צד שלישי נכנסת רק לדיוור.
+      TrackLinks: stream === "broadcast" ? "HtmlOnly" : "None",
       ...(process.env.POSTMARK_REPLY_TO ? { ReplyTo: process.env.POSTMARK_REPLY_TO } : {}),
       ...(headers ? { Headers: headers } : {}),
     }),
@@ -187,6 +226,7 @@ export async function sendEmail({
   const result = (await response.json().catch(() => null)) as {
     ErrorCode?: number;
     Message?: string;
+    MessageID?: string;
   } | null;
 
   if (!response.ok || (result?.ErrorCode ?? 0) !== 0) {
@@ -200,4 +240,8 @@ export async function sendEmail({
         : `Postmark החזיר שגיאה ${code}: ${message}`
     );
   }
+
+  // מחרוזת ריקה ולא זריקה: המייל **נשלח**, ומזהה חסר פוגע רק בסטטיסטיקה.
+  // כישלון כאן היה הופך תקלת מדידה לתקלת מסירה, וזה היפוך סדר העדיפויות.
+  return { messageId: result?.MessageID ?? "" };
 }

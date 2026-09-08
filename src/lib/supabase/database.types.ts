@@ -161,9 +161,17 @@ export type NewsletterBlock =
   | { type: "text"; html: string }
   | { type: "image"; url: string; alt: string }
   /** רק המזהה, לא הכתובת המלאה — במייל אין iframe, ולכן נשלחת תמונה שמקושרת ליוטיוב. */
-  | { type: "youtube"; videoId: string; caption: string };
+  | { type: "youtube"; videoId: string; caption: string }
+  /**
+   * כפתור: טקסט וכתובת.
+   *
+   * הבלוק היחיד שמייצר קישור שנועד ללחיצה. כתובת שמודביקה לתוך בלוק טקסט
+   * אינה הופכת לקישור — הטקסט עובר כמו שהוא — ולכן היא נראית תקינה בג'ימייל
+   * (שמקשר בעצמו) ומתה ב-Outlook. כאן הקישור קיים באמת, ולכן גם נספר.
+   */
+  | { type: "button"; label: string; url: string };
 
-export const NEWSLETTER_BLOCK_TYPES = ["text", "image", "youtube"] as const;
+export const NEWSLETTER_BLOCK_TYPES = ["text", "image", "youtube", "button"] as const;
 export type NewsletterBlockType = (typeof NEWSLETTER_BLOCK_TYPES)[number];
 
 /** מי מקבל. statuses = רק אנשי קשר שנמצאים כרגע באחד מהסטטוסים האלה. */
@@ -805,6 +813,8 @@ export type Database = {
           enrollment_id: string;
           step_id: string;
           sent_at: string;
+          /** נוסף ב-0038 — מזהה ההודעה אצל הספק, המפתח ל-message_receipts. */
+          external_id: string | null;
         };
         Insert: Partial<Database["public"]["Tables"]["journey_step_runs"]["Row"]> & {
           enrollment_id: string;
@@ -844,6 +854,8 @@ export type Database = {
           contact_id: string;
           status: NewsletterRecipientStatus;
           error: string | null;
+          /** נוסף ב-0037 — MessageID של Postmark, המפתח ל-message_receipts. */
+          message_id: string | null;
         };
         Insert: Partial<Database["public"]["Tables"]["newsletter_recipients"]["Row"]> & {
           newsletter_id: string;
@@ -1069,9 +1081,81 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["meta_form_targets"]["Row"]>;
         Relationships: Relationships;
       };
+
+      // ── נוספה ב-0037_message_receipts.sql ──────────────────────────────
+      /**
+       * מה קרה להודעה אחרי שיצאה — נמסרה, נקראה/נפתחה, נלחצה, נכשלה.
+       *
+       * המפתח הוא מזהה ההודעה אצל הספק (wamid של מטא, MessageID של
+       * Postmark), ולא מפתח זר לשורת היומן: הדיווח מקדים לפעמים את הרישום,
+       * וכך הוא יכול להירשם בלי לחכות לו.
+       */
+      message_receipts: {
+        Row: {
+          external_id: string;
+          channel: MessageChannel;
+          delivered_at: string | null;
+          /** וואטסאפ: הסימון הכחול. מייל: נטענה תמונת המעקב — מגמה, לא אמת מדויקת. */
+          opened_at: string | null;
+          /** מייל בלבד. המדד הכן, כי הוא מודד פעולה ולא טעינה. */
+          clicked_at: string | null;
+          failed_at: string | null;
+          error: string | null;
+          open_count: number;
+          click_count: number;
+          first_seen_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["message_receipts"]["Row"]> & {
+          external_id: string;
+          channel: MessageChannel;
+        };
+        Update: Partial<Database["public"]["Tables"]["message_receipts"]["Row"]>;
+        Relationships: Relationships;
+      };
     };
     Views: {
       /** נוצרת ב-0012_contact_activity.sql — סיכום פעילות לכל איש קשר. */
+      // ── נוצרות ב-0038_delivery_stats.sql ───────────────────────────────
+      /**
+       * פתיחות וקליקים לכל ניוזלטר, מצטברים על כל הנמענים.
+       *
+       * opened במייל אינו מספר מדויק — אפל פותחת אוטומטית, וחוסמי תמונות
+       * אינם נספרים. clicked הוא המדד הכן, כי הוא מודד פעולה של אדם.
+       */
+      newsletter_stats: {
+        Row: {
+          newsletter_id: string;
+          recipients: number;
+          sent: number;
+          /** כמה נמענים יש להם מזהה הודעה. 0 = הדיוור יצא לפני שהמדידה נוספה. */
+          measurable: number;
+          delivered: number;
+          opened: number;
+          clicked: number;
+          bounced: number;
+          /** כולל פתיחות חוזרות — "כמה פעמים", לא "כמה אנשים". */
+          total_opens: number;
+          total_clicks: number;
+        };
+        Relationships: Relationships;
+      };
+
+      /** כמה יצא וכמה נקרא בכל כרטיסייה של מסע. */
+      journey_step_stats: {
+        Row: {
+          journey_id: string;
+          step_id: string;
+          sent: number;
+          delivered: number;
+          /** וואטסאפ: הסימון הכחול. מייל: נטענה תמונת המעקב. */
+          opened: number;
+          clicked: number;
+          failed: number;
+        };
+        Relationships: Relationships;
+      };
+
       contact_activity: {
         Row: {
           contact_id: string;
@@ -1112,6 +1196,13 @@ export type CourseLead = Database["public"]["Tables"]["course_leads"]["Row"];
 export type BookingDateOverride = Database["public"]["Tables"]["booking_date_overrides"]["Row"];
 export type Newsletter = Database["public"]["Tables"]["newsletters"]["Row"];
 export type NewsletterRecipient = Database["public"]["Tables"]["newsletter_recipients"]["Row"];
+
+/** נוספה ב-0037 — אישורי מסירה, פתיחה וקליק לשני הערוצים. */
+export type MessageReceipt = Database["public"]["Tables"]["message_receipts"]["Row"];
+
+/** נוצרות ב-0038 — הצבירות שהמסכים מציגים. */
+export type NewsletterStats = Database["public"]["Views"]["newsletter_stats"]["Row"];
+export type JourneyStepStats = Database["public"]["Views"]["journey_step_stats"]["Row"];
 
 /**
  * EventRow ולא Event, באותו נימוק כמו ContactStatusRow: `Event` הוא טיפוס

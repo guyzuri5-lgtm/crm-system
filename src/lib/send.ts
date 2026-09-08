@@ -73,7 +73,17 @@ export interface SendMessageInput {
   event?: EventRow | null;
 }
 
-export type SendResult = { ok: true } | { ok: false; error: string };
+/**
+ * messageId — המזהה אצל הספק (MessageID של Postmark, wamid של מטא).
+ *
+ * הוא כבר נשמר על שורת היומן, והוא מוחזר גם לקורא כי לניוזלטר יש שאלה שהיומן
+ * אינו יכול לענות עליה: **לאיזה דיוור** שייכת ההודעה. שורת היומן מכילה את
+ * הכותרת, וכותרת אינה מפתח — שני דיוורים באותו שם היו מתמזגים לסטטיסטיקה אחת.
+ *
+ * אופציונלי, כי לא כל מסלול מחזיר מזהה: מייל בלי MessageID בתשובה עדיין נשלח,
+ * וזו הודעה שיצאה ולא תימדד — לא כישלון שליחה.
+ */
+export type SendResult = { ok: true; messageId?: string | null } | { ok: false; error: string };
 
 /**
  * הודעה שנשארו בה מציינים לא פתורים לא יוצאת.
@@ -122,10 +132,14 @@ export async function sendMessageToContact(input: SendMessageInput): Promise<Sen
       // ההחלטה כאן ולא אצל הקוראים, כי יש שישה מהם: מסעות, כללים, תזכורות
       // אירוע, הראוט הידני, הדוח והניוזלטר. תיקון שמשוכפל שש פעמים הוא
       // תיקון שיישכח באחת מהן.
-      await sendEmail({
+      const { messageId } = await sendEmail({
         to: input.contact.email,
         subject: input.subject,
-        html: looksLikeHtml(input.body) ? input.body : plainTextToEmailHtml(input.body),
+        // קישור ההסרה נכנס לגוף רק כשהגוף נבנה כאן. הניוזלטר שולח HTML מוכן
+        // ובו פוטר משלו, ותוספת שנייה הייתה מופיעה אצל הנמען פעמיים.
+        html: looksLikeHtml(input.body)
+          ? input.body
+          : plainTextToEmailHtml(input.body, input.listUnsubscribeUrl),
         stream: input.stream,
         listUnsubscribeUrl: input.listUnsubscribeUrl,
       });
@@ -134,10 +148,15 @@ export async function sendMessageToContact(input: SendMessageInput): Promise<Sen
         contact_id: input.contact.id,
         type: "email_out",
         content: `${label}${input.subject}`,
+        // אותו תפקיד שיש ל-wamid בוואטסאפ: מה שמחבר את ההודעה לדיווח
+        // הפתיחה שיגיע אחריה. ריק → null, כי על העמודה יש אינדקס ייחודי
+        // חלקי, ומחרוזת ריקה **אינה** null — שני מיילים בלי מזהה היו
+        // מתנגשים בו והשני היה נכשל בכתיבה ליומן אחרי שכבר נשלח.
+        external_id: messageId || null,
       });
       if (error) throw error;
 
-      return { ok: true };
+      return { ok: true, messageId: messageId || null };
     }
 
     // ה-wa_id השמור קודם, ורק אז גזירה מהטלפון: מה שהתקבל בפועל מ-Meta אמין
@@ -208,7 +227,7 @@ export async function sendMessageToContact(input: SendMessageInput): Promise<Sen
       await db.from("contacts").update({ whatsapp_id: waId }).eq("id", input.contact.id);
     }
 
-    return { ok: true };
+    return { ok: true, messageId };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }

@@ -619,9 +619,13 @@ export async function runJourneys(
     if (step.channel === "whatsapp") budget.countSent();
 
     // נרשם רק אחרי הצלחה — זה מה שהופך קטיעה באמצע ריצה לבטוחה.
-    await db
-      .from("journey_step_runs")
-      .insert({ enrollment_id: enrollment.id, step_id: step.id });
+    await db.from("journey_step_runs").insert({
+      enrollment_id: enrollment.id,
+      step_id: step.id,
+      // מזהה ההודעה אצל הספק (0038). בלעדיו אפשר לדעת שהכרטיסייה שלחה, אבל
+      // לא אם מישהו קרא — וזה ההפרש בין "המסע רץ" ל"המסע עובד".
+      external_id: result.messageId ?? null,
+    });
 
     // הקשת הראשונה שתנאיה מתקיימים זוכה. קשתות ממוינות לפי priority, ולכן
     // 'always' שיושבת ראשונה תבלע את כל השאר — וזה מה שהממשק מזהיר עליו.

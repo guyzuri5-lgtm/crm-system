@@ -34,6 +34,7 @@ export interface StatusOption {
 function emptyBlock(type: NewsletterBlock["type"]): NewsletterBlock {
   if (type === "text") return { type: "text", html: "" };
   if (type === "image") return { type: "image", url: "", alt: "" };
+  if (type === "button") return { type: "button", label: "", url: "" };
   return { type: "youtube", videoId: "", caption: "" };
 }
 
@@ -41,6 +42,7 @@ const BLOCK_LABELS: Record<NewsletterBlock["type"], string> = {
   text: "טקסט",
   image: "תמונה",
   youtube: "סרטון יוטיוב",
+  button: "כפתור",
 };
 
 /** המציינים שאפשר לשתול בטקסט. נגזרים מ-renderTemplate ב-src/lib/templates.ts. */
@@ -223,7 +225,7 @@ export function NewsletterEditor({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="card-title">התוכן</h2>
           <div className="flex flex-wrap gap-1">
-            {(["text", "image", "youtube"] as const).map((type) => (
+            {(["text", "image", "youtube", "button"] as const).map((type) => (
               <button
                 key={type}
                 type="button"
@@ -367,6 +369,43 @@ export function NewsletterEditor({
                     onChange={(event) => patchBlock(index, { caption: event.target.value })}
                   />
                 </label>
+              </div>
+            )}
+
+            {block.type === "button" && (
+              <div className="flex flex-col gap-2">
+                <label className="field-label">
+                  מה כתוב על הכפתור
+                  <input
+                    className="input"
+                    value={block.label}
+                    onChange={(event) => patchBlock(index, { label: event.target.value })}
+                    placeholder="להורדת המדיטציה"
+                  />
+                </label>
+                <label className="field-label">
+                  לאן הוא מוביל
+                  <input
+                    className="input"
+                    dir="ltr"
+                    value={block.url}
+                    onChange={(event) => patchBlock(index, { url: event.target.value.trim() })}
+                    placeholder="https://drive.google.com/..."
+                  />
+                </label>
+                {/*
+                  אזהרה ולא חסימה: הבדיקה האמיתית היא בשרת (blockSchema),
+                  והיא מונעת שליחה. כאן זה רק כדי שהטעות תתגלה בזמן הכתיבה
+                  ולא ברגע הלחיצה על "שלח".
+                */}
+                {block.url && !/^https?:\/\//i.test(block.url) && (
+                  <p className="text-xs text-[var(--danger)]">
+                    הכתובת צריכה להתחיל ב-https:// — אחרת הכפתור לא יוביל לשום מקום.
+                  </p>
+                )}
+                <p className="text-xs text-[var(--subtle)]">
+                  לחיצות על הכפתור נספרות, ומופיעות בעמודת &rdquo;נלחצו&ldquo; בהיסטוריה.
+                </p>
               </div>
             )}
           </div>
