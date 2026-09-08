@@ -42,6 +42,23 @@ function verifySecret(params: URLSearchParams): boolean {
  * השדות אופציונליים כי כל RecordType שולח תת-קבוצה אחרת: ל-Delivery יש
  * DeliveredAt, ל-Bounce יש BouncedAt, ולפתיחה וקליק יש ReceivedAt.
  */
+/**
+ * ה-MessageID שמופיע בבקשות האימות של Postmark.
+ *
+ * ── למה זה לא ניקיון אלא תיקון באג ──
+ * לפני ש-Postmark שומר webhook הוא שולח אליו payload לדוגמה — אחד מכל סוג
+ * אירוע שסומן, **כולל SpamComplaint עם כתובת מייל מומצאת**. הקוד כאן מסמן
+ * מתלונן כמוסר מרשימת התפוצה, ולכן בלי החסימה הזו כל יצירה או עריכה של
+ * webhook הייתה עלולה להוציא לקוח אמיתי מהדיוור — בשקט, בלי שאיש יבקש.
+ *
+ * נבדק בפועל ב-8.9.2026: האימות אכן יצר שורת דיווח מלאה (נמסר, נפתח פעמיים
+ * ותלונת ספאם) על המזהה הזה. הכתובת שבה השתמש לא הייתה שייכת לאיש, ולכן
+ * לא נגרם נזק — אבל זה היה מזל ולא תכנון.
+ *
+ * המזהה קבוע אצל Postmark, ולכן ניתן לזיהוי בוודאות.
+ */
+const VERIFICATION_MESSAGE_ID = "00000000-0000-0000-0000-000000000000";
+
 interface PostmarkEvent {
   RecordType?: string;
   MessageID?: string;
@@ -70,7 +87,12 @@ export async function POST(request: NextRequest) {
 
   // Postmark שולח אירוע אחד לכל בקשה, אבל מערך מתקבל גם הוא — זה מה שמייצר
   // כלי בדיקה, וזול יותר לקבל אותו מלגלות שהבדיקה נכשלה בלי סיבה אמיתית.
-  const events = (Array.isArray(payload) ? payload : [payload]) as PostmarkEvent[];
+  const received = (Array.isArray(payload) ? payload : [payload]) as PostmarkEvent[];
+
+  // בקשת האימות נענית 200 — היא חייבת, אחרת Postmark לא ישמור את ה-webhook —
+  // אבל שום דבר בה אינו נספר ואינו משנה איש קשר.
+  const events = received.filter((e) => e.MessageID !== VERIFICATION_MESSAGE_ID);
+  const verification = received.length - events.length;
 
   try {
     const receipts = events.map(toReceipt).filter((r): r is RecordReceiptInput => r !== null);
@@ -82,7 +104,13 @@ export async function POST(request: NextRequest) {
     const complaints = events.filter((e) => e.RecordType === "SpamComplaint");
     const unsubscribed = await unsubscribeComplainers(complaints);
 
-    return NextResponse.json({ ok: true, events: events.length, failed, unsubscribed });
+    return NextResponse.json({
+      ok: true,
+      events: events.length,
+      failed,
+      unsubscribed,
+      ...(verification ? { verification } : {}),
+    });
   } catch (error) {
     console.error("[postmark] webhook failed:", error);
     return NextResponse.json({
