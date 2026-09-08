@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getActiveCourseBySlug } from "@/lib/courses";
 import { RegistrationThanks } from "@/components/registration-page";
+import { META_PIXEL_COURSE_SLUG, MetaPixelPurchase } from "./meta-pixel";
 
 /**
  * עמוד התודה.
@@ -30,6 +31,7 @@ export default async function CourseThanksPage({ params }: PageProps<"/course/[s
       <div className="w-full max-w-2xl">
         <RegistrationThanks design={course} />
       </div>
+      {slug === META_PIXEL_COURSE_SLUG && <MetaPixelPurchase />}
     </div>
   );
 }
