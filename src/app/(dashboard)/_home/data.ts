@@ -4,7 +4,11 @@ import { cache } from "react";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getBookingSettings } from "@/lib/booking/data";
 import { utcToZonedParts, zonedTimeToUtc, zonedDateKey } from "@/lib/booking/timezone";
-import { getWhatsAppSettings, recentDeliveryFailures } from "@/lib/whatsapp-throttle";
+import {
+  getWhatsAppSettings,
+  recentDeliveryFailures,
+  type DeliveryState,
+} from "@/lib/whatsapp-throttle";
 import { isWhatsAppConfigured, getPhoneNumberStatus } from "@/lib/whatsapp-cloud";
 
 /**
@@ -140,7 +144,8 @@ function whatsappHealth(
   paused: boolean,
   statusError: string | null,
   qualityRating: string | null,
-  deliveryFailures: number
+  deliveryFailures: number,
+  deliveryState: DeliveryState
 ): Health {
   if (!configured) return { text: "לא מוגדר", tone: "bad" };
   // מתג ההשהיה חוסם שליחה בשקט, ולכן הוא חייב להיראות דווקא כאן.
@@ -152,6 +157,10 @@ function whatsappHealth(
   if (deliveryFailures > 0) return { text: "הודעות לא נמסרות", tone: "bad" };
   if (qualityRating === "RED") return { text: "איכות נמוכה", tone: "bad" };
   if (qualityRating === "YELLOW") return { text: "איכות יורדת", tone: "warn" };
+  // אחרון, ורק אחרי שכל התקלות האמיתיות נשללו: אם לא יצאה אף הודעה נספרת
+  // בחלון, אין לנו על מה לומר "תקין". דירוג ירוק ממטא אומר שאיש לא התלונן —
+  // לא שמשהו נמסר.
+  if (deliveryState === "unknown") return { text: "אין נתונים", tone: "warn" };
   return { text: "תקין", tone: "ok" };
 }
 
@@ -189,7 +198,8 @@ export const channelHealth = cache(async () => {
     settings.paused,
     statusError,
     phone?.qualityRating ?? null,
-    failures.count
+    failures.count,
+    failures.state
   );
 
   return {

@@ -51,7 +51,17 @@ async function readChannel(): Promise<ChannelState> {
     };
   }
 
-  return { tone: "ok", label: "הערוץ פעיל", hint: `תקרה: ${settings.daily_limit} ליום` };
+  // ירוק רק כשיש **ראיה** שהערוץ מוסר. בלי שליחה נספרת בחלון אין ממה
+  // להסיק, ונורה ירוקה במצב כזה היא בדיוק השקר שהמחוון נועד למנוע.
+  if (failures.state === "unknown") {
+    return {
+      tone: "warn",
+      label: "לא נשלחו הודעות",
+      hint: "אין ממה לדעת אם הערוץ מוסר",
+    };
+  }
+
+  return { tone: "ok", label: "הערוץ מוסר", hint: `תקרה: ${settings.daily_limit} ליום` };
 }
 
 export async function ChannelStatus() {

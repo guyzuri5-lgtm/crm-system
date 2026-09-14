@@ -129,6 +129,36 @@ export default async function WhatsAppPage() {
         </section>
       )}
 
+      {/*
+        אין נתונים — לא "תקין".
+
+        המחוון סורק שבעה ימים אחורה. כשלא יצאה אף תבנית בחלון הזה, אין שורה
+        שנכשלה, ולכן גם אין התראה — והמסך היה נראה תקין לגמרי. ב-14.9.2026 זה
+        קרה: הכשלים מ-6.9 נשרו מהחלון, שום דבר לא נשלח מאז, והערוץ עדיין היה
+        חסום על אותה תקלת חיוב. שקט אינו אישור.
+      */}
+      {failures.state === "unknown" && (
+        <section
+          className="rounded-xl border p-4"
+          style={{
+            borderColor: "color-mix(in srgb, var(--warn) 35%, transparent)",
+            backgroundColor: "var(--warn-soft)",
+          }}
+        >
+          <p className="font-semibold text-[var(--warn)]">אין נתונים על מסירה</p>
+          <p className="mt-1.5 text-xs leading-relaxed text-[var(--muted)]">
+            לא יצאה אף תבנית בשבוע האחרון, ולכן אי אפשר לדעת מהיומן אם הערוץ מוסר.
+            דירוג האיכות שמתחת מגיע ממטא ואומר רק אם נמענים מתלוננים — הוא אינו עדות
+            לכך שהודעות נמסרות.
+          </p>
+          {/* --muted ולא --subtle: על רקע warn-soft הבהיר, subtle יוצא 4.36:1
+              ונופל מתחת לסף הקריאות. muted נותן 5.54:1 באותו מקום. */}
+          <p className="mt-1.5 text-xs text-[var(--muted)]">
+            כדי לדעת בוודאות, שלחו תבנית אחת לעצמכם מכרטיס איש קשר.
+          </p>
+        </section>
+      )}
+
       {/* ── מצב ─────────────────────────────────────────────────────── */}
       <section className="grid gap-4 sm:grid-cols-3">
         <div className="card">

@@ -96,11 +96,26 @@ const FAILURE_LOOKBACK_DAYS = 7;
 /** כמה שורות לבחון. השליחות האחרונות הן שקובעות; ישנות מהן לא ישנו את התשובה. */
 const FAILURE_SCAN_LIMIT = 100;
 
+/**
+ * מה היומן מאפשר להסיק על המסירה. **שלושה מצבים ולא שניים.**
+ *
+ * הגרסה הקודמת החזירה רק `count`, ואפס נקרא בכל המסכים כ"תקין". אבל אפס
+ * נוצר משתי סיבות שונות לגמרי: או שהשליחה האחרונה נמסרה, או ש**לא נשלח
+ * כלום** ואין ממה להסיק. ב-14.9.2026 זה קרה בפועל — שני הכשלים האחרונים
+ * היו ב-6.9, הם נשרו מחלון שבעת הימים, ומאז לא יצאה אף הודעה. המסך הציג
+ * "תקין · ירוק" בזמן שהערוץ היה חסום בדיוק כמו קודם.
+ *
+ * היעדר ראיה אינו ראיה להיעדר. "unknown" קיים כדי שהמסך יוכל להגיד את זה.
+ */
+export type DeliveryState = "delivering" | "failing" | "unknown";
+
 export interface DeliveryFailureSummary {
-  /** כשלים **מאז ההצלחה האחרונה**. אפס = הערוץ מוסר כרגע. */
+  /** כשלים **מאז ההצלחה האחרונה**. אפס = או שנמסר, או שאין נתונים — ר' state. */
   count: number;
   /** הסיבה של הכישלון האחרון, כפי שמטא ניסחה אותה. null כשאין כשלים. */
   lastReason: string | null;
+  /** מה באמת ידוע. **זה** מה שמסכים צריכים להסתמך עליו, לא על count אפס. */
+  state: DeliveryState;
 }
 
 /**
@@ -145,7 +160,8 @@ export async function recentDeliveryFailures(
 
   if (error) {
     console.error("[whatsapp] failed to read delivery status:", error.message);
-    return { count: 0, lastReason: null };
+    // קריאה שנפלה אינה "הכול תקין" — אין לנו מושג, וכך זה גם ייראה.
+    return { count: 0, lastReason: null, state: "unknown" };
   }
 
   const failed = (content: string | null) => !!content?.startsWith(NOT_DELIVERED_PREFIX);
@@ -162,16 +178,20 @@ export async function recentDeliveryFailures(
    */
   const rows = (data ?? []).filter((row) => row.content?.startsWith("["));
 
+  // אין אף שליחה נספרת בחלון — לא הצלחה ולא כישלון. זה **לא** מצב תקין,
+  // וגם לא מצב תקול: זה היעדר מידע, והמסך חייב להבדיל.
+  if (!rows.length) return { count: 0, lastReason: null, state: "unknown" };
+
   // מהחדש לישן עד ההצלחה הראשונה שנתקלים בה. אם כולן נכשלו, כולן נספרות.
   const firstSuccess = rows.findIndex((row) => !failed(row.content));
   const streak = firstSuccess === -1 ? rows : rows.slice(0, firstSuccess);
-  if (!streak.length) return { count: 0, lastReason: null };
+  if (!streak.length) return { count: 0, lastReason: null, state: "delivering" };
 
   // "[לא נמסר: Business eligibility payment issue] …" → הסיבה שבין הנקודתיים
   // לסוגר. בלי פירוט מטא שולחת רק "[לא נמסר]", ואז אין מה לחלץ.
   const match = streak[0].content?.match(/^\[לא נמסר:\s*([^\]]+)\]/);
 
-  return { count: streak.length, lastReason: match?.[1]?.trim() ?? null };
+  return { count: streak.length, lastReason: match?.[1]?.trim() ?? null, state: "failing" };
 }
 
 export async function countWhatsAppSentToday(now: Date = new Date()): Promise<number> {
