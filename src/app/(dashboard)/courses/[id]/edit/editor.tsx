@@ -35,7 +35,6 @@ type Draft = {
   thankyou_show_image: boolean;
   custom_fields: CourseCustomField[];
   grow_link: string;
-  legacy_webhook: boolean;
 };
 
 type TabKey = "landing" | "thanks" | "fields";
@@ -64,7 +63,6 @@ export function CourseDesignEditor({ course }: { course: CourseRow }) {
     thankyou_show_image: course.thankyou_show_image,
     custom_fields: course.custom_fields ?? [],
     grow_link: course.grow_link ?? "",
-    legacy_webhook: course.legacy_webhook,
   });
 
   const [tab, setTab] = useState<TabKey>("landing");
@@ -419,18 +417,6 @@ function FieldsTab({
           ריק = הטופס מוביל ישר לעמוד התודה, בלי תשלום.
         </span>
       </label>
-
-      <Toggle
-        label="לידים מדף הנחיתה הישן נכנסים לקורס הזה"
-        checked={draft.legacy_webhook}
-        onChange={(v) => set("legacy_webhook", v)}
-      />
-      <p className="-mt-2 text-xs leading-relaxed text-[var(--muted)]">
-        דף הנחיתה הישן של קורס המדיטציה ממשיך לעבוד כרגיל וממשיך לרשום לידים.
-        עם המתג הזה כל ליד חדש שנקלט בו יירשם <em>גם</em> כמתעניין בקורס הזה,
-        וכך ייכנס למסעות ולמונים. אפשר לסמן קורס אחד בלבד — סימון כאן מוריד
-        את הסימון מקורס אחר.
-      </p>
     </>
   );
 }

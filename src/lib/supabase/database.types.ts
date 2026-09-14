@@ -37,7 +37,10 @@ export type InteractionType =
   // נוספו ב-0005_booking.sql — קביעת פגישה וביטולה
   | "booking_created"
   | "booking_cancelled"
-  // נוסף ב-0013_course_leads.sql — השארת פרטים בדף הנחיתה של קורס המדיטציה
+  // נוסף ב-0013_course_leads.sql — השארת פרטים בדף הנחיתה של קורס המדיטציה.
+  // הדף, ה-webhook והטבלה ירדו ב-0041 ואף שורה לא נשאה את הערך הזה מעולם;
+  // הוא נשאר ב-enum כי הסרת ערך מ-enum בפוסטגרס דורשת בנייה מחדש של הטיפוס
+  // ושל שני ה-views שתלויים בו — סיכון אמיתי בתמורה לניקיון בלבד.
   | "course_lead"
   // נוסף ב-0024_events.sql — הרשמה לאירוע דרך דף ההרשמה הציבורי
   | "event_registered"
@@ -52,15 +55,6 @@ export const QUIZ_KIND_LABELS: Record<QuizKind, string> = {
   anonymous: "אנונימי",
   lead: "השאיר פרטים",
   booking_click: "יצא לקבוע פגישה",
-};
-
-/** סוגי רשומה בדף הנחיתה של הקורס, לפי סדר עולה של "חום" הליד */
-export const COURSE_LEAD_KINDS = ["lead", "payment_click"] as const;
-export type CourseLeadKind = (typeof COURSE_LEAD_KINDS)[number];
-
-export const COURSE_LEAD_KIND_LABELS: Record<CourseLeadKind, string> = {
-  lead: "השאיר פרטים",
-  payment_click: "יצא לתשלום",
 };
 
 /** מה מכניס איש קשר למסע. כולם ניתנים לזיהוי בשאילתה מהקרון. */
@@ -271,18 +265,17 @@ export const COURSE_STAGE_LABELS: Record<CourseStage, string> = {
 /**
  * מאיפה הגיעה ההרשמה.
  *
- * legacy הוא היחיד שאין לו מקבילה באירועים: הוא מסמן ליד שנקלט ב-webhook
- * הישן של דף הנחיתה (0013) ושויך לקורס דרך הדגל legacy_webhook. הפרדה שלו
- * מ-landing היא מה שיאפשר לדעת מתי אפשר לכבות את הדף הישן.
+ * 'legacy' ירד ב-0041 יחד עם ה-webhook של דף הנחיתה הישן. הוא נועד לענות על
+ * "מתי אפשר לכבות את הדף הישן", והתשובה התבררה כ"מזמן": אף שורה לא נשאה
+ * אותו מעולם.
  */
-export const COURSE_SOURCES = ["landing", "meta", "manual", "legacy"] as const;
+export const COURSE_SOURCES = ["landing", "meta", "manual"] as const;
 export type CourseSource = (typeof COURSE_SOURCES)[number];
 
 export const COURSE_SOURCE_LABELS: Record<CourseSource, string> = {
   landing: "דף הרשמה",
   meta: "מטא",
   manual: "ידני",
-  legacy: "דף הנחיתה הישן",
 };
 
 /** שדה מותאם בטופס הקורס. מבנה זהה לאירוע — ראו EventCustomField. */
@@ -467,30 +460,6 @@ export type Database = {
           session_id: string;
         };
         Update: Partial<Database["public"]["Tables"]["quiz_submissions"]["Row"]>;
-        Relationships: Relationships;
-      };
-      course_leads: {
-        Row: {
-          id: string;
-          session_id: string;
-          contact_id: string | null;
-          kind: CourseLeadKind;
-          full_name: string | null;
-          email: string | null;
-          phone: string | null;
-          consent: boolean;
-          /** מתי ניתנה ההסכמה לדיוור. null כשלא אושרה — זו הראיה, ולכן לא נדרס בכל עדכון. */
-          consent_at: string | null;
-          source: string | null;
-          utm: Record<string, string>;
-          payment_clicked_at: string | null;
-          submitted_at: string;
-          updated_at: string;
-        };
-        Insert: Partial<Database["public"]["Tables"]["course_leads"]["Row"]> & {
-          session_id: string;
-        };
-        Update: Partial<Database["public"]["Tables"]["course_leads"]["Row"]>;
         Relationships: Relationships;
       };
       interactions: {
@@ -1035,11 +1004,6 @@ export type Database = {
           thankyou_title: string;
           thankyou_text: string | null;
           thankyou_show_image: boolean;
-          /**
-           * הקורס שאליו משויכים לידים מה-webhook הישן של דף הנחיתה.
-           * אינדקס ייחודי חלקי במסד מוודא שלכל היותר אחד מסומן.
-           */
-          legacy_webhook: boolean;
           active: boolean;
           created_at: string;
         };
@@ -1233,7 +1197,6 @@ export type Journey = Database["public"]["Tables"]["journeys"]["Row"];
 export type JourneyStep = Database["public"]["Tables"]["journey_steps"]["Row"];
 export type JourneyEdge = Database["public"]["Tables"]["journey_edges"]["Row"];
 export type JourneyEnrollment = Database["public"]["Tables"]["journey_enrollments"]["Row"];
-export type CourseLead = Database["public"]["Tables"]["course_leads"]["Row"];
 export type BookingDateOverride = Database["public"]["Tables"]["booking_date_overrides"]["Row"];
 export type Newsletter = Database["public"]["Tables"]["newsletters"]["Row"];
 export type NewsletterRecipient = Database["public"]["Tables"]["newsletter_recipients"]["Row"];

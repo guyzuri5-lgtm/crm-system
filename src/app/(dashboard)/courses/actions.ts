@@ -115,7 +115,6 @@ const designSchema = z.object({
   // שדות הטופס ושדות הבסיס
   custom_fields: z.array(customFieldSchema).max(20),
   grow_link: optionalText,
-  legacy_webhook: z.boolean(),
 });
 
 export type CourseDesignInput = z.input<typeof designSchema>;
@@ -135,21 +134,6 @@ export async function saveCourseDesignAction(
   const d = parsed.data;
   const db = supabaseAdmin();
 
-  // ── הדגל של דף הנחיתה הישן ──
-  //
-  // במסד יש אינדקס ייחודי שמתיר קורס מסומן אחד בלבד. בלי הניקוי הזה, סימון
-  // קורס שני היה נדחה עם שגיאת 23505 — נכון מבחינת שלמות הנתונים, ובלתי
-  // מובן לחלוטין למי שרק הזיז מתג. ההעברה שקטה ומכוונת: המתג נקרא "הקורס
-  // שאליו מגיעים לידים מהדף הישן", ויש רק אחד כזה מעצם הגדרתו.
-  if (d.legacy_webhook) {
-    const { error: clearError } = await db
-      .from("courses")
-      .update({ legacy_webhook: false })
-      .eq("legacy_webhook", true)
-      .neq("id", id);
-    if (clearError) return { ok: false, error: explain(clearError) };
-  }
-
   const { error } = await db
     .from("courses")
     .update({
@@ -163,7 +147,6 @@ export async function saveCourseDesignAction(
       thankyou_show_image: d.thankyou_show_image,
       custom_fields: d.custom_fields as CourseCustomField[],
       grow_link: d.grow_link,
-      legacy_webhook: d.legacy_webhook,
     })
     .eq("id", id);
 

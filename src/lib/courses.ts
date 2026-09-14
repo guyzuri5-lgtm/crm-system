@@ -55,25 +55,6 @@ export const getCourseById = cache(async (id: string): Promise<CourseRow | null>
   return data;
 });
 
-/**
- * הקורס שאליו משויכים לידים מה-webhook הישן, אם סומן כזה.
- *
- * מחזירה null בשקט גם כשהטבלה עדיין לא קיימת: הקורא היחיד הוא ה-webhook של
- * דף הנחיתה, והוא עבד מצוין לפני שהקורסים נבנו. נפילה שלו בגלל מיגרציה
- * שטרם הורצה הייתה מפילה קליטת לידים אמיתית בשביל תכונה נלווית.
- */
-export async function getLegacyCourse(): Promise<CourseRow | null> {
-  const { data, error } = await supabaseAdmin()
-    .from("courses")
-    .select("*")
-    .eq("legacy_webhook", true)
-    .eq("active", true)
-    .maybeSingle();
-
-  if (error) return null;
-  return data;
-}
-
 export interface CourseStageCounts {
   interested: number;
   /** התחילו ולא שילמו */

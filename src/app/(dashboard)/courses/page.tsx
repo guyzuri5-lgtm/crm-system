@@ -81,17 +81,6 @@ export default async function CoursesPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="font-semibold">{course.name}</h2>
                       <Badge off={!course.active} label={course.active ? "פעיל" : "כבוי"} />
-                      {course.legacy_webhook && (
-                        <span
-                          className="rounded-full px-2 py-0.5 text-xs font-semibold"
-                          style={{
-                            backgroundColor: "var(--nav-blue-soft)",
-                            color: "var(--nav-blue)",
-                          }}
-                        >
-                          מחובר לדף הישן
-                        </span>
-                      )}
                     </div>
                     <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-[var(--muted)]">
                       <span className="slug" dir="ltr">
