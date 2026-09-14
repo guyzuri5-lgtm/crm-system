@@ -414,6 +414,24 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["contact_statuses"]["Row"]>;
         Relationships: Relationships;
       };
+      quiz_progress: {
+        Row: {
+          session_id: string;
+          reached_step: number;
+          total_steps: number;
+          reached_label: string | null;
+          completed: boolean;
+          source: string | null;
+          utm: Record<string, string>;
+          first_seen_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["quiz_progress"]["Row"]> & {
+          session_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["quiz_progress"]["Row"]>;
+        Relationships: Relationships;
+      };
       quiz_submissions: {
         Row: {
           id: string;
