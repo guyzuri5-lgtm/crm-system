@@ -65,15 +65,22 @@ export async function POST(request: NextRequest) {
   // למשל אם המשתמש חזר אחורה — ואסור לו למחוק את השיא שכבר נרשם.
   const { data: existing } = await db
     .from("quiz_progress")
-    .select("reached_step, completed")
+    .select("reached_step, reached_label, completed")
     .eq("session_id", p.data.sessionId)
     .maybeSingle();
+
+  // התווית חייבת לתאר את הצעד שנשמר בפועל. ביקון שמגיע עם ערך נמוך יותר
+  // אינו מוריד את reached_step — ואם היינו לוקחים ממנו את התווית, הדוח היה
+  // מציג "צעד 7 · היגד 1" ושולח לתקן את השאלה הלא נכונה.
+  const advances = p.data.reachedStep >= (existing?.reached_step ?? -1);
 
   const row = {
     session_id: p.data.sessionId,
     reached_step: Math.max(p.data.reachedStep, existing?.reached_step ?? 0),
     total_steps: p.data.totalSteps,
-    reached_label: p.data.reachedLabel || null,
+    reached_label: advances
+      ? p.data.reachedLabel || null
+      : (existing?.reached_label ?? null),
     completed: p.data.completed || existing?.completed || false,
     source: p.data.source || null,
     utm: p.data.utm,
