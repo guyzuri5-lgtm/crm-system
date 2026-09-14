@@ -68,7 +68,6 @@ export const JOURNEY_ENTRY_TYPES = [
   "status",
   "quiz",
   "booking",
-  "course_lead",
   // נוסף ב-0024: מתעניין באירוע מסוים — הראשון שדורש *איזה* אירוע, ולכן
   // entry_value נושא event_id בדיוק כפי שהוא נושא status לכניסה לפי סטטוס.
   "event_interest",
@@ -85,8 +84,6 @@ export const JOURNEY_ENTRY_LABELS: Record<JourneyEntryType, string> = {
   status: "נכנס לסטטוס",
   quiz: "מילא את השאלון",
   booking: "קבע פגישה",
-  // "בדף הקורס" הישן — דף הנחיתה של קורס המדיטציה, שקדם לטבלת courses.
-  course_lead: "השאיר פרטים בדף הקורס (הישן)",
   // מ-0039 הכניסה היא כל מי שנרשם ועדיין לא שילם, ולא רק מי שסומן "מתעניין".
   // הטופס הציבורי כותב 'registered', ולכן הניסוח הישן החריג בשקט את כל מי
   // שנרשם מדף נחיתה — כלומר את הקהל שהמסע הזה נועד לו.

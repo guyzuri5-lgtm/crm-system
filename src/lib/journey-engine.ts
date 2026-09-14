@@ -224,6 +224,11 @@ export function stepDueAt(
  * אי־פעם".
  * event_registered ו-course_registered קיימים ביומן, אבל הם לא מבחינים בין
  * אירוע לאירוע ולא יודעים אם מאז כבר שולם.
+ *
+ * course_lead ירד מכאן: הוא נשאר סוג אינטראקציה ביומן — דף הנחיתה הישן
+ * ממשיך לרשום לידים — אבל הוא כבר לא טריגר כניסה. הטריגר הזה לא ידע לאיזה
+ * קורס הליד שייך, ומי שמסמן קורס כ"מחובר לדף הישן" מקבל את אותו קהל דרך
+ * course_interest, שכן יודע — ושממנו יוצאים ברגע שקונים.
  */
 const ENTRY_INTERACTION: Record<
   Exclude<
@@ -234,7 +239,6 @@ const ENTRY_INTERACTION: Record<
 > = {
   quiz: "quiz_submitted",
   booking: "booking_created",
-  course_lead: "course_lead",
 };
 
 // ── מי כבר קנה ─────────────────────────────────────────────────────────────
