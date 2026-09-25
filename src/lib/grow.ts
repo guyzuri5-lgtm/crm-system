@@ -1,7 +1,9 @@
 import "server-only";
 
 import { timingSafeEqual } from "node:crypto";
+import { after } from "next/server";
 import { supabaseAdmin } from "./supabase/admin";
+import { kickoffJourneysForContact } from "./journey-engine";
 import { normalizePhone, usableEmail } from "./quiz";
 
 /**
@@ -215,6 +217,27 @@ export async function settlePayment(payer: GrowPayer): Promise<string> {
     content: `התקבל תשלום בגרואו — ${match.targetName}`,
   });
   if (logError) console.error("[grow] רישום ביומן איש הקשר נכשל:", logError.message);
+
+  // ── המסע יוצא לדרך עכשיו, לא בריצת הקרון הבאה ──────────────────────────
+  //
+  // זו אותה שורה בדיוק שקיימת בהרשמה (course/[slug]/actions.ts), והיעדרה
+  // כאן היה תקלה אמיתית ב-25.9.2026: לקוחה שילמה על הקורס, השורה סומנה
+  // 'paid' תוך שניות — ומייל הקישור נשאר תלוי בקרון, כי *רק* הקרון מצרף
+  // למסע מסוג course_paid. באותו יום GitHub הריץ את הקרון שש פעמים במקום
+  // 96, וההמתנה הפכה משעה לשעות.
+  //
+  // הלקח אינו "לתקן את הקרון" אלא שמוצר ששולם עליו לא צריך מתזמן כדי
+  // להימסר. הקרון נשאר הרשת שמתחת — הוא עדיין יצרף את מי שהשורה הזו
+  // פספסה — אבל הוא כבר לא הדרך היחידה.
+  //
+  // כאן ולא ב-route: לתשלום יש שני שערים — ה-webhook מגרואו, והרצה מחדש
+  // מהתיבה בהגדרות (settings/meta-forms/actions.ts). השני הוא בדיוק המסלול
+  // שבו גיא משחרר תשלום שנתקע, כלומר המקום שבו שליחה מיידית נחוצה *יותר*.
+  // שורה בכל שער פירושה שער אחד שיישכח — וזו בדיוק הטעות שאנחנו מתקנים.
+  //
+  // after() ולא await: גרואו כבר קיבלה 200, והשליחה קורית אחריה. after
+  // מותר גם ב-Route Handler וגם ב-Server Function, ולכן הוא תקף בשניהם.
+  after(() => kickoffJourneysForContact(match.contactId));
 
   return match.targetName;
 }
