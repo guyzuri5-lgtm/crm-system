@@ -46,9 +46,20 @@ create extension if not exists pg_cron;
 create extension if not exists pg_net;
 
 -- ── 2. משימה ישנה, אם קיימת ──
--- delete ולא cron.unschedule: unschedule זורקת כשאין משימה בשם הזה, וזה
--- היה הופך הרצה חוזרת של הקובץ לכישלון.
-delete from cron.job where jobname = 'crm-cron';
+--
+-- **לא `delete from cron.job`.** זה מה שנכתב כאן תחילה, וזה נכשל בפועל מול
+-- הפרודקשן ב-25.9.2026: `ERROR: 42501: permission denied for table job`.
+-- ב-Supabase המשתמש של ה-SQL editor אינו הבעלים של טבלאות הסכימה `cron`,
+-- והדרך היחידה לגעת בהן היא דרך הפונקציות של pg_cron עצמו.
+--
+-- cron.unschedule זורקת כשאין משימה בשם הזה, ולכן היא עטופה: בלי העטיפה
+-- ההרצה הראשונה של הקובץ — זו שבה בהגדרה אין עדיין משימה — הייתה נכשלת.
+do $$
+begin
+  perform cron.unschedule('crm-cron');
+exception
+  when others then null;  -- לא הייתה משימה קודמת, וזה המצב התקין בהרצה ראשונה
+end $$;
 
 -- ── 3. המשימה ──
 --
@@ -78,13 +89,11 @@ select cron.schedule(
 
 -- ── 4. מה שנשאר לבדוק אחרי ההרצה ──
 --
--- המשימה קיימת:        select jobname, schedule, active from cron.job;
--- המשימה באמת רצה:     select status, start_time, return_message
---                        from cron.job_run_details
---                        where jobname = 'crm-cron'
---                        order by start_time desc limit 5;
--- הבקשה באמת יצאה:     select status_code, error_msg, created
---                        from net._http_response order by created desc limit 5;
+-- cron.schedule מחזירה את מזהה המשימה — מספר בתוצאות הוא האישור שהיא נוצרה.
+--
+-- קריאה מ-cron.job ומ-cron.job_run_details עשויה להידחות באותן הרשאות
+-- שדחו את ה-delete למעלה. המסך הגרפי (Database → Cron Jobs) מציג אותן בלי
+-- לדרוש הרשאה, וזו הדרך הנוחה לראות שהמשימה קיימת ומתי רצה.
 --
 -- **הבדיקה האמיתית היא cron_heartbeat.** cron.job_run_details אומר רק
 -- שפוסטגרס שלח בקשה; רק הדופק אומר שה-endpoint באמת ענה ועבד:
