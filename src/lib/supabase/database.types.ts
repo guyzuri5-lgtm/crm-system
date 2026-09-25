@@ -554,6 +554,24 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["automation_rule_runs"]["Row"]>;
         Relationships: Relationships;
       };
+      cron_heartbeat: {
+        Row: {
+          id: boolean;
+          /** מתי הריצה האחרונה התחילה. */
+          last_started_at: string | null;
+          /**
+           * מתי היא הסתיימה — בהצלחה או בשגיאה. ההבחנה יושבת ב-last_error
+           * ולא כאן, כדי שמתזמן שרץ ונופל לא ייראה כמתזמן שלא רץ.
+           */
+          last_finished_at: string | null;
+          /** הסיכום שה-endpoint החזיר, לתחקור בלי לוגים של Vercel. */
+          last_summary: Record<string, unknown> | null;
+          last_error: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["cron_heartbeat"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["cron_heartbeat"]["Row"]>;
+        Relationships: Relationships;
+      };
       whatsapp_settings: {
         Row: {
           id: boolean;

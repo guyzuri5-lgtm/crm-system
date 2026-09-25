@@ -10,6 +10,7 @@ import {
   type DeliveryState,
 } from "@/lib/whatsapp-throttle";
 import { isWhatsAppConfigured, getPhoneNumberStatus } from "@/lib/whatsapp-cloud";
+import { readCronHealth, type CronState } from "@/lib/cron-health";
 
 /**
  * הנתונים של דף הבית — מפוצלים לפי מקטע, ולא כערימה אחת.
@@ -139,6 +140,60 @@ export const todayBookings = cache(async () => {
 /** מצב הערוץ בשורה אחת. bad צובע את הכרטיס באדום, warn משאיר אותו בענבר. */
 export type Health = { text: string; tone: "ok" | "warn" | "bad" };
 
+/** אותם שלושה צבעים בכל כרטיס מצב. היה משוכפל, ומעכשיו לא. */
+export function toneColors(tone: Health["tone"]): {
+  color: string;
+  soft: string;
+} {
+  if (tone === "bad") return { color: "var(--danger)", soft: "var(--danger-soft)" };
+  if (tone === "warn") return { color: "var(--warn)", soft: "var(--warn-soft)" };
+  return { color: "var(--ok)", soft: "var(--ok-soft)" };
+}
+
+/**
+ * מצב המתזמן — הכרטיס שהיה חסר כאן מאז ומתמיד.
+ *
+ * ההערה ב-status-row.tsx אמרה את זה במפורש: "המתזמן היה אמור לשבת כאן, אבל
+ * אין טבלה שרושמת את ריצות הקרון". 0042 יצרה אותה, וזה מה שקורא ממנה.
+ *
+ * הסדר כאן הוא אותו סדר של whatsappHealth, ומאותו טעם: תקלה אמיתית קודמת
+ * לשעון, ו"תקין" נשאר אחרון ורק אחרי שכל השאר נשלל.
+ */
+const SCHEDULER_LABEL: Record<CronState, Health> = {
+  unknown: { text: "אין נתונים", tone: "warn" },
+  ok: { text: "תקין", tone: "ok" },
+  late: { text: "מאחר", tone: "warn" },
+  stale: { text: "לא רץ", tone: "bad" },
+  failing: { text: "הריצה נפלה", tone: "bad" },
+  interrupted: { text: "הריצה נקטעה", tone: "bad" },
+};
+
+export const schedulerHealth = cache(async () => {
+  const now = new Date();
+  const cron = await readCronHealth(now);
+  const health = SCHEDULER_LABEL[cron.state];
+
+  // ── מה כתוב בשורה השנייה ──
+  // המיגרציה קודמת לכל: כל השאר שקר כל עוד אין טבלה לקרוא ממנה, ו"אין
+  // נתונים" בלי לומר *למה* שולח לחפש במקום הלא נכון. ר' 0035, שישבה
+  // בתיקייה חודשיים בלי שאיש ידע שלא הורצה.
+  // "מיגרציה 0042" ולא שם הקובץ המלא: מחרוזת לטינית עם נקודות וקווים
+  // תחתונים נשברת בתוך שורה עברית — הדפדפן מסדר את הקטעים שלה מימין לשמאל
+  // ו-"0042_cron_heartbeat.sql" מוצג כ-"cron_heartbeat.sql_0042". אותה
+  // מלכודת בדיוק שבגללה מספר הטלפון בכרטיס הסמוך עטוף ב-dir="ltr". כאן אין
+  // לאן לתלות את העטיפה — זו מחרוזת, לא JSX — ולכן השם המלא יושב במסך
+  // ההגדרות, שם אפשר לעטוף אותו כמו שצריך.
+  const hint = cron.missing
+    ? "יש להריץ את מיגרציה 0042"
+    : cron.state === "failing" && cron.error
+      ? cron.error
+      : cron.state === "unknown"
+        ? "המתזמן לא רץ מאז שהמחוון נוצר"
+        : relativeTime(cron.lastFinishedAt, now);
+
+  return { health, hint, ...toneColors(health.tone) };
+});
+
 function whatsappHealth(
   configured: boolean,
   paused: boolean,
@@ -206,18 +261,7 @@ export const channelHealth = cache(async () => {
     health,
     phone,
     lastSentAt: lastOut.data?.created_at ?? null,
-    color:
-      health.tone === "bad"
-        ? "var(--danger)"
-        : health.tone === "warn"
-          ? "var(--warn)"
-          : "var(--ok)",
-    soft:
-      health.tone === "bad"
-        ? "var(--danger-soft)"
-        : health.tone === "warn"
-          ? "var(--warn-soft)"
-          : "var(--ok-soft)",
+    ...toneColors(health.tone),
   };
 });
 

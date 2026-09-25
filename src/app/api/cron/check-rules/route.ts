@@ -3,6 +3,7 @@ import { runTimeSinceNoReplyRules } from "@/lib/automation-engine";
 import { runJourneys } from "@/lib/journey-engine";
 import { runNewsletters } from "@/lib/newsletter-engine";
 import { runEventReminders } from "@/lib/event-engine";
+import { recordCronStart, recordCronFinish, recordCronError } from "@/lib/cron-health";
 
 // GET /api/cron/check-rules — per spec section 4, runs once a day (see vercel.json).
 // Vercel Cron always calls with GET, and automatically sends
@@ -56,6 +57,14 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // ── הדופק, לפני הכל ─────────────────────────────────────────────────────
+  //
+  // נרשם **לפני** שהשעון של התקציב מתחיל, כדי ששתי רשומות של אותה ריצה לא
+  // ייגרעו מהזמן שהמנועים מקבלים. הפונקציה לא זורקת (ר' cron-health) —
+  // תיעוד אינו סיבה לבטל ריצה שעומדת לשלוח הודעות ללקוחות.
+  const runAt = new Date();
+  await recordCronStart(runAt);
+
   const now = new Date();
   const total = budgetMs();
   const startedAt = Date.now();
@@ -88,16 +97,28 @@ export async function GET(request: NextRequest) {
   // נמענים. תזכורות האירועים אחרונות ועם השארית, ולא כי הן פחות חשובות: הן
   // הזולות ביותר (בדרך כלל אפס אירועים בחלון), וכשיש להן עבודה החלון שלהן
   // רחב בשעות ולא בדקות.
-  const summary = await runTimeSinceNoReplyRules(now, Math.floor(remaining() * 0.4));
+  // ── למה try/catch סביב כל הארבעה ─────────────────────────────────────────
+  //
+  // בלי זה, מנוע שזורק מחזיר 500 ו**לא משאיר שום עקבה במסד**. המחוון בדף
+  // הבית היה מראה את שעת ההתחלה בלבד, כלומר "נקטע" — וזה מפנה את התיקון
+  // למקום הלא נכון: מתזמן שמצליח לקרוא ונופל בפנים אינו מתזמן שלא רץ.
+  // הסיבה נרשמת, ואז נזרקת הלאה כרגיל כדי שהמתזמן יראה 500 ולא יחשוב שהכל
+  // תקין.
+  let summary, journeys, newsletters, eventReminders;
+  try {
+    summary = await runTimeSinceNoReplyRules(now, Math.floor(remaining() * 0.4));
+    journeys = await runJourneys(new Date(), Math.floor(remaining() * 0.4));
+    newsletters = await runNewsletters(new Date(), Math.floor(remaining() * 0.75));
+    eventReminders = await runEventReminders(new Date(), remaining());
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    await recordCronError(reason);
+    throw err;
+  }
+
   const failed = summary.results.filter((r) => !r.ok);
 
-  const journeys = await runJourneys(new Date(), Math.floor(remaining() * 0.4));
-
-  const newsletters = await runNewsletters(new Date(), Math.floor(remaining() * 0.75));
-
-  const eventReminders = await runEventReminders(new Date(), remaining());
-
-  return NextResponse.json({
+  const payload = {
     ok: true,
     checked_at: new Date().toISOString(),
     sent: summary.results.length - failed.length,
@@ -135,5 +156,11 @@ export async function GET(request: NextRequest) {
     stopped: summary.stopped,
     remaining_today: summary.remainingToday,
     errors: failed,
-  });
+  };
+
+  // הסיכום נשמר אחרי שנבנה ולפני שהוא נשלח: מי שקורא את הדופק רואה בדיוק
+  // מה שהמתזמן ראה, גם כשהתשובה עצמה אבדה בדרך.
+  await recordCronFinish(payload);
+
+  return NextResponse.json(payload);
 }
