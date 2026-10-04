@@ -7,11 +7,13 @@ import {
   META_FORM_TARGET_TYPE_LABELS,
   WEBHOOK_SOURCE_LABELS,
   type MetaFormTarget,
+  type MetaLeadForm,
   type WebhookSource,
 } from "@/lib/supabase/database.types";
 import {
   deleteFormTargetAction,
   dismissInboxAction,
+  renameLeadFormAction,
   reprocessInboxAction,
   saveFormTargetAction,
 } from "./actions";
@@ -31,12 +33,30 @@ export default async function MetaFormsPage() {
 
   const db = supabaseAdmin();
 
-  const [{ data: targets }, { data: events }, { data: courses }, pending] = await Promise.all([
+  const [
+    { data: targets },
+    { data: events },
+    { data: courses },
+    pending,
+    { data: leadFormsRaw },
+    { data: leadRowsRaw },
+  ] = await Promise.all([
     db.from("meta_form_targets").select("*").order("created_at", { ascending: false }),
     db.from("events").select("id, name").order("starts_at", { ascending: false }),
     db.from("courses").select("id, name").order("created_at", { ascending: false }),
     listPending(),
+    // 0044. שתי השאילתות סובלניות לחוסר, כמו שאר המסך: לפני שהמיגרציה רצה
+    // הקטע פשוט לא מוצג, במקום שהמסך כולו ייפול.
+    db.from("meta_lead_forms").select("*").order("first_seen_at", { ascending: false }),
+    db.from("meta_form_leads").select("form_id"),
   ]);
+
+  const leadForms = (leadFormsRaw ?? []) as MetaLeadForm[];
+  // ספירה בזיכרון מתוך שליפה אחת, ולא count לכל טופס בנפרד.
+  const leadCount = new Map<string, number>();
+  for (const row of leadRowsRaw ?? []) {
+    leadCount.set(row.form_id, (leadCount.get(row.form_id) ?? 0) + 1);
+  }
 
   // שם היעד לכל שיוך. Map ולא חיפוש בתוך הלולאה — וגם כדי שיעד שנמחק יזוהה
   // כחסר ויוצג ככזה, במקום להיעלם בשקט משורת השיוך.
@@ -51,12 +71,59 @@ export default async function MetaFormsPage() {
     <div className="flex flex-col gap-8">
       <div>
         <h1 className="page-title">טפסי מטא</h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">
-          מטא שולחת בליד את מזהה הטופס בלבד, בלי לומר לאיזה מוצר הוא שייך. השיוך כאן הוא מה
-          שמכניס את הלקוח לאירוע או לקורס הנכון. את המזהה מעתיקים מ־Meta Business Suite ←
-          כלי לידים ← הטופס.
+        <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">
+          כל ליד שמגיע מטופס פרסום במטא נקלט כאן — גם בלי שיוך לשום מוצר. השיוך למטה הוא
+          תוספת ולא תנאי: הוא מה שרושם את הלקוח גם לאירוע או לקורס מסוים. כדי לפנות ללידים
+          בלי קשר למוצר, בונים להם מסע לקוח עם הכניסה &quot;השאיר פרטים בטופס לידים&quot;.
         </p>
       </div>
+
+      <section className="card">
+        <h2 className="mb-1 font-medium">טפסי הלידים שנקלטו</h2>
+        <p className="mb-4 text-sm leading-relaxed text-[var(--muted)]">
+          הטפסים נרשמים כאן בעצמם ברגע שהליד הראשון מגיע מהם — אין מה להעתיק ואין מה להגדיר
+          מראש. מטא שולחת מזהה בלבד ולא את שם הטופס, ולכן הוא מוצג כמספר עד שנותנים לו שם.
+        </p>
+
+        {leadForms.length === 0 ? (
+          <p className="text-sm text-[var(--muted)]">
+            עוד לא נקלט ליד מאף טופס. אפשר להקים את המסע כבר עכשיו ולבחור בו
+            &quot;כל טופס לידים&quot; — הוא יתפוס את הלידים הראשונים שיגיעו.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {leadForms.map((form) => (
+              <ActionForm
+                key={form.form_id}
+                action={renameLeadFormAction}
+                className="flex flex-wrap items-end gap-3 border-t border-[var(--border)] pt-3 text-sm first:border-0 first:pt-0"
+              >
+                <input type="hidden" name="form_id" value={form.form_id} />
+                <div className="flex-1 min-w-[12rem]">
+                  <label className="field-label">
+                    שם הטופס
+                    <input
+                      name="name"
+                      defaultValue={form.name ?? ""}
+                      maxLength={120}
+                      className="input"
+                      placeholder={`טופס ${form.form_id}`}
+                    />
+                  </label>
+                  <p className="mt-1 font-mono text-xs text-[var(--subtle)]">{form.form_id}</p>
+                </div>
+                <div className="flex flex-col gap-1 text-xs text-[var(--subtle)]">
+                  <span>{leadCount.get(form.form_id) ?? 0} לידים</span>
+                  {form.last_lead_at && <span>אחרון: {formatDateTime(form.last_lead_at)}</span>}
+                </div>
+                <button type="submit" className="btn-secondary">
+                  שמור שם
+                </button>
+              </ActionForm>
+            ))}
+          </div>
+        )}
+      </section>
 
       <section className="card">
         <h2 className="mb-4 font-medium">שיוך חדש</h2>

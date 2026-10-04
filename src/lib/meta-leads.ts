@@ -1,6 +1,8 @@
 import "server-only";
 
+import { after } from "next/server";
 import { supabaseAdmin } from "./supabase/admin";
+import { kickoffJourneysForContact } from "./journey-engine";
 import { findOrCreateContact, strongerStage } from "./registration";
 import { assertInboxMigrated } from "./webhook-inbox";
 import { normalizePhone, usableEmail } from "./quiz";
@@ -20,7 +22,9 @@ import type { MetaFormTarget } from "./supabase/database.types";
  *      יגיע כ-full_name בטופס אחד וכ-"שם מלא" בטופס הבא. לכן החילוץ כאן
  *      סלחני ומסתמך גם על *צורת הערך* ולא רק על שמו.
  *   3. **מזהה הטופס לא אומר לאן הליד שייך.** השיוך לאירוע או לקורס נשמר
- *      בטבלת meta_form_targets, ובלעדיו אין לנו לאן לרשום את הלקוח.
+ *      בטבלת meta_form_targets — ומ-0044 הוא **אינו חובה**: ליד בלי שיוך
+ *      נרשם כליד של הטופס עצמו (meta_form_leads) ולא נעצר. קמפיין "השאר
+ *      פרטים" אינו מוכר מוצר מסוים, ודרישת השיוך הפכה אותו לכישלון קבוע.
  */
 
 // גרסת Graph API. מיושרת לזו שבלקוח הוואטסאפ, ומאותה סיבה — היא מה שהקונסולה
@@ -258,12 +262,9 @@ export async function resolveFormTarget(formId: string): Promise<ResolvedFormTar
 export async function processLeadgenEvent(event: LeadgenEvent): Promise<void> {
   if (!event.formId) throw new Error("ה-payload לא כלל מזהה טופס (form_id)");
 
+  // null מותר מ-0044. הליד ייקלט כליד של הטופס עצמו, והשיוך — אם קיים —
+  // הוא תוספת: הוא מה שמוסיף גם שורת הרשמה לקורס או לאירוע.
   const target = await resolveFormTarget(event.formId);
-  if (!target) {
-    throw new Error(
-      "הטופס אינו משויך לאירוע או לקורס (או שהיעד נמחק). יש לשייך אותו בהגדרות ← טפסי מטא, ואז לעבד את השורה מחדש."
-    );
-  }
 
   // מטא לא שולחת את התשובות ב-webhook — הן נשלפות בקריאה נפרדת. field_data
   // בתוך ה-payload מגיע רק מבדיקה ידנית, וזה מה שמאפשר לבדוק בלי טוקן דף.
@@ -282,9 +283,17 @@ export async function processLeadgenEvent(event: LeadgenEvent): Promise<void> {
   }
 
   const db = supabaseAdmin();
-  const label = target.type === "event" ? "אירוע" : "קורס";
 
-  const contact = await findOrCreateContact(db, registrant, `${label}: ${target.name}`);
+  // הטופס נרשם לפני איש הקשר: שמו (אם ניתן לו אחד) הוא גם מקור איש הקשר,
+  // והשורה שלו היא מפתח זר של הליד.
+  const form = await registerLeadForm(db, event.formId);
+  const formLabel = form.name?.trim() || `טופס ${event.formId}`;
+
+  const sourceLabel = target
+    ? `${target.type === "event" ? "אירוע" : "קורס"}: ${target.name}`
+    : `טופס לידים: ${formLabel}`;
+
+  const contact = await findOrCreateContact(db, registrant, sourceLabel);
   if ("error" in contact) throw new Error(contact.error);
 
   // התשובות נשמרות כפי שמטא שלחה אותן, לפי שמות השדות שלה. הן לא בהכרח
@@ -301,9 +310,12 @@ export async function processLeadgenEvent(event: LeadgenEvent): Promise<void> {
     if (value) answers[key] = value;
   }
 
-  if (target.type === "event") {
+  // הליד עצמו — תמיד, עם שיוך או בלעדיו. זה הקהל של מסע lead_form.
+  await recordFormLead(db, event.formId, contact.id, event.leadgenId, answers);
+
+  if (target?.type === "event") {
     await upsertEventRegistration(db, target.id, contact.id, answers);
-  } else {
+  } else if (target?.type === "course") {
     await upsertCourseRegistration(db, target.id, contact.id, answers);
   }
 
@@ -311,12 +323,81 @@ export async function processLeadgenEvent(event: LeadgenEvent): Promise<void> {
   // שקיימים ב-enum, והנוסח הוא מה שמבחין: ליד ממטא הוא *התעניינות* ולא הרשמה
   // שהושלמה. הוספת ערך חדש ל-enum הייתה דורשת מיגרציה נפרדת משלה (ראו 0028),
   // ולא היא שתשנה את מה שקורא היומן מבין.
+  //
+  // ליד בלי שיוך נרשם כ-course_lead: הערך קיים ב-enum, הוא אינו בשימוש
+  // מאז 0041, ומשמעותו המילולית — "השאיר פרטים" — היא בדיוק מה שקרה כאן.
+  // הוספת ערך חדש ל-enum הייתה דורשת בנייה מחדש של שני ה-views של
+  // contact_activity (ראו 0028), סיכון על מסד חי בתמורה לשם יפה יותר.
   const { error: logError } = await db.from("interactions").insert({
     contact_id: contact.id,
-    type: target.type === "event" ? "event_registered" : "course_registered",
-    content: `הגיע כליד מטופס במטא — ${label}: ${target.name}`,
+    type: target
+      ? target.type === "event"
+        ? "event_registered"
+        : "course_registered"
+      : "course_lead",
+    content: target
+      ? `הגיע כליד מטופס במטא — ${sourceLabel}`
+      : `השאיר פרטים בטופס לידים במטא — ${formLabel}`,
   });
   if (logError) console.error("[meta-leads] רישום ביומן איש הקשר נכשל:", logError.message);
+
+  // ── השליחה הראשונה יוצאת עכשיו, לא בעוד רבע שעה ──
+  //
+  // אותו שיקול כמו בטופסי הקורס והאירוע: מי שהשאיר פרטים מצפה לתשובה בזמן
+  // שהוא עדיין מול המסך. after() ולא await — מטא מצפה ל-200 מהיר, וחזרה על
+  // webhook שלא נענה בזמן הייתה יוצרת ליד כפול.
+  after(() => kickoffJourneysForContact(contact.id));
+}
+
+/**
+ * רישום הטופס, ומחזירה את השורה שלו.
+ *
+ * upsert ולא insert: הליד השני מאותו טופס לא אמור להיכשל, והוא גם זה
+ * שמעדכן את last_lead_at. ה-name לא נכתב כאן לעולם — הוא ידני, ו-upsert
+ * שהיה כולל אותו היה מוחק בכל ליד את השם שגיא נתן.
+ */
+async function registerLeadForm(db: Db, formId: string): Promise<{ name: string | null }> {
+  const { error } = await db
+    .from("meta_lead_forms")
+    .upsert({ form_id: formId, last_lead_at: new Date().toISOString() }, { onConflict: "form_id" });
+  if (error) {
+    // 42P01 = המיגרציה טרם רצה. ההודעה נכתבת ל-webhook_inbox, כלומר לגיא.
+    if (error.code === "42P01" || error.code === "PGRST205") {
+      throw new Error(
+        "טבלת טפסי הלידים לא קיימת. יש להריץ את supabase/migrations/0044_lead_forms.sql ב-SQL editor של Supabase."
+      );
+    }
+    throw new Error(error.message);
+  }
+
+  const { data } = await db
+    .from("meta_lead_forms")
+    .select("name")
+    .eq("form_id", formId)
+    .maybeSingle();
+  return { name: data?.name ?? null };
+}
+
+/**
+ * רישום הליד עצמו.
+ *
+ * ignoreDuplicates: מילוי חוזר של אותו טופס בידי אותו אדם אינו ליד חדש, ו-
+ * created_at חייב להישאר של הפעם הראשונה — אחרת המסע היה מתחיל אצלו מחדש.
+ */
+async function recordFormLead(
+  db: Db,
+  formId: string,
+  contactId: string,
+  leadgenId: string | null,
+  answers: Record<string, string>
+): Promise<void> {
+  const { error } = await db
+    .from("meta_form_leads")
+    .upsert(
+      { form_id: formId, contact_id: contactId, leadgen_id: leadgenId, answers },
+      { onConflict: "form_id,contact_id", ignoreDuplicates: true }
+    );
+  if (error && error.code !== "23505") throw new Error(error.message);
 }
 
 type Db = ReturnType<typeof supabaseAdmin>;

@@ -32,7 +32,7 @@ export interface Journey {
   id: string;
   name: string;
   entry_type: JourneyEntryType;
-  entry_value: { status?: string; event_id?: string; course_id?: string } | null;
+  entry_value: { status?: string; event_id?: string; course_id?: string; form_id?: string } | null;
   active: boolean;
   stop_on_reply: boolean;
   /** נוסף ב-0039 — ר' ההערה על העמודה ב-database.types.ts */
@@ -219,7 +219,7 @@ export function stepDueAt(
 /**
  * האינטראקציה שמסמנת כניסה, לסוגי המסע שנגזרים משורה ביומן.
  *
- * status, event_interest, course_interest ו-course_paid אינם כאן ומטופלים
+ * status, event_interest, course_interest, course_paid ו-lead_form אינם כאן ומטופלים
  * בנפרד — כולם שואלים "מי נמצא כרגע במצב מסוים" ולא "למי קרה אירוע כלשהו
  * אי־פעם".
  * event_registered ו-course_registered קיימים ביומן, אבל הם לא מבחינים בין
@@ -233,7 +233,7 @@ export function stepDueAt(
 const ENTRY_INTERACTION: Record<
   Exclude<
     JourneyEntryType,
-    "status" | "event_interest" | "course_interest" | "course_paid"
+    "status" | "event_interest" | "course_interest" | "course_paid" | "lead_form"
   >,
   InteractionType
 > = {
@@ -335,6 +335,32 @@ async function enrollForJourney(
       .eq("course_id", courseId)
       .in("stage", ["interested", "registered"]);
     if (error) throw error;
+    candidateIds = Array.from(new Set((data ?? []).map((r) => r.contact_id)));
+  } else if (journey.entry_type === "lead_form") {
+    // ── מי השאיר פרטים בטופס לידים ──
+    //
+    // form_id ריק פירושו *כל* טופס, וזו לא עצלנות: אפשר להקים את המסע לפני
+    // שהקמפיין עלה, כשאף טופס עוד לא נקלט ולכן אין מה לבחור ברשימה.
+    //
+    // הסינון בזמן זהה לזה של course_paid ומאותה סיבה בדיוק: "השאיר פרטים"
+    // הוא מצב קבוע שלא יוצאים ממנו. בלעדיו הדלקת המסע הייתה שולחת "נעים
+    // להכיר" לכל ליד שנקלט אי־פעם, בבת אחת.
+    const formId = journey.entry_value?.form_id;
+    let query = db
+      .from("meta_form_leads")
+      .select("contact_id")
+      .gte("created_at", journey.created_at);
+    if (formId) query = query.eq("form_id", formId);
+    const { data, error } = await query;
+    // 42P01 = 0044 טרם רצה. מסע כזה לא יכול לצרף איש, ואין טעם להפיל את
+    // כל סבב הקרון בגללו — שאר המסעות ממשיכים.
+    if (error) {
+      if (error.code === "42P01" || error.code === "PGRST205") {
+        console.error("[journeys] טבלת לידי הטפסים חסרה — יש להריץ את 0044_lead_forms.sql");
+        return 0;
+      }
+      throw error;
+    }
     candidateIds = Array.from(new Set((data ?? []).map((r) => r.contact_id)));
   } else if (journey.entry_type === "course_paid") {
     const courseId = journey.entry_value?.course_id;

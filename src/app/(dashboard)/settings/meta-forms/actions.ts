@@ -19,6 +19,35 @@ function revalidateAll() {
 }
 
 /**
+ * שם לטופס לידים (0044).
+ *
+ * מטא לא שולחת את שם הטופס ב-webhook — רק מזהה — ושליפתו מ-Graph דורשת
+ * הרשאת pages_manage_ads שאין לטוקן שלנו. לכן השם ידני, והוא הדבר היחיד
+ * בשורה שנכתב בידי אדם: הטופס עצמו נרשם לבדו בליד הראשון.
+ */
+export async function renameLeadFormAction(formData: FormData): Promise<ActionResult> {
+  return toResult(async () => {
+    await verifyTeamMember();
+
+    const formId = String(formData.get("form_id") ?? "").trim();
+    if (!formId) throw new Error("חסר מזהה הטופס");
+
+    const name = String(formData.get("name") ?? "").trim().slice(0, 120);
+
+    const { error } = await supabaseAdmin()
+      .from("meta_lead_forms")
+      // ריק מוחק את השם ומחזיר את התצוגה למזהה, במקום לשמור מחרוזת ריקה
+      // שנראית כמו טופס בלי שם.
+      .update({ name: name || null })
+      .eq("form_id", formId);
+    if (error) throw new Error(error.message);
+
+    revalidatePath("/settings/meta-forms");
+    revalidatePath("/journeys");
+  });
+}
+
+/**
  * היעד מגיע כערך אחד ("event:<uuid>") ולא כשני שדות.
  *
  * שדה אחד ולא שניים כי הם אינם עצמאיים: סוג בלי מזהה, או מזהה של אירוע עם

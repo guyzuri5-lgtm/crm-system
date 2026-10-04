@@ -15,20 +15,26 @@ const journeySchema = z.object({
   status: z.string().trim().optional(),
   event_id: z.string().uuid().optional(),
   course_id: z.string().uuid().optional(),
+  // מזהה טופס של מטא — מספר ארוך ולא uuid, ולכן טקסט.
+  form_id: z.string().trim().optional(),
 });
 
 /**
  * מה נשמר ב-entry_value, לפי סוג הכניסה.
  *
- * ארבעה סוגים נושאים ערך: סטטוס, אירוע וקורס — האחרון פעמיים, כי מסע
- * למתעניינים ומסע לרוכשים נבדלים בשלב ולא בקורס. השאר נגזרים מהיומן ואין להם
- * מה לצמצם — ולכן אובייקט ריק ולא null, כדי שהעמודה תישאר בעלת צורה אחת.
+ * חמישה סוגים נושאים ערך: סטטוס, אירוע, קורס — האחרון פעמיים, כי מסע
+ * למתעניינים ומסע לרוכשים נבדלים בשלב ולא בקורס — וטופס לידים. השאר נגזרים
+ * מהיומן ואין להם מה לצמצם, ולכן אובייקט ריק ולא null, כדי שהעמודה תישאר
+ * בעלת צורה אחת.
  */
 function entryValueOf(data: z.infer<typeof journeySchema>) {
   if (data.entry_type === "status") return { status: data.status };
   if (data.entry_type === "event_interest") return { event_id: data.event_id };
   if (data.entry_type === "course_interest") return { course_id: data.course_id };
   if (data.entry_type === "course_paid") return { course_id: data.course_id };
+  // טופס לידים הוא היחיד שהערך בו *רשות*: ריק פירושו "כל טופס", וזה מה
+  // שמאפשר להקים את המסע לפני שהקמפיין עלה ואף טופס עוד לא נקלט.
+  if (data.entry_type === "lead_form") return data.form_id ? { form_id: data.form_id } : {};
   return {};
 }
 
@@ -51,6 +57,7 @@ export async function createJourneyAction(formData: FormData): Promise<ActionRes
       status: formData.get("status") || undefined,
       event_id: formData.get("event_id") || undefined,
       course_id: formData.get("course_id") || undefined,
+      form_id: formData.get("form_id") || undefined,
     });
     if (!parsed.success) throw new Error(parsed.error.issues.map((i) => i.message).join(", "));
 

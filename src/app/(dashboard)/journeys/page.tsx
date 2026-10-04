@@ -35,6 +35,7 @@ export default async function JourneysPage({ searchParams }: PageProps<"/journey
     { data: eventsRaw },
     { data: coursesRaw },
     { data: enrollmentsRaw },
+    { data: leadFormsRaw },
   ] = await Promise.all([
     db.from("journeys").select("*").order("created_at", { ascending: false }),
     listStatuses(),
@@ -48,6 +49,9 @@ export default async function JourneysPage({ searchParams }: PageProps<"/journey
     // המסעות חזרה — כלומר גל שלישי שלם. שני שדות לכל שורת הרשמה והספירה
     // בזיכרון, בדיוק כמו countsByEvent ו-countsByCourse.
     db.from("journey_enrollments").select("journey_id, state"),
+    // טפסי הלידים שנקלטו (0044). maybe, כמו האירועים והקורסים שמעל: מסך
+    // המסעות חייב להמשיך לעבוד גם לפני שהמיגרציה רצה.
+    db.from("meta_lead_forms").select("form_id, name").order("first_seen_at", { ascending: false }),
   ]);
 
   if (error) {
@@ -64,6 +68,11 @@ export default async function JourneysPage({ searchParams }: PageProps<"/journey
   const eventNameById = new Map(events.map((e) => [e.id, e.name]));
   const courses = (coursesRaw ?? []) as { id: string; name: string }[];
   const courseNameById = new Map(courses.map((c) => [c.id, c.name]));
+  // מטא לא שולחת את שם הטופס — רק מזהה. עד שגיא נותן לו שם במסך ההגדרות,
+  // המזהה הוא השם, ועדיף זה על "ללא שם" שאינו מבדיל בין שני טפסים.
+  const leadForms = (leadFormsRaw ?? []) as { form_id: string; name: string | null }[];
+  const formLabel = (id: string) =>
+    leadForms.find((f) => f.form_id === id)?.name?.trim() || `טופס ${id}`;
 
   // ספירה לכל מסע, מתוך אותן שורות שכבר נשלפו.
   //
@@ -182,6 +191,18 @@ export default async function JourneysPage({ searchParams }: PageProps<"/journey
           </label>
 
           <label className="field-label">
+            טופס הלידים (רק כשהכניסה לפי טופס לידים)
+            <select name="form_id" className="input" defaultValue="">
+              <option value="">כל טופס לידים</option>
+              {leadForms.map((f) => (
+                <option key={f.form_id} value={f.form_id}>
+                  {f.name?.trim() || `טופס ${f.form_id}`}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field-label">
             תיאור (לא חובה)
             <input name="description" className="input" />
           </label>
@@ -225,6 +246,9 @@ export default async function JourneysPage({ searchParams }: PageProps<"/journey
                     : ""}
                   {j.entry_type === "event_interest" && j.entry_value?.event_id
                     ? `: ${eventNameById.get(j.entry_value.event_id) ?? "אירוע שנמחק"}`
+                    : ""}
+                  {j.entry_type === "lead_form"
+                    ? `: ${j.entry_value?.form_id ? formLabel(j.entry_value.form_id) : "כל טופס"}`
                     : ""}
                 </span>
               </div>

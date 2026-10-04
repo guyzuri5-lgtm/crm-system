@@ -71,6 +71,11 @@ export const JOURNEY_ENTRY_TYPES = [
   // בזמן (ראו enrollForJourney). "שילם" הוא מצב קבוע, ובלי הסינון כל
   // לקוח מאי־פעם היה נכנס למסע ליווי ברגע שהוא נדלק.
   "course_paid",
+  // נוסף ב-0044: השאיר פרטים בטופס לידים של מטא, בלי קשר לקורס או לאירוע.
+  // entry_value נושא form_id לטופס מסוים, או נשאר ריק — וריק כאן פירושו
+  // "כל טופס", בכוונה: אפשר להקים את המסע לפני שהקמפיין עלה, כשעוד אין
+  // אף טופס מוכר במערכת.
+  "lead_form",
 ] as const;
 export type JourneyEntryType = (typeof JOURNEY_ENTRY_TYPES)[number];
 
@@ -84,6 +89,7 @@ export const JOURNEY_ENTRY_LABELS: Record<JourneyEntryType, string> = {
   event_interest: "נרשם לאירוע ועדיין לא שילם",
   course_interest: "נרשם לקורס ועדיין לא שילם",
   course_paid: "רכש את הקורס",
+  lead_form: "השאיר פרטים בטופס לידים",
 };
 
 /**
@@ -722,9 +728,10 @@ export type Database = {
           entry_type: JourneyEntryType;
           /**
            * הערך הנלווה לטריגר: {"status":"..."} לכניסה לפי סטטוס,
-           * {"event_id":"..."} לאירוע, {"course_id":"..."} לקורס.
+           * {"event_id":"..."} לאירוע, {"course_id":"..."} לקורס,
+           * {"form_id":"..."} לטופס לידים — ושם ריק פירושו כל הטפסים.
            */
-          entry_value: { status?: string; event_id?: string; course_id?: string };
+          entry_value: { status?: string; event_id?: string; course_id?: string; form_id?: string };
           active: boolean;
           /** נוסף ב-0017 — תגובה של הלקוח מסיימת את המסע כולו */
           stop_on_reply: boolean;
@@ -1105,6 +1112,54 @@ export type Database = {
         Relationships: Relationships;
       };
 
+      // ── נוספו ב-0044_lead_forms.sql ────────────────────────────────────
+      /**
+       * טופס לידים של מטא. **נרשם מעצמו בליד הראשון שמגיע ממנו**, ולכן אין
+       * מסך שצריך להקדים אותו.
+       *
+       * name ריק בהתחלה ולא מתמלא לבד: מטא שולחת ב-webhook מזהה טופס בלבד,
+       * ושליפת השם מ-Graph דורשת הרשאת pages_manage_ads שאין לטוקן שלנו.
+       * המסך מציג את המזהה עד שניתן שם ידני.
+       */
+      meta_lead_forms: {
+        Row: {
+          form_id: string;
+          name: string | null;
+          first_seen_at: string;
+          last_lead_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["meta_lead_forms"]["Row"]> & {
+          form_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["meta_lead_forms"]["Row"]>;
+        Relationships: Relationships;
+      };
+
+      /**
+       * מי השאיר פרטים בטופס לידים, מאיזה טופס ומתי. הקהל של מסע lead_form.
+       *
+       * הייחוד הוא על (form_id, contact_id) ולא על הליד: מילוי חוזר של אותו
+       * טופס הוא אותו אדם, ו-created_at נשאר של הפעם הראשונה — אחרת מילוי
+       * שני היה מחזיר אותו לתחילת המסע.
+       */
+      meta_form_leads: {
+        Row: {
+          id: string;
+          form_id: string;
+          contact_id: string;
+          /** מזהה הליד אצל מטא. ריק כשהליד הגיע מייבוא קובץ ולא מה-webhook. */
+          leadgen_id: string | null;
+          answers: Record<string, string>;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["meta_form_leads"]["Row"]> & {
+          form_id: string;
+          contact_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["meta_form_leads"]["Row"]>;
+        Relationships: Relationships;
+      };
+
       // ── נוספה ב-0037_message_receipts.sql ──────────────────────────────
       /**
        * מה קרה להודעה אחרי שיצאה — נמסרה, נקראה/נפתחה, נלחצה, נכשלה.
@@ -1242,3 +1297,5 @@ export type CourseRegistration = Database["public"]["Tables"]["course_registrati
 /** נוספו ב-0030_webhook_inbox.sql — התשתית לקליטת מטא וגרואו. */
 export type WebhookInboxRow = Database["public"]["Tables"]["webhook_inbox"]["Row"];
 export type MetaFormTarget = Database["public"]["Tables"]["meta_form_targets"]["Row"];
+export type MetaLeadForm = Database["public"]["Tables"]["meta_lead_forms"]["Row"];
+export type MetaFormLead = Database["public"]["Tables"]["meta_form_leads"]["Row"];
