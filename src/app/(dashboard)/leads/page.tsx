@@ -157,7 +157,13 @@ export default async function LeadsPage({ searchParams }: PageProps<"/leads">) {
                       {contact?.full_name?.trim() || "ללא שם"}
                     </span>
                     <span className="text-xs text-[var(--subtle)]">
-                      {formatDateTime(lead.created_at)}
+                      {formatDateTime(lead.created_at, {
+                        day: "numeric",
+                        month: "numeric",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
                     </span>
                   </div>
 
