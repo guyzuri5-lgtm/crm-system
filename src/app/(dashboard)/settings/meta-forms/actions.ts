@@ -19,6 +19,44 @@ function revalidateAll() {
 }
 
 /**
+ * הוספת טופס לידים ידנית, לפני שהגיע ממנו ליד.
+ *
+ * הטופס נרשם גם לבדו בליד הראשון, אבל אז הוא מופיע רק *אחרי* שהקמפיין כבר
+ * רץ — ומסע שמחובר אליו אפשר להקים רק מאותו רגע. הקלדת המזהה בעת הקמת
+ * הקמפיין היא מה שמאפשר להכין את המסע מראש, ולכן זה הזמן הנכון.
+ *
+ * upsert ולא insert: טופס שכבר נקלט ומקבל כאן שם הוא עריכה, לא התנגשות.
+ */
+export async function addLeadFormAction(formData: FormData): Promise<ActionResult> {
+  return toResult(async () => {
+    await verifyTeamMember();
+
+    // מטא מציגה את המזהה עם רווחים ולעיתים מועתק איתו תו נסתר. כל מה שאינו
+    // ספרה יורד — זו אותה הגנה שכבר קיימת בשיוך, ומאותה סיבה.
+    const formId = String(formData.get("form_id") ?? "").replace(/[^\d]/g, "");
+    if (!formId) throw new Error("צריך להקליד את מזהה הטופס — מספר בלבד");
+
+    const name = String(formData.get("name") ?? "").trim().slice(0, 120);
+
+    const { error } = await supabaseAdmin()
+      .from("meta_lead_forms")
+      .upsert({ form_id: formId, name: name || null }, { onConflict: "form_id" });
+    if (error) {
+      if (error.code === "42P01" || error.code === "PGRST205") {
+        throw new Error(
+          "טבלת טפסי הלידים לא קיימת. יש להריץ את supabase/migrations/0044_lead_forms.sql ב-SQL editor של Supabase."
+        );
+      }
+      throw new Error(error.message);
+    }
+
+    revalidatePath("/settings/meta-forms");
+    revalidatePath("/journeys");
+    revalidatePath("/leads");
+  });
+}
+
+/**
  * שם לטופס לידים (0044).
  *
  * מטא לא שולחת את שם הטופס ב-webhook — רק מזהה — ושליפתו מ-Graph דורשת
@@ -44,6 +82,7 @@ export async function renameLeadFormAction(formData: FormData): Promise<ActionRe
 
     revalidatePath("/settings/meta-forms");
     revalidatePath("/journeys");
+    revalidatePath("/leads");
   });
 }
 

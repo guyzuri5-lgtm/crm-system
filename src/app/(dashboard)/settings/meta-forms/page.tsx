@@ -13,6 +13,7 @@ import {
 import {
   deleteFormTargetAction,
   dismissInboxAction,
+  addLeadFormAction,
   renameLeadFormAction,
   reprocessInboxAction,
   saveFormTargetAction,
@@ -81,14 +82,39 @@ export default async function MetaFormsPage() {
       <section className="card">
         <h2 className="mb-1 font-medium">טפסי הלידים שנקלטו</h2>
         <p className="mb-4 text-sm leading-relaxed text-[var(--muted)]">
-          הטפסים נרשמים כאן בעצמם ברגע שהליד הראשון מגיע מהם — אין מה להעתיק ואין מה להגדיר
-          מראש. מטא שולחת מזהה בלבד ולא את שם הטופס, ולכן הוא מוצג כמספר עד שנותנים לו שם.
+          טופס נרשם כאן לבד ברגע שמגיע ממנו הליד הראשון. כדי להכין לו מסע לקוח כבר עכשיו —
+          לפני שהקמפיין עלה — אפשר להוסיף אותו ידנית. את המזהה מעתיקים מ-Meta Business Suite
+          ← כלי כולם ← טפסים מיידיים, בעמודת המזהה.
         </p>
+
+        <ActionForm
+          action={addLeadFormAction}
+          resetOnSuccess
+          className="mb-5 flex flex-wrap items-end gap-3 border-b border-[var(--border)] pb-5 text-sm"
+        >
+          <label className="field-label">
+            מזהה הטופס
+            <input
+              name="form_id"
+              required
+              inputMode="numeric"
+              maxLength={30}
+              className="input"
+              placeholder="1234567890123456"
+            />
+          </label>
+          <label className="field-label flex-1 min-w-[12rem]">
+            שם לתצוגה (לא חובה)
+            <input name="name" maxLength={120} className="input" placeholder="ריטריט יולי" />
+          </label>
+          <button type="submit" className="btn-primary">
+            הוסף טופס
+          </button>
+        </ActionForm>
 
         {leadForms.length === 0 ? (
           <p className="text-sm text-[var(--muted)]">
-            עוד לא נקלט ליד מאף טופס. אפשר להקים את המסע כבר עכשיו ולבחור בו
-            &quot;כל טופס לידים&quot; — הוא יתפוס את הלידים הראשונים שיגיעו.
+            אין עדיין טפסים. הוסיפו אחד למעלה, או המתינו לליד הראשון שיירשם אותו לבד.
           </p>
         ) : (
           <div className="flex flex-col gap-3">

@@ -163,6 +163,7 @@ const GROUPS: NavGroup[] = [
       { href: "/active/sent", label: "נשלח אליהם" },
       { href: "/contacts", label: "כל אנשי הקשר" },
       { href: "/quiz", label: "משפך השאלון" },
+      { href: "/leads", label: "לידים מטפסים" },
     ],
   },
   {
