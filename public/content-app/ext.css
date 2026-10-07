@@ -188,3 +188,10 @@
 .bank-emails { margin-top: 12px; }
 .bank-emails-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; font-size: 0.84rem; }
 .chat-note { display: block; font-size: 0.62rem; color: var(--ink-500); margin-bottom: 2px; }
+
+/* מסך צר: הכפתורים יורדים לשורה משלהם במקום לדחוס את הכותרת */
+@media (max-width: 760px) {
+  .title-row { flex-wrap: wrap; gap: 8px; }
+  .title-actions { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
+  .zernio-bar { flex-wrap: nowrap; }
+}
