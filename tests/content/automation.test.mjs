@@ -106,3 +106,13 @@ test("content hash changes with copy, not with name", () => {
   assert.equal(A.contentHash(auto()), A.contentHash(auto({ name: "שם אחר" })));
   assert.notEqual(A.contentHash(auto()), A.contentHash(auto({ dm1_text: "אחר" })));
 });
+
+test("public replies: one per line, first is the reply, rest are variations", () => {
+  const b = A.commentAutomationBody(auto({ comment_reply: "שלחתי 📩\n\n אצלך ב-DM \nשלחתי 📩" }), ACCT, "it");
+  assert.equal(b.commentReply, "שלחתי 📩");
+  assert.deepEqual(b.commentReplyVariations, ["אצלך ב-DM"]);
+  assert.equal(A.commentAutomationBody(auto({ comment_reply: "רק אחת" }), ACCT, "it").commentReplyVariations, undefined);
+  const p = A.commentAutomationPatch(auto({ comment_reply: "" }));
+  assert.equal(p.commentReply, "");
+  assert.deepEqual(p.commentReplyVariations, []);
+});

@@ -205,3 +205,8 @@
 .bank-page { max-width: 820px; margin: 0 auto; }
 .bank-page-title { font-size: 1.3rem; font-weight: 800; margin: 4px 0 12px; }
 .view-reels #boardHeaderBits, .view-reels #calendarWrap { display: none !important; }
+
+/* תשובות ציבוריות: כמה נוסחים, הגרלה לכל מגיב */
+.reply-list { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.reply-row { display: flex; gap: 6px; width: 100%; align-items: center; }
+.reply-row .text-input { flex: 1; min-width: 0; }

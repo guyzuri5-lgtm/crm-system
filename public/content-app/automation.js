@@ -51,7 +51,7 @@
       var row = el("div", "chat-row " + (m.from === "me" ? "is-me" : "is-them"));
       var bub;
       if (m.kind === "comment") { bub = el("div", "chat-comment"); bub.appendChild(el("small", null, "תגובה מתחת לפוסט")); bub.appendChild(el("div", null, m.text)); }
-      else if (m.kind === "public-reply") { bub = el("div", "chat-comment is-reply"); bub.appendChild(el("small", null, "תשובה ציבורית לתגובה")); bub.appendChild(el("div", null, m.text)); }
+      else if (m.kind === "public-reply") { bub = el("div", "chat-comment is-reply"); bub.appendChild(el("small", null, "תשובה ציבורית לתגובה" + (m.note ? " · " + m.note : ""))); bub.appendChild(el("div", null, m.text)); }
       else if (m.kind === "tap") bub = el("div", "chat-tap", "לוחץ/ת: " + m.text);
       else if (m.kind === "reply") bub = el("div", "chat-tap", m.text);
       else if (m.kind === "card") {
@@ -310,7 +310,33 @@
     s1.body.appendChild(anyNote);
     kwWrap.style.display = d.trigger_mode === "any" ? "none" : "";
     anyNote.style.display = d.trigger_mode === "any" ? "" : "none";
-    s1.body.appendChild(field("תשובה ציבורית לתגובה (לא חובה)", txt("comment_reply", { placeholder: "למשל: שלחתי לך בפרטי 📩" })));
+    s1.body.appendChild(field("תשובות ציבוריות לתגובה (לא חובה)", replyList(),
+      "כל מגיב מקבל אחת מהן בהגרלה, כך שהתגובות מתחת לפוסט לא נראות כמו העתק-הדבק."));
+
+    // התשובות נשמרות בשדה אחד, אחת בכל שורה
+    function replyList() {
+      var host = el("div", "reply-list");
+      var rows = String(d.comment_reply || "").split("\n").filter(function (r) { return r.trim(); });
+      if (!rows.length) rows = [""];
+      function sync() { d.comment_reply = rows.map(function (r) { return r.replace(/\n/g, " ").trim(); }).filter(Boolean).join("\n"); dirty(); }
+      function draw() {
+        host.innerHTML = "";
+        rows.forEach(function (r, i) {
+          var row = el("div", "reply-row");
+          var inp = el("input", "text-input"); inp.value = r;
+          inp.placeholder = ["למשל: שלחתי לך בפרטי 📩", "אצלך ב-DM 👀", "שלחתי, תבדוק בהודעות 🙌"][i] || "עוד נוסח";
+          inp.addEventListener("input", function () { rows[i] = inp.value; sync(); });
+          row.appendChild(inp);
+          if (rows.length > 1) row.appendChild(X.btn("✕", "btn-ghost btn-small", function () { rows.splice(i, 1); sync(); draw(); }));
+          host.appendChild(row);
+        });
+        if (rows.length < 10) host.appendChild(X.btn("+ תשובה נוספת", "btn-ghost btn-small", function () {
+          rows.push(""); draw(); var ins = host.querySelectorAll("input"); ins[ins.length - 1].focus();
+        }));
+      }
+      draw();
+      return host;
+    }
 
     // 2 — בקשת עוקב
     var s2 = stepBox(2, "בקשת עוקב — רק למי שלא עוקב");

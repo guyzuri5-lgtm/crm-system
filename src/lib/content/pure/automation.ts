@@ -79,6 +79,11 @@ export function utf16Len(s: string | null | undefined): number {
   return (s || "").length;
 }
 
+/** התשובות הציבוריות, אחת בכל שורה. Zernio מגריל ביניהן לכל מגיב. */
+export function commentReplies(a: Pick<Automation, "comment_reply">): string[] {
+  return dedupe((a.comment_reply || "").split("\n").map((r) => r.trim()));
+}
+
 export function keywordsOf(a: Pick<Automation, "keyword" | "trigger_mode">): string[] {
   if (a.trigger_mode === "any") return [];
   return (a.keyword || "")
@@ -340,7 +345,9 @@ export function commentAutomationBody(a: Automation, acct: Account, itemId: stri
     buttons: [{ type: "postback", title: String(a.button_title || "").trim(), payload: `gantt_${a.id.slice(0, 8)}` }],
     linkTracking: false,
   };
-  if (String(a.comment_reply || "").trim()) body.commentReply = String(a.comment_reply).trim();
+  const replies = commentReplies(a);
+  if (replies.length) body.commentReply = replies[0];
+  if (replies.length > 1) body.commentReplyVariations = replies.slice(1);
   if (a.gate_enabled) {
     body.audience = { followerStatus: "follower", whenUnknown: "verify" };
     body.followGate = {
@@ -362,6 +369,7 @@ export function commentAutomationPatch(a: Automation) {
     dmMessage: b.dmMessage,
     buttons: b.buttons,
     commentReply: b.commentReply ?? "",
+    commentReplyVariations: b.commentReplyVariations ?? [],
     linkTracking: false,
   };
   // PATCH ששולח audience בלי tapToUnlock מנקה אותו — שולחים במפורש את המצב הרצוי
@@ -383,7 +391,9 @@ export function contentHash(a: Automation): string {
 export function preview(a: Automation, username?: string) {
   const msgs: any[] = [];
   msgs.push({ from: "them", kind: "comment", text: a.trigger_mode === "any" ? "(כל תגובה)" : keywordsOf(a)[0] || "?" });
-  if (String(a.comment_reply || "").trim()) msgs.push({ from: "me", kind: "public-reply", text: a.comment_reply });
+  const replies = commentReplies(a);
+  if (replies.length)
+    msgs.push({ from: "me", kind: "public-reply", text: replies[0], note: replies.length > 1 ? `אחת מ-${replies.length} תשובות, בהגרלה` : undefined });
   if (a.gate_enabled) {
     msgs.push({ from: "me", kind: "dm", text: a.verify_text || "", buttons: [a.verify_button || ""], note: "רק למי שלא ידוע אם עוקב" });
     msgs.push({ from: "them", kind: "tap", text: a.verify_button || "" });
