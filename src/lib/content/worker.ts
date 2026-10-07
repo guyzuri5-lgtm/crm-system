@@ -1,7 +1,7 @@
 import "server-only";
 /* eslint-disable @typescript-eslint/no-explicit-any -- תשובות ה-API של Zernio ושורות content_* לא מוקלדות; הצורה מתועדת בהערות ונבדקת בזמן ריצה */
 
-import { contentDb, getSettings, must, nowIso, setMeta, tryLease } from "./db";
+import { contentDb, getSettings, must, nowIso, releaseLease, setMeta, tryLease } from "./db";
 import { redact, writesEnabled, zget, zwrite, ZernioError } from "./zernio";
 import { fetchAccounts, healthy } from "./accounts";
 import { syncActive, syncOne } from "./publishing";
@@ -48,6 +48,19 @@ export async function runWorker(opts: { dry?: boolean; budgetMs?: number } = {})
   };
 
   if (!(await tryLease("worker_lock", 75))) return { ok: true, skipped: "another run is in progress" };
+  try {
+    return await runLocked(started, budget, alerts, log, alert, step, opts, () => ok);
+  } finally {
+    await releaseLease("worker_lock").catch(() => {});
+  }
+}
+
+async function runLocked(
+  started: number, budget: number, alerts: Alert[], log: string[],
+  alert: (l: Alert["level"], t: string, i?: string | null) => void,
+  step: <T>(name: string, fn: () => Promise<T>) => Promise<T | undefined>,
+  opts: { dry?: boolean }, okNow: () => boolean,
+) {
 
   // בטיחות קודם: כל מה שברמת החשבון מטופל לפני כל דבר איטי
   let pending = (await step("rescope", () => rescope(alert, log, opts.dry))) || 0;
@@ -67,6 +80,7 @@ export async function runWorker(opts: { dry?: boolean; budgetMs?: number } = {})
 
   const summary = redact(log.slice(-8).join("; ")).slice(0, 1000) || "אין מה לעשות";
   await setMeta("alerts", alerts);
+  const ok = okNow();
   if (!opts.dry) await setMeta("worker_last", { at: Date.now() / 1000, ok, summary });
   return { ok, summary, alerts: alerts.length };
 }

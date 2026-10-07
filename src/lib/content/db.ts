@@ -74,4 +74,9 @@ export async function tryLease(key: string, seconds: number): Promise<boolean> {
   return Boolean(data);
 }
 
+/** משחרר מנעול בסוף ריצה, כדי שהריצה של הדקה הבאה לא תדלג */
+export async function releaseLease(key: string) {
+  await contentDb().from("content_meta").delete().eq("key", key);
+}
+
 export const nowIso = () => new Date().toISOString();
