@@ -9,7 +9,8 @@
     "lint": "eslint",
     "sync:quiz-copy": "node scripts/sync-quiz-copy.mjs",
     "auth:google": "node scripts/google-auth.mjs",
-    "setup:whatsapp": "node scripts/whatsapp-setup.mjs"
+    "setup:whatsapp": "node scripts/whatsapp-setup.mjs",
+    "test:content": "node --no-warnings --test tests/content/*.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",

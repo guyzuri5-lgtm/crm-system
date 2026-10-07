@@ -36,6 +36,7 @@ type IconName =
   | "school"
   | "settings"
   | "chat"
+  | "film"
   | "menu"
   | "close";
 
@@ -98,6 +99,12 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
   ),
   chat: (
     <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z" />
+  ),
+  film: (
+    <>
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <path d="M7 3v18M17 3v18M3 7.5h4M3 12h18M3 16.5h4M17 7.5h4M17 16.5h4" />
+    </>
   ),
   menu: (
     <>
@@ -206,6 +213,15 @@ const GROUPS: NavGroup[] = [
       { href: "/newsletter/history", label: "היסטוריה" },
       { href: "/newsletter/unsubscribed", label: "הסרות" },
     ],
+  },
+  {
+    key: "content",
+    label: "תוכן",
+    icon: "film",
+    soft: "var(--nav-gray-soft)",
+    strong: "var(--nav-gray)",
+    iconColor: "var(--nav-gray)",
+    tabs: [{ href: "/content", label: "גאנט תוכן" }],
   },
   {
     key: "events",
@@ -553,7 +569,16 @@ export function DashboardShell({
           </nav>
         </header>
 
-        <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-7 lg:px-7">{children}</main>
+        {/* גאנט התוכן הוא אפליקציה שלמה בתוך iframe, וצריך את כל הרוחב והגובה */}
+        <main
+          className={
+            pathname === "/content" || pathname.startsWith("/content/")
+              ? "flex w-full flex-1 flex-col"
+              : "mx-auto w-full max-w-5xl flex-1 px-4 py-7 lg:px-7"
+          }
+        >
+          {children}
+        </main>
       </div>
     </div>
   );
