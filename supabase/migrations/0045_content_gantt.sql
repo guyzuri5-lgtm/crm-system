@@ -225,3 +225,4 @@ as $$
   select exists (select 1 from taken);
 $$;
 revoke all on function content_try_lease(text, int) from public, anon, authenticated;
+grant execute on function content_try_lease(text, int) to service_role;
