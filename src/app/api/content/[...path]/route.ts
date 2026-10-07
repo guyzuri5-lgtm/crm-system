@@ -65,7 +65,8 @@ const routes: [string, string, Handler][] = [
   ["POST", "snapshot", async () => {
     const s = await loadBoard();
     const key = `snapshot:${new Date().toISOString()}`;
-    await contentDb().from("content_meta").insert({ key, value: s });
+    const { error: snapErr } = await contentDb().from("content_meta").insert({ key, value: s });
+    if (snapErr) return json({ error: `שמירת העותק נכשלה: ${snapErr.message}` }, 500);
     const { data } = await contentDb().from("content_meta").select("key").like("key", "snapshot:%").order("key", { ascending: false });
     const old = (data || []).slice(20).map((r: any) => r.key);
     if (old.length) await contentDb().from("content_meta").delete().in("key", old);
@@ -144,7 +145,13 @@ const routes: [string, string, Handler][] = [
   ["GET", "bank/:id/emails", async (req, p) => {
     const rows = await Bank.emailsOf(p.id);
     if (req.nextUrl.searchParams.get("format") !== "csv") return json(rows);
-    const csv = "﻿email,collected_at\n" + rows.map((r) => `${r.email},${r.collected_at}`).join("\n");
+    // כל ערך במירכאות, ותא שמתחיל בתו נוסחה מקבל ' — מייל שמישהו הקליד בצ'אט לא יורץ בגיליון
+    const cell = (v: unknown) => {
+      let t = String(v ?? "");
+      if (/^[=+\-@\t\r]/.test(t)) t = `'${t}`;
+      return `"${t.replace(/"/g, '""')}"`;
+    };
+    const csv = "﻿email,collected_at\n" + rows.map((r) => `${cell(r.email)},${cell(r.collected_at)}`).join("\n");
     return new NextResponse(csv, { headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": "attachment; filename=emails.csv" } });
   }],
   ["POST", "links/:id/unlink/plan", async (_r, p) => out(await Bank.planUnlink(p.id))],

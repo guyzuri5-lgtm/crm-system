@@ -61,10 +61,11 @@ export async function presignMedia(itemId: string, file: { filename: string; con
     const v = Number(file.meta?.[k]);
     if (Number.isFinite(v) && v > 0) meta[k] = v;
   }
-  const count = must(await contentDb().from("content_media").select("id", { count: "exact", head: true }).eq("item_id", itemId).is("deleted_at", null), "count") as any;
+  const { count, error: cErr } = await contentDb().from("content_media").select("id", { count: "exact", head: true }).eq("item_id", itemId).is("deleted_at", null);
+  if (cErr) throw new Error(`media count: ${cErr.message}`);
   must(await contentDb().from("content_media").insert({
     id, item_id: itemId, filename: name, public_url: data.publicUrl, zernio_key: data.key, content_type: ct, size,
-    sort: Number(count?.count ?? 0), meta, status: "uploading",
+    sort: Number(count ?? 0), meta, status: "uploading",
   }), "media insert");
   // ה-uploadUrl חוזר לדפדפן ולא נשמר: הוא חתום לשעה, וכל אחד שמחזיק אותו יכול לכתוב לשם
   return { mediaId: id, uploadUrl: data.uploadUrl as string, contentType: ct };
@@ -165,13 +166,14 @@ export async function syncOne(itemId: string) {
 }
 
 /** מרענן כל פוסט שעוד יכול להשתנות. רץ בעובד ובכניסה ללוח. */
-export async function syncActive(maxAgeMs = 50_000) {
+export async function syncActive(maxAgeMs = 50_000, deadline = Infinity) {
   const rows = must(await contentDb().from("content_publications").select("item_id, last_synced_at, status")
     .not("zernio_post_id", "is", null).in("status", ["scheduled", "publishing", "partial", "failed"]), "active pubs") as any[];
   let n = 0;
   for (const r of rows) {
     const age = Date.now() - (r.last_synced_at ? Date.parse(r.last_synced_at) : 0);
     if (age < maxAgeMs || (r.status === "failed" && age < 3600_000)) continue;
+    if (Date.now() > deadline) break;
     await syncOne(r.item_id);
     n++;
   }
@@ -274,11 +276,23 @@ executor("schedule", async (plan, body) => {
   if (!item || fingerprint(item, media.map((m) => m.id)) !== plan.itemHash)
     throw new Error("הפריט השתנה אחרי שמסך האישור נפתח — פתחו אותו מחדש");
   const step = plan.steps[0];
-  const data = await zwrite<any>(step.method, step.path, step.body, {
-    action: step.method === "POST" ? "create post" : "update post", itemId,
-    // Idempotency-Key: ניסיון חוזר של אותו אישור לא יכול ליצור שני פוסטים
-    headers: step.idempotencyKey ? { "Idempotency-Key": step.idempotencyKey } : undefined,
-  });
+  let data: any;
+  try {
+    data = await zwrite<any>(step.method, step.path, step.body, {
+      action: step.method === "POST" ? "create post" : "update post", itemId,
+      // Idempotency-Key: ניסיון חוזר של אותו אישור לא יכול ליצור שני פוסטים
+      headers: step.idempotencyKey ? { "Idempotency-Key": step.idempotencyKey } : undefined,
+    });
+  } catch (e) {
+    // timeout או 5xx ביצירה: ייתכן שהפוסט נוצר. חוסמים תזמון נוסף עד שבודקים ב-Zernio
+    if (step.method === "POST" && e instanceof ZernioError && (e.status === 0 || e.status >= 500)) {
+      await contentDb().from("content_publications").upsert({
+        item_id: itemId, status: "unknown", scheduled_for: String(step.body.scheduledFor).slice(0, 16), timezone: step.body.timezone,
+        last_error: "Zernio לא ענה בזמן — ייתכן שהפוסט נוצר. בדקו באתר של Zernio לפני שמתזמנים שוב.", updated_at: nowIso(),
+      });
+    }
+    throw e;
+  }
   let post = data.post || {};
   if (!post._id && data.postId) post = { _id: data.postId, status: "scheduled" };   // 202: עוד נשמר
   const prev = await getPub(itemId);

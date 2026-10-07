@@ -5,7 +5,7 @@ import { contentDb, getSettings, must, nowIso, setMeta, tryLease } from "./db";
 import { redact, writesEnabled, zget, zwrite, ZernioError } from "./zernio";
 import { fetchAccounts, healthy } from "./accounts";
 import { syncActive, syncOne } from "./publishing";
-import { createCommentAutomation, getAutomation, refreshStats, runHealthSafe } from "./automations";
+import { createCommentAutomation, getAutomation, refreshStats, runHealthSafe, sweepOrphans } from "./automations";
 import { PLATFORM_NAMES, zonedToUtc } from "./pure/platforms";
 
 /**
@@ -51,10 +51,12 @@ export async function runWorker(opts: { dry?: boolean; budgetMs?: number } = {})
 
   // בטיחות קודם: כל מה שברמת החשבון מטופל לפני כל דבר איטי
   let pending = (await step("rescope", () => rescope(alert, log, opts.dry))) || 0;
-  await step("accounts", () => checkAccounts(alert));
-  await step("sync", () => syncActive(50_000));
+  if (!opts.dry) await step("sweep", async () => { const n = await sweepOrphans(alert); if (n) log.push(`paused ${n} orphan(s)`); });
   await step("arm", () => armDue(alert, log, opts.dry));
   pending = (await step("rescope", () => rescope(alert, log, opts.dry))) || 0;
+  // האיטיים בסוף, ורק כל עוד יש זמן: שום דבר מהם לא קריטי לכלל "לא ברמת החשבון"
+  if (Date.now() - started < budget - 25_000) await step("accounts", () => checkAccounts(alert));
+  if (Date.now() - started < budget - 20_000) await step("sync", () => syncActive(50_000, started + budget - 15_000));
   // כל שנייה בין הפרסום להצמדה היא תגובה שהאוטומציה ברמת החשבון עונה עליה לבד
   while (pending && !opts.dry && Date.now() - started < budget - 15_000) {
     await new Promise((r) => setTimeout(r, 10_000));
@@ -124,9 +126,10 @@ async function armDue(alert: (l: Alert["level"], t: string, i?: string | null) =
       await createCommentAutomation(l.id, body, "worker");
       log.push(`created '${a.name}' ${what}`);
     } catch (e) {
+      // createCommentAutomation כבר קבע את המצב (חזרה להמתנה, או 'creating' כשהתוצאה לא ודאית)
       const msg = e instanceof ZernioError ? e.hebrew : (e as Error).message;
-      await setLink(l.id, { status: "error", last_error: `יצירת האוטומציה נכשלה: ${msg}` });
-      alert("error", `יצירת האוטומציה '${a.name}' נכשלה: ${msg}`, l.item_id);
+      if (msg.includes("כבר לא ממתין")) continue;
+      alert("error", `יצירת האוטומציה '${a.name}' נכשלה: ${msg}. ננסה שוב בדקה הבאה.`, l.item_id);
     }
   }
 }

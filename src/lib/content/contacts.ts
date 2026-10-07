@@ -11,7 +11,9 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 export async function saveEmailContact(email: string, automationName: string): Promise<string | null> {
   const db = supabaseAdmin();
   const tags = ["אינסטגרם", `אוטומציה: ${automationName}`];
-  const { data: found, error } = await db.from("contacts").select("id, tags").ilike("email", email).limit(1);
+  // ilike בלי תווים מיוחדים = השוואה לא תלויה ברישיות. % ו-_ מוברחים כדי שלא יתאימו לאיש קשר אחר
+  const exact = email.replace(/[\\%_]/g, (c) => `\\${c}`);
+  const { data: found, error } = await db.from("contacts").select("id, tags").ilike("email", exact).limit(1);
   if (error) throw new Error(error.message);
   const existing = found?.[0];
   if (existing) {

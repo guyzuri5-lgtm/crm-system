@@ -126,8 +126,14 @@ export async function saveBoard(payload: Board, opts: { allowEmpty?: boolean } =
   const changed = [...incoming.entries()]
     .filter(([id, it]) => liveMap.get(id) !== JSON.stringify(it))
     .map(([id, it]) => ({ id, data: it, date: it.date ?? null, updated_at: t, deleted_at: null }));
-  for (let i = 0; i < changed.length; i += 200) {
-    must(await contentDb().from("content_items").upsert(changed.slice(i, i + 200)), "items upsert");
+  try {
+    for (let i = 0; i < changed.length; i += 200) {
+      must(await contentDb().from("content_items").upsert(changed.slice(i, i + 200)), "items upsert");
+    }
+  } catch (e) {
+    // הגרסה כבר נתפסה; מחזירים אותה, כדי שהדפדפן ינסה שוב עם אותו מספר ולא יקבל 409 ויטען מחדש
+    await contentDb().from("content_board").update({ revision: rev }).eq("id", true).eq("revision", rev + 1);
+    throw e;
   }
 
   const kept: string[] = [];

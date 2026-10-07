@@ -1453,7 +1453,15 @@ window.__startGantt = function (BOOT) {
   }
 
   function handleImportFile(file) {
-    fetch("/api/content/snapshot", { method: "POST", headers: { "X-Gantt": "1" } }).catch(function () {});
+    // קודם עותק של הלוח בשרת; בלי עותק — לא מייבאים
+    fetch("/api/content/snapshot", { method: "POST", headers: { "X-Gantt": "1" } }).then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      readImportFile(file);
+    }).catch(function (e) {
+      showSaveError("לא הצלחתי לשמור עותק של הלוח לפני הייבוא (" + e.message + ") — הייבוא בוטל, לא השתנה כלום.", true);
+    });
+  }
+  function readImportFile(file) {
     var reader = new FileReader();
     reader.onload = function () {
       var parsed = null;

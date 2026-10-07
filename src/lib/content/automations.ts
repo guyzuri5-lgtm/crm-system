@@ -225,6 +225,7 @@ function acctOf(a: any): Account {
 
 export async function planLink(automationId: string, itemId: string) {
   const a = await getAutomation(automationId);
+  if (a.status === "paused") return { status: 409, json: { error: "האוטומציה מושהית. חדשו אותה לפני שמקשרים פוסט חדש." } };
   const acct = await accountFor("instagram");
   if (!acct) return { status: 409, json: { error: "אינסטגרם לא מחובר ב-Zernio" } };
   const existing = must(await contentDb().from("content_automation_links").select("automation_id").eq("item_id", itemId).is("unlinked_at", null).maybeSingle(), "link") as any;
@@ -261,7 +262,14 @@ export async function planLink(automationId: string, itemId: string) {
 
 /** workflow אחד לאוטומציה: נוצר בקישור הראשון, מופעל, ונשמר */
 async function ensureWorkflow(a: any, wfBody: any | null, actor: string, itemId: string | null) {
-  if (a.zernio_workflow_id) return a.zernio_workflow_id as string;
+  if (a.zernio_workflow_id) {
+    if (a.status !== "active") {
+      // ייתכן שההפעלה הקודמת נכשלה אחרי שה-workflow נוצר
+      await zwrite("POST", `/workflows/${a.zernio_workflow_id}/activate`, undefined, { actor, action: "automation: activate workflow", itemId });
+      must(await contentDb().from("content_automations").update({ status: "active" }).eq("id", a.id), "automation active");
+    }
+    return a.zernio_workflow_id as string;
+  }
   if (!wfBody) throw new Error("חסר ה-workflow לאוטומציה");
   const data = await zwrite<any>("POST", "/workflows", injectKey(wfBody, apiKey()), { actor, action: "automation: create workflow", itemId });
   const id = data.workflow?.id;
@@ -274,8 +282,22 @@ async function ensureWorkflow(a: any, wfBody: any | null, actor: string, itemId:
 
 /** יוצר את אוטומציית התגובה לקישור. משמש את המסך (פוסט שעלה) ואת העובד (פוסט מתוזמן). */
 export async function createCommentAutomation(linkId: string, body: any, actor: string, opts: { safety?: boolean } = {}) {
-  const l = must(await contentDb().from("content_automation_links").select("*").eq("id", linkId).single(), "link") as any;
-  const data = await zwrite<any>("POST", "/comment-automations", body, { actor, action: "automation: create comment automation", itemId: l.item_id, safety: opts.safety });
+  // תופסים את הקישור לפני היצירה: אם בינתיים נותק או הושהה — לא יוצרים כלום
+  const claimed = must(await contentDb().from("content_automation_links").update({ status: "creating", updated_at: nowIso() })
+    .eq("id", linkId).eq("status", "armed").is("unlinked_at", null).select("item_id"), "claim link") as any[];
+  if (!claimed.length) throw new Error("הקישור כבר לא ממתין (נותק או הושהה) — לא נוצר כלום");
+  const itemId = claimed[0].item_id;
+  let data: any;
+  try {
+    data = await zwrite<any>("POST", "/comment-automations", body, { actor, action: "automation: create comment automation", itemId, safety: opts.safety });
+  } catch (e) {
+    // תוצאה לא ודאית (timeout / 5xx): ייתכן שנוצרה. נשאר 'creating', והעובד יחפש אותה לפי השם
+    const uncertain = e instanceof ZernioError && (e.status === 0 || e.status >= 500);
+    await contentDb().from("content_automation_links").update({
+      status: uncertain ? "creating" : "armed", last_error: errText(e), updated_at: nowIso(),
+    }).eq("id", linkId);
+    throw e;
+  }
   const au = data.automation || data;
   const zid = au.id || au._id;
   must(await contentDb().from("content_automation_links").update({
@@ -361,12 +383,13 @@ export async function planState(automationId: string, kind: "pause" | "resume" |
   const steps: any[] = [];
   let text = "";
   if (kind === "pause") {
-    for (const l of links) if (l.zernio_automation_id && l.status === "live") steps.push({ method: "PATCH", path: `/comment-automations/${l.zernio_automation_id}`, body: { isActive: false } });
+    for (const l of links) if (l.zernio_automation_id && l.status !== "paused") steps.push({ method: "PATCH", path: `/comment-automations/${l.zernio_automation_id}`, body: { isActive: false } });
+    steps.push({ method: "PATCH", path: "/comment-automations/{id}", body: { isActive: false }, note: "וגם כל אוטומציה שהעובד יצר עד רגע האישור" });
     if (a.zernio_workflow_id) steps.push({ method: "POST", path: `/workflows/${a.zernio_workflow_id}/pause` });
     text = "השהיה בכל הפוסטים: תגובות חדשות לא יקבלו הודעה, ולחיצות חדשות על הכפתור לא יתחילו את המשפך. מי שכבר באמצע — ימשיך. קישורים שממתינים לפרסום לא ייווצרו.";
   } else if (kind === "resume") {
     if (a.zernio_workflow_id) steps.push({ method: "POST", path: `/workflows/${a.zernio_workflow_id}/activate` });
-    for (const l of links) if (l.zernio_automation_id && l.scope === "post") steps.push({ method: "PATCH", path: `/comment-automations/${l.zernio_automation_id}`, body: { isActive: true } });
+    for (const l of links) if (l.zernio_automation_id && l.status === "paused") steps.push({ method: "PATCH", path: `/comment-automations/${l.zernio_automation_id}`, body: { isActive: true }, note: l.scope === "post" ? undefined : "רק אם הפוסט כבר עלה — ואז גם צמודה אליו" });
     text = "חידוש: האוטומציה תחזור לענות לתגובות חדשות בכל הפוסטים שהיא צמודה אליהם.";
   } else {
     if (links.length) return { status: 409, json: { error: "יש פוסטים מקושרים. נתקו אותם קודם." } };
@@ -383,22 +406,44 @@ async function runSteps(steps: any[], action: string) {
 }
 
 executor("automation_pause", async (plan) => {
-  await runSteps(plan.steps, "automation pause");
   const t = nowIso();
-  await contentDb().from("content_automation_links").update({ status: "paused", updated_at: t }).eq("automation_id", plan.automationId).is("unlinked_at", null).in("status", ["live", "armed"]);
+  // קודם במסד: העובד לא ייצור קישורים ממתינים מרגע זה
   await contentDb().from("content_automations").update({ status: "paused", updated_at: t }).eq("id", plan.automationId);
+  await contentDb().from("content_automation_links").update({ status: "paused", updated_at: t }).eq("automation_id", plan.automationId).is("unlinked_at", null).eq("status", "armed");
+  // ואז כל מה שחי ב-Zernio *עכשיו*, גם מה שנוצר אחרי שמסך האישור נפתח
+  const links = await activeLinks(plan.automationId);
+  for (const l of links.filter((x) => x.zernio_automation_id && x.status !== "paused")) {
+    await zwrite("PATCH", `/comment-automations/${l.zernio_automation_id}`, { isActive: false }, { action: "automation pause", itemId: l.item_id });
+    await contentDb().from("content_automation_links").update({ status: "paused", updated_at: nowIso() }).eq("id", l.id);
+  }
+  const a = await getAutomation(plan.automationId);
+  if (a.zernio_workflow_id) await zwrite("POST", `/workflows/${a.zernio_workflow_id}/pause`, undefined, { action: "automation pause: workflow" });
   return { message: "האוטומציה הושהתה בכל הפוסטים", audit: await runHealthSafe() };
 });
 
 executor("automation_resume", async (plan) => {
-  await runSteps(plan.steps, "automation resume");
+  const a0 = await getAutomation(plan.automationId);
+  if (a0.zernio_workflow_id) await zwrite("POST", `/workflows/${a0.zernio_workflow_id}/activate`, undefined, { action: "automation resume: workflow" });
   const t = nowIso();
   const links = await activeLinks(plan.automationId);
+  const notes: string[] = [];
   for (const l of links.filter((x) => x.status === "paused")) {
-    await contentDb().from("content_automation_links").update({ status: l.zernio_automation_id ? "live" : "armed", updated_at: t }).eq("id", l.id);
+    if (!l.zernio_automation_id) {
+      await contentDb().from("content_automation_links").update({ status: "armed", updated_at: t }).eq("id", l.id);
+      continue;
+    }
+    let patch: Record<string, unknown> = { isActive: true };
+    if (l.scope !== "post") {
+      // הושהתה כי לא הספיקה להיצמד: מחדשים רק אם הפוסט כבר עלה, ומיד צמודה אליו
+      const tg = must(await contentDb().from("content_targets").select("platform_post_id, status").eq("item_id", l.item_id).eq("platform", "instagram").maybeSingle(), "t") as any;
+      if (!(tg?.status === "published" && tg.platform_post_id)) { notes.push(l.item_id); continue; }
+      patch = { isActive: true, platformPostId: tg.platform_post_id };
+    }
+    await zwrite("PATCH", `/comment-automations/${l.zernio_automation_id}`, patch, { action: "automation resume", itemId: l.item_id });
+    await contentDb().from("content_automation_links").update({ status: "live", scope: "post", scoped_at: l.scoped_at || t, last_error: null, updated_at: t }).eq("id", l.id);
   }
   await contentDb().from("content_automations").update({ status: "active", updated_at: t }).eq("id", plan.automationId);
-  return { message: "האוטומציה חודשה", audit: await runHealthSafe() };
+  return { message: "האוטומציה חודשה" + (notes.length ? ` (${notes.length} פוסטים עוד לא עלו — נשארו מושהים)` : ""), audit: await runHealthSafe() };
 });
 
 executor("automation_delete", async (plan) => {
@@ -410,11 +455,11 @@ executor("automation_delete", async (plan) => {
 export async function planUnlink(linkId: string) {
   const l = must(await contentDb().from("content_automation_links").select("*").eq("id", linkId).maybeSingle(), "link") as any;
   if (!l || l.unlinked_at) return { status: 404, json: { error: "הקישור לא נמצא" } };
-  const steps = l.zernio_automation_id ? [{ method: "DELETE", path: `/comment-automations/${l.zernio_automation_id}` }] : [];
+  const steps = [{ method: "DELETE", path: "/comment-automations/{id}", note: l.zernio_automation_id ? `המזהה הנוכחי: ${l.zernio_automation_id}` : "רק אם נוצרה עד רגע האישור" }];
   const text = "ניתוק האוטומציה מהפוסט" + (l.zernio_automation_id
     ? ": אוטומציית התגובה של הפוסט נמחקת ב-Zernio (הלוגים שלה יישמרו כאן). מי שכבר קיבל הודעה לא יקבל שוב לעולם — כלל של אינסטגרם."
     : " (עוד לא נוצרה ב-Zernio).");
-  const plan = { linkId, itemId: l.item_id, steps, localOnly: steps.length === 0 };
+  const plan = { linkId, itemId: l.item_id, steps, localOnly: !l.zernio_automation_id };
   const actionId = await createAction("automation_unlink", l.item_id, plan);
   return { status: 200, json: { actionId, summary: { text }, requests: dryRunView(plan) } };
 }
@@ -426,8 +471,11 @@ executor("automation_unlink", async (plan) => {
       await setMeta(`archived_logs:${l.id}`, await fetchAllLogs(l.zernio_automation_id));
     } catch { /* הלוגים נחמדים לשמור; לא סיבה לעצור ניתוק */ }
   }
-  await runSteps(plan.steps, "automation unlink");
+  // קודם מסמנים כמנותק (העובד לא ייצור יותר), ואז מוחקים מה שקיים *עכשיו* ב-Zernio —
+  // גם אם נוצר אחרי שמסך האישור נפתח
   await contentDb().from("content_automation_links").update({ status: "unlinked", unlinked_at: nowIso(), updated_at: nowIso() }).eq("id", l.id);
+  const now = must(await contentDb().from("content_automation_links").select("zernio_automation_id").eq("id", l.id).single(), "link") as any;
+  if (now.zernio_automation_id) await zwrite("DELETE", `/comment-automations/${now.zernio_automation_id}`, undefined, { action: "automation unlink", itemId: l.item_id });
   return { message: "האוטומציה נותקה מהפוסט", audit: await runHealthSafe() };
 });
 
@@ -493,6 +541,11 @@ export async function refreshStats(automationId: string) {
       newEmails++;
     }
   }
+  const orphans = must(await contentDb().from("content_emails").select("id, email").eq("automation_id", a.id).is("contact_id", null).limit(50), "email retry") as any[];
+  for (const o of orphans) {
+    const cid = await saveEmailContact(o.email, a.name).catch(() => null);
+    if (cid) await contentDb().from("content_emails").update({ contact_id: cid }).eq("id", o.id);
+  }
   const stats = { comments, dmsSent, dmsFailed, gated, taps: ex.taps, emails: ex.emails, linksSent: ex.links };
   await contentDb().from("content_automations").update({ stats, stats_at: nowIso() }).eq("id", a.id);
   return { stats, newEmails };
@@ -539,7 +592,7 @@ export async function runHealth() {
     if (!a.zernio_workflow_id) continue;
     const w = wfs[a.zernio_workflow_id];
     if (!w) fails.push(`'${a.name}': ה-workflow של הכפתור לא קיים ב-Zernio — לחיצה על הכפתור לא תוביל לשום מקום`);
-    else if (a.status === "active" && w.status !== "active") fails.push(`'${a.name}': ה-workflow של הכפתור במצב ${w.status}, לא פעיל`);
+    else if ((a.status === "active" || links.some((l) => l.automation_id === a.id && l.status === "live")) && w.status !== "active") fails.push(`'${a.name}': ה-workflow של הכפתור במצב ${w.status}, לא פעיל`);
     if (a.deployed_hash && a.deployed_hash !== contentHash(a)) warns.push(`'${a.name}': יש שינויים שעוד לא נשלחו ל-Zernio`);
   }
   for (const [zid, z] of Object.entries(live)) if (!known.has(zid)) warns.push(`'${z.name}': קיימת ב-Zernio ולא מנוהלת מהגאנט`);
@@ -569,4 +622,44 @@ export async function runHealthSafe() {
 
 export async function lastHealth() {
   return (await getMeta("last_audit")) || {};
+}
+
+
+/**
+ * רשת ביטחון לכלל "אף אוטומציה לא נשארת ברמת החשבון": כל אוטומציה של הגאנט
+ * (שם שמתחיל ב-gantt-) שפעילה ב-Zernio בלי פוסט — ואינה קישור טרי שהעובד מצמיד
+ * עכשיו — מושהית. כך גם מרוץ שלא חשבנו עליו לא משאיר אוטומציה פתוחה.
+ * קישור שנשאר 'creating' (יצירה עם תוצאה לא ודאית) מאומץ לפי השם.
+ */
+export async function sweepOrphans(alert: (level: "error" | "warn", text: string, itemId?: string | null) => void) {
+  const acct = await accountFor("instagram");
+  if (!acct) return 0;
+  const live = (await zget<any>("/comment-automations", { profileId: acct.profileId })).automations || [];
+  const links = must(await contentDb().from("content_automation_links").select("*"), "links") as any[];
+  const byZid = new Map(links.filter((l) => l.zernio_automation_id).map((l) => [l.zernio_automation_id, l]));
+  let paused = 0;
+  for (const z of live) {
+    if (!String(z.name || "").startsWith("gantt-") || !z.isActive || z.platformPostId || z.postId) continue;
+    const l = byZid.get(z.id);
+    if (!l) {
+      // אולי זו יצירה שהתשובה עליה אבדה: מאמצים לפי השם
+      const cand = links.find((x) => x.status === "creating" && !x.unlinked_at && !x.zernio_automation_id && x.approved?.name === z.name);
+      if (cand) {
+        await contentDb().from("content_automation_links").update({ zernio_automation_id: z.id, status: "live", scope: "account", armed_at: cand.armed_at || nowIso(), last_error: null, updated_at: nowIso() }).eq("id", cand.id);
+        byZid.set(z.id, { ...cand, zernio_automation_id: z.id, status: "live", scope: "account" });
+        continue;  // מעכשיו העובד מצמיד אותה, או משהה אחרי 12 דקות
+      }
+    }
+    if (l && !l.unlinked_at && l.status === "live" && l.scope === "account") continue; // בטיפול של rescope
+    await zwrite("PATCH", `/comment-automations/${z.id}`, { isActive: false }, { actor: "worker", action: "automation: pause orphan account-wide", itemId: l?.item_id ?? null, safety: true });
+    if (l && !l.unlinked_at) await contentDb().from("content_automation_links").update({ status: "paused", last_error: "נמצאה פעילה ברמת החשבון בלי פוסט — הושהתה.", updated_at: nowIso() }).eq("id", l.id);
+    alert("error", `אוטומציה '${z.name}' נמצאה פעילה ברמת החשבון בלי פוסט — הושהתה.`, l?.item_id ?? null);
+    paused++;
+  }
+  // 'creating' שלא נמצא ב-Zernio אחרי 10 דקות: לא נוצר — חוזר להמתנה
+  for (const l of links.filter((x) => x.status === "creating" && !x.zernio_automation_id && !x.unlinked_at)) {
+    if (Date.now() - Date.parse(l.updated_at) > 10 * 60_000)
+      await contentDb().from("content_automation_links").update({ status: "armed", updated_at: nowIso() }).eq("id", l.id);
+  }
+  return paused;
 }
