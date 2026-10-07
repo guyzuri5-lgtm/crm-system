@@ -122,9 +122,28 @@
 
 
 
+  // בתוך ה-CRM התפריט בצד הוא הניווט: ?view=automations|reels, ?item=<id> פותח פריט
+  var params = new URLSearchParams(location.search);
+  X.view = params.get("view") || "board";
+  X.inCrm = window.top !== window;
+  X.navigate = function (path) {
+    if (X.inCrm) window.top.location.href = path; else location.href = path;
+  };
+  document.documentElement.classList.add("view-" + X.view);
+  if (X.inCrm) document.documentElement.classList.add("in-crm");
+
   X.hooks = [];
   X.boot = function (G) {
     X.G = G;
+    if (X.view === "reels") {
+      var tab = document.getElementById("tabAnalytics");
+      if (tab) tab.click();
+    }
+    var openItem = params.get("item");
+    if (openItem && X.view === "board") {
+      var it = G.findItem(openItem);
+      if (it) setTimeout(function () { G.openDayModal(it.date, it.id); }, 50);
+    }
     X.loadAccounts(false);
     // import/backup lives in the gantt's own sync window (the cloud button)
     X.hooks.forEach(function (h) { try { h(G); } catch (e) { console.error(e); } });

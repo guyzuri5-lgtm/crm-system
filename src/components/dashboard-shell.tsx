@@ -221,7 +221,11 @@ const GROUPS: NavGroup[] = [
     soft: "var(--nav-gray-soft)",
     strong: "var(--nav-gray)",
     iconColor: "var(--nav-gray)",
-    tabs: [{ href: "/content", label: "גאנט תוכן" }],
+    tabs: [
+      { href: "/content", label: "גאנט תוכן" },
+      { href: "/content/automations", label: "בנק אוטומציות" },
+      { href: "/content/reels", label: "ניתוח רילז" },
+    ],
   },
   {
     key: "events",

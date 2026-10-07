@@ -195,3 +195,13 @@
   .title-actions { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
   .zernio-bar { flex-wrap: nowrap; }
 }
+
+/* ---------- בתוך ה-CRM: התפריט בצד מחליף את הלשוניות של הגאנט ---------- */
+.in-crm .view-tabs { display: none; }
+.view-automations .app-header,
+.view-automations .calendar-wrap,
+.view-automations #calendarWrap,
+.view-automations #analyticsView { display: none !important; }
+.bank-page { max-width: 820px; margin: 0 auto; }
+.bank-page-title { font-size: 1.3rem; font-weight: 800; margin: 4px 0 12px; }
+.view-reels #boardHeaderBits, .view-reels #calendarWrap { display: none !important; }

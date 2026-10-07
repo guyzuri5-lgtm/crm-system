@@ -149,8 +149,23 @@
   // ---------- הבנק ----------
   var bankModal = null;
   function openBank(focusId) {
-    if (bankModal) bankModal.close();
-    bankModal = X.modal("בנק אוטומציות", { wide: true, onClose: function () { bankModal = null; } });
+    // בתוך ה-CRM לבנק יש עמוד משלו בתפריט
+    if (X.inCrm && X.view !== "automations") {
+      X.navigate("/content/automations" + (focusId ? "?id=" + encodeURIComponent(focusId) : ""));
+      return;
+    }
+    if (X.view === "automations") {
+      if (!bankModal) {
+        var host = document.getElementById("bankPage");
+        var title = el("h2", "bank-page-title", "בנק אוטומציות");
+        var body = el("div");
+        host.appendChild(title); host.appendChild(body);
+        bankModal = { body: body, title: title, close: function () {} };
+      }
+    } else {
+      if (bankModal) bankModal.close();
+      bankModal = X.modal("בנק אוטומציות", { wide: true, onClose: function () { bankModal = null; } });
+    }
     if (focusId) openEditor(focusId); else renderList();
   }
   X.openBank = openBank;
@@ -366,7 +381,10 @@
       var dot = el("span", "pub-dot"); dot.style.background = COLOR[l.status] || "var(--ink-400)"; row.appendChild(dot);
       var it = l.item || {};
       var t = el("button", "bank-link-title", fmtDate(it.date) + " · " + (it.title || l.itemId)); t.type = "button";
-      t.addEventListener("click", function () { bankModal.close(); if (it.date) X.G.openDayModal(it.date, l.itemId); });
+      t.addEventListener("click", function () {
+        if (X.view === "automations") { X.navigate("/content?item=" + encodeURIComponent(l.itemId)); return; }
+        bankModal.close(); if (it.date) X.G.openDayModal(it.date, l.itemId);
+      });
       row.appendChild(t);
       var s = l.stats || {};
       row.appendChild(el("span", "mu", l.stats ? ("הגיבו " + (s.comments || 0) + " · קיבלו הודעה " + (s.dmsSent || 0)) : (l.status === "armed" ? "תיווצר בזמן הפרסום" : "")));
@@ -450,6 +468,14 @@
   }
 
   X.hooks.push(function () {
-    X.headerButton("בנק אוטומציות", BOLT, function () { openBank(); });
+    if (X.view === "automations") {
+      var host = el("div", "bank-page"); host.id = "bankPage";
+      var app = document.querySelector(".app");
+      app.appendChild(host);
+      openBank(new URLSearchParams(location.search).get("id"));
+      return;
+    }
+    // בתוך ה-CRM יש לבנק פריט בתפריט; מחוץ לו — כפתור
+    if (!X.inCrm) X.headerButton("בנק אוטומציות", BOLT, function () { openBank(); });
   });
 })();
