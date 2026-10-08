@@ -22,11 +22,92 @@
   };
 
   // ---------- בחלון של פוסט: רק סטטוס, הקישור עצמו נעשה בבנק ----------
-  X.renderAutomationSlot = function (host, ctx) {
+  // הבחירה בחלון הפריט: איזו אוטומציה מהבנק תחובר לפוסט. היא נשמרת על הפריט
+  // (automationChoice), והקישור עצמו עדיין עובר דרך מסך האישור של הבנק —
+  // מיד אחרי "אשר ותזמן", או בכפתור כאן כשהפוסט כבר מתוזמן לאינסטגרם.
+  var slotChoice = {};
+  var bankCache = null;
+  function loadBank(force) {
+    if (!bankCache || force) bankCache = api("GET", "/api/bank").catch(function (e) { bankCache = null; throw e; });
+    return bankCache;
+  }
+  function igScheduledOrLive(it) {
+    var t = it && it.targets && it.targets.instagram;
+    if (!t) return false;
+    return t.status === "published" || (it.pub && it.pub.status === "scheduled");
+  }
+  X.collectAutomation = function (target) {
+    if (!Object.prototype.hasOwnProperty.call(slotChoice, target.id)) return;
+    if (slotChoice[target.id]) target.automationChoice = slotChoice[target.id];
+    else delete target.automationChoice;
+  };
+  X.linkAutomation = function (automationId, itemId) {
+    confirmScreen("קישור האוטומציה לפוסט", "/api/bank/" + automationId + "/link/plan", { itemId: itemId }, { confirmText: "אשר קישור" });
+  };
+
+  function renderPicker(host, ctx, draft, it) {
+    var itemId = ctx.itemId;
+    host.appendChild(el("label", "field-label", "אוטומציה לתגובות (אינסטגרם)"));
+    if (draft && draft.platforms && draft.platforms.indexOf("instagram") === -1) {
+      host.appendChild(el("p", "field-hint-start", "אוטומציה עובדת רק באינסטגרם. סמנו את אינסטגרם ברשתות כדי לבחור אחת."));
+      return;
+    }
+    var box = el("div", "auto-pick");
+    box.appendChild(el("p", "field-hint-start", "טוען את בנק האוטומציות…"));
+    host.appendChild(box);
+    loadBank().then(function (list) {
+      box.innerHTML = "";
+      var usable = list.filter(function (a) { return a.status !== "paused"; });
+      var keyword = it && it.intake && it.intake.keyword ? String(it.intake.keyword).trim() : "";
+      var suggested = keyword ? usable.filter(function (a) { return a.keyword && a.keyword.trim().toLowerCase() === keyword.toLowerCase(); })[0] : null;
+      var current = Object.prototype.hasOwnProperty.call(slotChoice, itemId) ? slotChoice[itemId]
+        : (it && it.automationChoice) || (suggested ? suggested.id : "");
+      if (current && !usable.some(function (a) { return a.id === current; })) current = "";
+      slotChoice[itemId] = current;
+
+      var sel = el("select", "text-input");
+      var none = el("option", null, "בלי אוטומציה"); none.value = ""; sel.appendChild(none);
+      usable.forEach(function (a) {
+        var o = el("option", null, (a.name || "אוטומציה") + " · " + (a.trigger_mode === "any" ? "כל תגובה" : "\"" + (a.keyword || "") + "\"") +
+          (suggested && a.id === suggested.id ? " (מתאים למילה מהסרטון)" : ""));
+        o.value = a.id; sel.appendChild(o);
+      });
+      sel.value = current;
+      box.appendChild(sel);
+      var hint = el("p", "field-hint-start");
+      box.appendChild(hint);
+      var acts = el("div", "schedule-helper-actions");
+      box.appendChild(acts);
+
+      function refresh() {
+        acts.innerHTML = "";
+        var live = igScheduledOrLive(it);
+        if (!sel.value) {
+          hint.textContent = keyword && !suggested
+            ? "בסרטון יש קריאה להגיב עם המילה \"" + keyword + "\", ואין בבנק אוטומציה עם המילה הזו. אפשר ליצור אחת בבנק."
+            : "";
+        } else if (live) {
+          hint.textContent = "הפוסט כבר מתוזמן לאינסטגרם. הקישור עובר דרך מסך אישור.";
+          acts.appendChild(X.btn("קשר את האוטומציה", "btn-primary btn-small", function () { X.linkAutomation(sel.value, itemId); }));
+        } else {
+          hint.textContent = "תחובר אחרי \"אשר ותזמן\": מיד אחרי התזמון ייפתח מסך אישור לקישור.";
+        }
+        if (!usable.length || (keyword && !suggested)) acts.appendChild(X.btn("פתח את בנק האוטומציות", "btn-ghost btn-small", function () { openBank(); }));
+      }
+      sel.addEventListener("change", function () { slotChoice[itemId] = sel.value; refresh(); });
+      refresh();
+    }).catch(function (e) { box.innerHTML = ""; box.appendChild(el("p", "val-block is-error", "בנק האוטומציות לא נטען: " + e.message)); });
+  }
+
+  X.renderAutomationSlot = function (host, ctx, draft) {
     host.innerHTML = "";
     var it = ctx.editing && X.G.findItem(ctx.editing.id);
     var a = it && it.automation;
-    if (!a) return;
+    if (!a) {
+      // בטופס הפריט בלבד (ctx.itemId); בצ'יפ של רילז מאינסטגרם רק שורת הסטטוס
+      if (ctx.itemId && !(it && it.source === "instagram")) renderPicker(host, ctx, draft, it);
+      return;
+    }
     var row = el("button", "auto-line"); row.type = "button";
     var ic = el("span", "net-ico"); ic.innerHTML = BOLT; ic.style.color = a.overdue ? COLOR.error : (COLOR[a.status] || "inherit");
     row.appendChild(ic);

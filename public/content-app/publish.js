@@ -218,7 +218,13 @@
       });
       m.body.appendChild(vhost);
       m.body.appendChild(requestsDetails(r.requests));
-      X.runConfirm(m, r.actionId, { needsConsent: s.tiktok, confirmText: mode === "update" ? "אשר עדכון" : "אשר ותזמן" });
+      X.runConfirm(m, r.actionId, { needsConsent: s.tiktok, confirmText: mode === "update" ? "אשר עדכון" : "אשר ותזמן", onDone: function () {
+        // אוטומציה שנבחרה בחלון הפריט: מסך האישור של הקישור נפתח מיד אחרי התזמון
+        var it = X.G.findItem(itemId);
+        if (mode === "create" && it && it.automationChoice && !it.automation && X.linkAutomation) {
+          X.refreshServerView().then(function () { setTimeout(function () { X.linkAutomation(it.automationChoice, itemId); }, 1700); });
+        }
+      } });
     }).catch(function (e) {
       m.body.innerHTML = "";
       m.body.appendChild(el("p", "val-block is-error", e.message));
