@@ -525,6 +525,7 @@
   </header>
 
   <div class="calendar-wrap" id="calendarWrap">
+    <div class="ready-tray" id="readyTray"></div>
     <div class="weekday-row">
       <span>א</span><span>ב</span><span>ג</span><span>ד</span><span>ה</span><span>ו</span><span>ש</span>
     </div>
@@ -805,8 +806,12 @@ window.__startGantt = function (BOOT) {
     // כל הציור נשען על parseKey(item.date), ופריט בלי תאריך תקין הפיל את הלוח
     // כולו. בלוח משותף שכל אחד יכול לכתוב אליו זה אומר שפריט פגום אחד נועל את
     // כולם בחוץ — ולכן פריט שאי אפשר לצייר פשוט לא נכנס.
+    // החריג: סרטון מהתיקייה בלי תאריך. הוא מחכה בשורה "מוכנים לתזמון" ולא
+    // בלוח, ואם הוא היה מסונן כאן — השמירה הבאה הייתה מוחקת אותו מהשרת.
     state.items = state.items.filter(function (it) {
-      return it && typeof it === "object" && it.id && typeof it.date === "string" && DATE_KEY_RE.test(it.date);
+      if (!it || typeof it !== "object" || !it.id) return false;
+      if (it.intake && !it.date) { it.date = null; return true; }
+      return typeof it.date === "string" && DATE_KEY_RE.test(it.date);
     });
     if (!Array.isArray(state.activeWeekdays) || state.activeWeekdays.length !== 7) {
       state.activeWeekdays = [true, true, true, true, true, true, true];
@@ -1186,6 +1191,7 @@ window.__startGantt = function (BOOT) {
     persist: function () { return persist(); },
     flush: function () { flushSave(); },
     whenSaved: function () { return whenSaved(); },
+    isIdle: function () { return !saveDirty && !saveInFlight && !saveQueued; },
     rerender: function () { rerenderAll(); },
     rerenderCalendar: function () { renderHeader(); renderCalendar(); },
     openDayModal: function (k, id) { openDayModal(k, id); },
@@ -1221,8 +1227,21 @@ window.__startGantt = function (BOOT) {
     if (LEGACY_STATUS_FIELDS[statusId]) item[statusId] = !!value;
   }
 
+  // שני סטטוסים שלא מסמנים ידנית — הם נגזרים ממה שקרה לפריט:
+  // סרטון שנכנס מהתיקייה "מוכן לפרסום" ועוד לא תוזמן, ופוסט שנכשל ב-Zernio.
+  var PENDING_APPROVAL = { id: "pending-approval", name: "ממתין לאישור", color: "#8b5cf6" };
+  var PUB_ERROR = { id: "pub-error", name: "שגיאה", color: "#d03b3b" };
+  function derivedStatus(item) {
+    var p = item.pub;
+    if (p && (p.status === "failed" || p.status === "unknown")) return PUB_ERROR;
+    if (item.intake && !(p && ["scheduled", "publishing", "published", "partial"].indexOf(p.status) !== -1)) return PENDING_APPROVAL;
+    return null;
+  }
+
   // הסטטוס האחרון בסדר שסומן הוא זה שקובע את הצבע
   function currentStatus(item) {
+    var derived = derivedStatus(item);
+    if (derived) return derived;
     for (var i = state.statuses.length - 1; i >= 0; i--) {
       if (itemHasStatus(item, state.statuses[i].id)) return state.statuses[i];
     }
@@ -1259,8 +1278,46 @@ window.__startGantt = function (BOOT) {
   var chipDrag = null;
   var suppressNextChipClick = false;
 
+  // פוסט שכבר עלה (או עולה עכשיו) לא זז: Zernio לא יכול לשנות לו תאריך
+  function isPublishLocked(item) {
+    return !!(item.pub && ["published", "publishing"].indexOf(item.pub.status) !== -1);
+  }
+  function hasLivePost(item) {
+    return !!(item.pub && item.pub.zernioPostId && ["scheduled", "draft", "failed", "partial"].indexOf(item.pub.status) !== -1);
+  }
+  // רק סרטון מהתיקייה שעוד לא נשלח ל-Zernio חוזר לשורה "מוכנים לתזמון"
+  function canReturnToTray(item) {
+    return !!item.intake && !(item.pub && item.pub.zernioPostId && item.pub.status !== "cancelled");
+  }
+
+  function dropItem(item, key) {
+    trayPick = null;
+    if (key === "tray") {
+      if (!canReturnToTray(item) || !item.date) return;
+      item.date = null;
+      persist();
+      renderHeader();
+      renderCalendar();
+      return;
+    }
+    if (!key || key === item.date) return;
+    item.date = key;
+    persist();
+    renderHeader();
+    renderCalendar();
+    var X = window.GanttExt;
+    if (hasLivePost(item) && item.time && X && X.openScheduleConfirm) {
+      // כבר מתוזמן: התאריך החדש עובר ל-Zernio דרך מסך העדכון
+      whenSaved().then(function () { X.openScheduleConfirm(item.id, "update"); }).catch(function (e) { showSaveError(e.message, true); });
+    } else if (X && X.pendingApproval && X.pendingApproval(item)) {
+      // סרטון מהשורה: חלון האישור נפתח מיד
+      openDayModal(key, item.id);
+    }
+  }
+
   function startChipDrag(e, item, chipEl) {
     if (e.pointerType === "mouse" && e.button !== 0) return;
+    if (isPublishLocked(item)) return;
     chipDrag = {
       item: item,
       pointerId: e.pointerId,
@@ -1291,7 +1348,8 @@ window.__startGantt = function (BOOT) {
     chipDrag.ghost.style.left = e.clientX + "px";
     chipDrag.ghost.style.top = e.clientY + "px";
     var el = document.elementFromPoint(e.clientX, e.clientY);
-    var cell = el ? el.closest(".day-cell") : null;
+    var cell = el ? el.closest(".day-cell, .ready-tray") : null;
+    if (cell && cell === readyTrayEl && !canReturnToTray(chipDrag.item)) cell = null;
     if (chipDrag.overCell && chipDrag.overCell !== cell) chipDrag.overCell.classList.remove("drop-target");
     if (cell) cell.classList.add("drop-target");
     chipDrag.overCell = cell;
@@ -1307,13 +1365,7 @@ window.__startGantt = function (BOOT) {
     if (d.active) {
       suppressNextChipClick = true;
       setTimeout(function () { suppressNextChipClick = false; }, 400);
-      var newDate = d.overCell ? d.overCell.dataset.dateKey : null;
-      if (newDate && newDate !== d.item.date) {
-        d.item.date = newDate;
-        persist();
-        renderHeader();
-        renderCalendar();
-      }
+      if (d.overCell) dropItem(d.item, d.overCell === readyTrayEl ? "tray" : d.overCell.dataset.dateKey);
     }
   }
 
@@ -1797,6 +1849,7 @@ window.__startGantt = function (BOOT) {
   var bootGateEl = document.getElementById("bootGate");
   var syncLabelEl = document.getElementById("syncLabel");
   var calendarGridEl = document.getElementById("calendarGrid");
+  var readyTrayEl = document.getElementById("readyTray");
 
   var prevMonthBtn = document.getElementById("prevMonthBtn");
   var nextMonthBtn = document.getElementById("nextMonthBtn");
@@ -2492,6 +2545,21 @@ window.__startGantt = function (BOOT) {
       deleteBtn.textContent = "מחיקה";
       deleteBtn.addEventListener("click", function () {
         if (deleteBtn.classList.contains("confirm")) {
+          // פוסט שמחכה ב-Zernio מבוטל שם קודם (במסך האישור), ורק אז הפריט נמחק
+          var p = editing.pub;
+          if (p && p.zernioPostId && ["scheduled", "failed", "partial", "draft"].indexOf(p.status) !== -1 && window.GanttExt && window.GanttExt.openSimpleConfirm) {
+            var gone = editing;
+            window.GanttExt.openSimpleConfirm(gone.id, "cancel", function () {
+              state.items = state.items.filter(function (it) { return it.id !== gone.id; });
+              persist();
+              dayModal.mode = "list";
+              dayModal.editingId = null;
+              renderDayModal();
+              renderHeader();
+              renderCalendar();
+            }, "הפריט מתוזמן ב-Zernio. כדי למחוק אותו, הפוסט יבוטל שם קודם — הוא לא יעלה לאף רשת — ואז הפריט יימחק מהלוח.");
+            return;
+          }
           state.items = state.items.filter(function (it) { return it.id !== editing.id; });
           persist();
           dayModal.mode = "list";
@@ -2571,7 +2639,14 @@ window.__startGantt = function (BOOT) {
       renderCalendar();
       return target;
     }
-    saveBtn.addEventListener("click", function () { commitForm(false); });
+    saveBtn.addEventListener("click", function () {
+      var it = commitForm(false);
+      // תאריך או שעה שהשתנו בפריט שכבר מתוזמן: פותחים מיד את מסך העדכון ב-Zernio
+      var p = it && it.pub;
+      if (p && p.zernioPostId && p.status === "scheduled" && p.scheduledFor && it.time && (it.date + "T" + it.time) !== p.scheduledFor && window.GanttExt && window.GanttExt.openScheduleConfirm) {
+        whenSaved().then(function () { window.GanttExt.openScheduleConfirm(it.id, "update"); }).catch(function (e) { showSaveError(e.message, true); });
+      }
+    });
     rightActions.appendChild(cancelBtn);
     rightActions.appendChild(saveBtn);
     if (deleteBtn) { actions.appendChild(deleteBtn); actions.appendChild(rightActions); }
@@ -2866,6 +2941,7 @@ window.__startGantt = function (BOOT) {
     monthLabelEl.textContent = MONTH_NAMES[view.month] + " " + view.year;
 
     var monthItems = state.items.filter(function (it) {
+      if (!it.date) return false;
       var d = parseKey(it.date);
       return d.getFullYear() === view.year && d.getMonth() === view.month;
     });
@@ -3060,10 +3136,97 @@ window.__startGantt = function (BOOT) {
 
       cell.appendChild(numWrap);
       cell.appendChild(chipsWrap);
-      (function (k) { cell.addEventListener("click", function () { openDayModal(k); }); })(key);
+      (function (k) {
+        cell.addEventListener("click", function () {
+          var picked = trayPick && state.items.filter(function (it) { return it.id === trayPick; })[0];
+          if (picked) dropItem(picked, k);
+          else openDayModal(k);
+        });
+      })(key);
       calendarGridEl.appendChild(cell);
     }
+    renderReadyTray();
     if (window.GanttExt && window.GanttExt.afterRender) window.GanttExt.afterRender();
+  }
+
+  // ---------- "מוכנים לתזמון": סרטונים מהתיקייה שעוד לא קיבלו יום ----------
+  // גוררים כרטיס ליום בלוח. בטלפון: לחיצה על כרטיס בוחרת אותו, ולחיצה על יום משבצת.
+  var trayPick = null;
+  var PLAY_ICON = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 6v8l6.5-4-6.5-4Z"/></svg>';
+  function fmtDuration(sec) {
+    if (!sec) return "";
+    var s = Math.round(sec);
+    return Math.floor(s / 60) + ":" + ("0" + (s % 60)).slice(-2);
+  }
+  function renderReadyTray() {
+    if (!readyTrayEl) return;
+    var ready = state.items.filter(function (it) { return !it.date && it.intake; })
+      .sort(function (a, b) { return (a.createdAt || 0) - (b.createdAt || 0); });
+    if (trayPick && !ready.some(function (it) { return it.id === trayPick; })) trayPick = null;
+    readyTrayEl.innerHTML = "";
+    var head = document.createElement("div");
+    head.className = "ready-tray-head";
+    var h = document.createElement("strong");
+    h.textContent = "מוכנים לתזמון";
+    var count = document.createElement("span");
+    count.className = "ready-tray-count";
+    count.textContent = ready.length ? "(" + ready.length + ")" : "";
+    h.appendChild(count);
+    var hint = document.createElement("span");
+    hint.className = "ready-tray-hint";
+    hint.textContent = trayPick ? "עכשיו לחצו על יום בלוח" : (ready.length ? "גררו סרטון ליום בלוח" : "");
+    head.appendChild(h);
+    head.appendChild(hint);
+    readyTrayEl.appendChild(head);
+    var row = document.createElement("div");
+    row.className = "ready-tray-cards";
+    if (!ready.length) {
+      var empty = document.createElement("p");
+      empty.className = "ready-tray-empty";
+      empty.textContent = "אין סרטונים שמחכים. סרטון שתעביר לתיקייה \"מוכן לפרסום\" יופיע כאן.";
+      row.appendChild(empty);
+    }
+    ready.forEach(function (it) {
+      var type = findType(it.typeId);
+      var card = document.createElement("button");
+      card.type = "button";
+      card.className = "ready-card chip-draggable" + (trayPick === it.id ? " is-picked" : "");
+      card.setAttribute("aria-pressed", trayPick === it.id ? "true" : "false");
+      var thumb = document.createElement("span");
+      thumb.className = "ready-thumb";
+      thumb.innerHTML = PLAY_ICON;
+      var body = document.createElement("span");
+      body.className = "ready-body";
+      var title = document.createElement("span");
+      title.className = "ready-title";
+      var num = /^(\d+)\s*-/.exec(it.intake.file || "");
+      title.textContent = (num ? num[1] + "- " : "") + it.title;
+      var meta = document.createElement("span");
+      meta.className = "ready-meta";
+      var dot = document.createElement("span");
+      dot.className = "ready-dot";
+      dot.style.background = type ? type.color : "var(--ink-400)";
+      var vid = (it.mediaFiles || []).filter(function (m) { return m.kind === "video"; })[0];
+      meta.appendChild(dot);
+      meta.appendChild(document.createTextNode((type ? type.name : "ללא סיווג") + (vid && vid.duration ? " · " + fmtDuration(vid.duration) : "")));
+      body.appendChild(title);
+      body.appendChild(meta);
+      card.appendChild(thumb);
+      card.appendChild(body);
+      card.title = it.title + " — גררו ליום בלוח";
+      card.addEventListener("click", function () {
+        if (suppressNextChipClick) { suppressNextChipClick = false; return; }
+        trayPick = trayPick === it.id ? null : it.id;
+        renderReadyTray();
+      });
+      card.addEventListener("pointerdown", function (e) { startChipDrag(e, it, card); });
+      card.addEventListener("pointermove", moveChipDrag);
+      card.addEventListener("pointerup", endChipDrag);
+      card.addEventListener("pointercancel", cancelChipDrag);
+      row.appendChild(card);
+    });
+    readyTrayEl.appendChild(row);
+    readyTrayEl.classList.toggle("is-picking", !!trayPick);
   }
 
   prevMonthBtn.addEventListener("click", function () {

@@ -54,11 +54,13 @@ const routes: [string, string, Handler][] = [
   ["GET", "server-view", async () => {
     // רענון הסטטוסים רץ אחרי התשובה, כדי שהלוח לא יחכה לו
     after(() => Pub.syncActive(55_000).catch(() => {}));
-    const [items, links, worker, alerts] = await Promise.all([Pub.serverView(), Bank.linksView(), getMeta("worker_last"), getMeta("alerts")]);
+    const [items, links, worker, alerts, board] = await Promise.all([Pub.serverView(), Bank.linksView(), getMeta("worker_last"), getMeta("alerts"),
+      contentDb().from("content_board").select("revision").eq("id", true).single()]);
     for (const [id, l] of Object.entries(links)) (items[id] ||= {}).automation = l;
     const armed = Object.values(links).filter((l: any) => l.status === "armed").length;
     const w = worker as any;
-    return json({ items, alerts: alerts || [], armedCount: armed,
+    // revision: סרטון שנכנס מהתיקייה מעלה אותה, והגאנט הפתוח טוען את עצמו מחדש
+    return json({ items, alerts: alerts || [], armedCount: armed, revision: Number(board.data?.revision) || 0,
       worker: w ? { lastRun: w.at, ok: w.ok, summary: w.summary, stale: Date.now() / 1000 - w.at > 180 } : { lastRun: null, stale: true } });
   }],
   // עותק של הלוח לפני ייבוא — הגאנט קורא לזה לפני שהוא ממזג או מחליף

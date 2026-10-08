@@ -80,7 +80,16 @@
     return b;
   }
 
+  // סרטון שנכנס מהתיקייה ועוד לא תוזמן
+  function pendingApproval(item) {
+    var p = item && item.pub;
+    return !!(item && item.intake && !(p && ["scheduled", "publishing", "published", "partial"].indexOf(p.status) !== -1));
+  }
+  X.pendingApproval = pendingApproval;
+
   X.decorateChip = function (chip, item) {
+    // הצבע הסגול מגיע מהסטטוס הנגזר בלוח; כאן רק ההסבר במעבר עכבר
+    if (pendingApproval(item)) chip.title = "ממתין לאישור — הגיע מהתיקייה 'מוכן לפרסום'" + (chip.title ? " · " + chip.title : "");
     var wrap = null;
     function w() { if (!wrap) { wrap = el("span", "chip-nets"); chip.appendChild(wrap); } return wrap; }
     if (item.targets) {
@@ -216,17 +225,19 @@
     });
   }
 
-  function openSimpleConfirm(itemId, kind) {
+  function openSimpleConfirm(itemId, kind, onDone, intro) {
     var title = kind === "cancel" ? "ביטול הפוסט ב-Zernio" : "ניסיון חוזר";
     var m = X.modal(title, { sticky: true });
     api("POST", "/api/items/" + encodeURIComponent(itemId) + "/" + kind + "/plan", {}).then(function (r) {
+      if (intro) m.body.appendChild(el("p", "val-block is-warn", intro));
       m.body.appendChild(el("p", "settings-intro", r.summary.text));
       if (r.summary.networks && r.summary.networks.length) m.body.appendChild(el("p", "confirm-detail", "רשתות: " + r.summary.networks.join(", ")));
       m.body.appendChild(requestsDetails(r.requests));
-      X.runConfirm(m, r.actionId, { confirmText: kind === "cancel" ? "אשר ביטול" : "אשר ניסיון חוזר" });
+      X.runConfirm(m, r.actionId, { confirmText: kind === "cancel" ? "אשר ביטול" : "אשר ניסיון חוזר", onDone: onDone });
     }).catch(function (e) { m.body.appendChild(el("p", "val-block is-error", e.message)); });
   }
   X.openSimpleConfirm = openSimpleConfirm;
+  X.openScheduleConfirm = openScheduleConfirm;
 
   // ---------- the section inside the item form ----------
   X.buildPublishSection = function (ctx) {
@@ -237,7 +248,37 @@
       platformOptions: JSON.parse(JSON.stringify((editing && editing.platformOptions) || {}))
     };
     var root = el("div", "publish-box");
-    root.appendChild(el("div", "schedule-helper-title", "פרסום ותזמון דרך Zernio"));
+    // מקופל כברירת מחדל; חץ קטן פותח. התיבה "ממתין לאישור" נשארת גלויה מחוץ לקיפול
+    var toggle = el("button", "publish-toggle");
+    toggle.type = "button";
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.innerHTML = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.5 5 7.5 10l5 5"/></svg>';
+    toggle.appendChild(el("span", "schedule-helper-title", "פרסום ותזמון דרך Zernio"));
+    root.appendChild(toggle);
+
+    // סרטון מהתיקייה שמחכה לאישור: הסרטון עצמו, ומה לבדוק לפני "אשר ותזמן"
+    var pendingHost = el("div");
+    root.appendChild(pendingHost);
+    function renderPending() {
+      pendingHost.innerHTML = "";
+      var it = editing && X.G.findItem(editing.id);
+      if (!pendingApproval(it)) return;
+      var box = el("div", "pending-box");
+      box.appendChild(el("strong", "pending-title", "ממתין לאישור"));
+      box.appendChild(el("p", null, "הסרטון הגיע מהתיקייה \"מוכן לפרסום\"" + (it.intake.file ? " (" + it.intake.file + ")" : "") +
+        ". בדוק תאריך, שעה, כיתוב ורשתות, ולחץ \"אשר ותזמן\". שום דבר לא עולה לפני כן."));
+      if (it.intake.keyword) box.appendChild(el("p", null, "בסרטון יש קריאה לתגובה. מילת המפתח המוצעת: \"" + it.intake.keyword + "\". אחרי התזמון אפשר לחבר לה אוטומציה מבנק האוטומציות."));
+      var vid = (it.mediaFiles || []).filter(function (md) { return md.kind === "video"; })[0];
+      if (vid) {
+        var v = el("video", "pending-video"); v.src = vid.url; v.controls = true; v.playsInline = true; v.preload = "metadata";
+        box.appendChild(v);
+      } else box.appendChild(el("p", "pending-warn", "הסרטון עוד עולה ל-Zernio מהמחשב. רענן בעוד דקה."));
+      var go = el("div", "pending-actions");
+      go.appendChild(X.btn("אשר ותזמן", "btn-primary btn-small", function () { schedBtn.click(); }));
+      box.appendChild(go);
+      pendingHost.appendChild(box);
+    }
+    renderPending();
 
     // live status (when a post exists)
     var statusHost = el("div", "pub-status");
@@ -462,7 +503,7 @@
     var valHost = el("div", "val-host");
     var acts = el("div", "schedule-helper-actions pub-actions");
     function currentItem() { return editing ? X.G.findItem(editing.id) : null; }
-    function primaryLabel() { var it = currentItem(); return it && it.pub && it.pub.zernioPostId && it.pub.status !== "cancelled" ? "עדכון הפוסט ב-Zernio" : "תזמן ב-Zernio"; }
+    function primaryLabel() { var it = currentItem(); return it && it.pub && it.pub.zernioPostId && it.pub.status !== "cancelled" ? "עדכון הפוסט ב-Zernio" : pendingApproval(it) ? "אשר ותזמן" : "תזמן ב-Zernio"; }
     var schedBtn = X.btn(primaryLabel(), "btn-primary btn-small", function () {
       var it = ctx.commit();
       if (!it) return;
@@ -496,6 +537,15 @@
     root.appendChild(acts);
     root.appendChild(el("p", "field-hint-start", "שמירה בטופס שומרת רק בלוח. שום דבר לא נשלח ל-Zernio עד שתאשרו במסך האישור."));
 
+    var body = el("div", "publish-body");
+    body.hidden = true;
+    Array.prototype.slice.call(root.children).forEach(function (c) { if (c !== toggle && c !== pendingHost) body.appendChild(c); });
+    root.appendChild(body);
+    toggle.addEventListener("click", function () {
+      body.hidden = !body.hidden;
+      toggle.setAttribute("aria-expanded", body.hidden ? "false" : "true");
+    });
+
     X.onAccounts = function () { renderNets(); };
     function refreshPrimary() {
       var it = currentItem();
@@ -504,7 +554,7 @@
       schedBtn.textContent = primaryLabel();
     }
     refreshPrimary();
-    X.onServerView = function () { renderStatus(); refreshPrimary(); };
+    X.onServerView = function () { renderStatus(); renderPending(); refreshPrimary(); };
 
     return {
       el: root,
@@ -530,6 +580,13 @@
         });
       });
       X.worker = r.worker;
+      // סרטון חדש נכנס מהתיקייה (או שינוי מחלון אחר): טוענים מחדש, אבל רק
+      // כשאין שינוי שלא נשמר ואין חלון פתוח — כדי לא לאבד כלום
+      if (typeof r.revision === "number" && typeof G.state.revision === "number" && r.revision > G.state.revision &&
+          G.isIdle && G.isIdle() && !document.querySelector(".modal-overlay.is-open")) {
+        location.reload();
+        return r;
+      }
       if (changed) {
         G.rerenderCalendar();
         if (X.onServerView) X.onServerView();

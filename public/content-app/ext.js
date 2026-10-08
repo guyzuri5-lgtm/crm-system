@@ -142,7 +142,8 @@
     var openItem = params.get("item");
     if (openItem && X.view === "board") {
       var it = G.findItem(openItem);
-      if (it) setTimeout(function () { G.openDayModal(it.date, it.id); }, 50);
+      // פריט בלי תאריך יושב בשורה "מוכנים לתזמון" — אין לו יום לפתוח
+      if (it && it.date) setTimeout(function () { G.openDayModal(it.date, it.id); }, 50);
     }
     X.loadAccounts(false);
     // import/backup lives in the gantt's own sync window (the cloud button)
