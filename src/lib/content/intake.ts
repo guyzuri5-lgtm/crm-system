@@ -6,6 +6,7 @@ import { contentDb, getMeta, must, nowIso, releaseLease, setMeta, tryLease } fro
 import { loadBoard } from "./board";
 import { markUploaded, mediaPublic, mediaRows, presignMedia } from "./publishing";
 import { PLATFORMS } from "./pure/platforms";
+import { allCovers } from "./covers";
 
 /**
  * כניסה של סרטון ערוך מהמחשב של גיא אל הגאנט (הסקיל video-to-gantt).
@@ -193,7 +194,8 @@ export async function intakeStatus() {
   ) as any[];
   const ids = rows.map((r) => r.id);
   if (!ids.length) return [];
-  const pubs = must(await contentDb().from("content_publications").select("item_id, status, zernio_post_id, scheduled_for, last_error").in("item_id", ids), "pubs") as any[];
+  const pubs = must(await contentDb().from("content_publications").select("item_id, status, zernio_post_id, scheduled_for, last_error, sent_payload").in("item_id", ids), "pubs") as any[];
+  const covers = await allCovers();
   const media = must(await contentDb().from("content_media").select("item_id, uploaded_at, used_in_post_at, status").in("item_id", ids).is("deleted_at", null), "media") as any[];
   return rows.map((r) => {
     const p = pubs.find((x) => x.item_id === r.id);
@@ -202,7 +204,10 @@ export async function intakeStatus() {
     return {
       itemId: r.id, sourceKey: r.data.intake.sourceKey, file: r.data.intake.file, title: r.data.title, date: r.data.date,
       deleted: Boolean(r.deleted_at),
-      pub: p ? { status: p.status, zernioPostId: p.zernio_post_id, scheduledFor: p.scheduled_for, error: p.last_error } : null,
+      pub: p ? { status: p.status, zernioPostId: p.zernio_post_id, scheduledFor: p.scheduled_for, error: p.last_error,
+        cover: p.sent_payload?._cover || null } : null,
+      // הקאבר שיישלח באישור: sig מזהה את הקובץ בתיקייה, כדי שהסנכרון ידע מתי להחליף
+      cover: covers[r.id] ? { sig: covers[r.id].sig, source: covers[r.id].source, file: covers[r.id].file, uploadedAt: covers[r.id].uploadedAt } : null,
       mediaReady: ready.length > 0,
       // הקובץ הכי ישן שעוד לא בפוסט — ממנו נמדדים 7 הימים של Zernio
       oldestUnusedUpload: ready.filter((m) => !m.used_in_post_at).map((m) => m.uploaded_at).sort()[0] || null,

@@ -22,6 +22,24 @@
     s.value = value; s.addEventListener("change", function () { onChange(s.value); });
     return s;
   }
+  // קאבר לסרטון מהתיקייה: מה שיישלח באישור כ-instagramThumbnail (ריל) וכ-thumbnail (פייסבוק)
+  function coverView(c) {
+    var wrap = el("div", "cover-view");
+    if (!c || !c.url) {
+      wrap.appendChild(el("p", "cover-view-note", "קאבר: עוד לא נבחר. המחשב בוחר אותו מהתיקייה בסנכרון הבא (עד 5 דקות). בלי קאבר, אינסטגרם ייקח את הפריים הראשון."));
+      return wrap;
+    }
+    var im = el("img", "cover-view-img"); im.src = c.url; im.alt = "תמונת הקאבר"; im.loading = "lazy";
+    wrap.appendChild(im);
+    var info = el("div", "cover-view-info");
+    info.appendChild(el("span", "cover-view-tag" + (c.source === "mine" ? " is-mine" : ""), c.source === "mine" ? "קאבר שלך" : "נבחר אוטומטית"));
+    info.appendChild(el("span", "cover-view-note", c.source === "mine"
+      ? (c.file || "") + " מהתיקייה"
+      : "הפריים הכי חד מ-2 השניות הראשונות (cover_auto.jpg בתיקייה). להחלפה: שים בתיקייה קובץ שמתחיל ב-cover או ב-קאבר."));
+    wrap.appendChild(info);
+    return wrap;
+  }
+
   function fmtBytes(n) { return n > 1048576 ? (n / 1048576).toFixed(1) + "MB" : Math.round(n / 1024) + "KB"; }
   function fmtWhen(w) {
     if (!w) return "—";
@@ -189,6 +207,7 @@
         return;
       }
       var s = r.summary;
+      var it0 = X.G.findItem(itemId);
       var head = el("div", "confirm-head");
       head.appendChild(el("div", "confirm-when", fmtWhen(s.when) + " (" + s.timezone + ")"));
       head.appendChild(el("div", "confirm-title", s.title || ""));
@@ -202,6 +221,7 @@
         strip.appendChild(cell);
       });
       m.body.appendChild(strip);
+      if (it0 && it0.intake && mode === "create") m.body.appendChild(coverView(s.cover));
       s.networks.forEach(function (n) {
         var card = el("div", "confirm-net");
         var h = el("div", "confirm-net-head");
@@ -279,6 +299,7 @@
         var v = el("video", "pending-video"); v.src = vid.url; v.controls = true; v.playsInline = true; v.preload = "metadata";
         box.appendChild(v);
       } else box.appendChild(el("p", "pending-warn", "הסרטון עוד עולה ל-Zernio מהמחשב. רענן בעוד דקה."));
+      box.appendChild(coverView(it.cover));
       var go = el("div", "pending-actions");
       go.appendChild(X.btn("אשר ותזמן", "btn-primary btn-small", function () { schedBtn.click(); }));
       box.appendChild(go);
@@ -580,7 +601,7 @@
       var G = X.G, changed = false;
       G.state.items.forEach(function (it) {
         var v = r.items[it.id] || {};
-        ["pub", "targets", "automation", "mediaFiles"].forEach(function (k) {
+        ["pub", "targets", "automation", "mediaFiles", "cover"].forEach(function (k) {
           var a = JSON.stringify(it[k] || null), b = JSON.stringify(v[k] || null);
           if (a !== b) { changed = true; if (v[k]) it[k] = v[k]; else delete it[k]; }
         });

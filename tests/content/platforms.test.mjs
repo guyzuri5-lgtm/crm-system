@@ -111,3 +111,12 @@ test("automation note opens the tiktok and youtube caption only, once", () => {
   const typed = { id: "x", caption: `${P.AUTOMATION_NOTE}\n\nכבר כתבתי`, automationChoice: "a" };
   assert.equal(P.captionFor(typed, "tiktok"), typed.caption);
 });
+test("cover goes on the single video: instagramThumbnail (reel) and thumbnail (facebook)", () => {
+  const it = item({ platforms: ["instagram", "facebook"] });
+  const b = P.buildBody(it, media(), accts("instagram", "facebook"), TZ, "https://x/cover.jpg");
+  assert.equal(b.mediaItems[0].instagramThumbnail, "https://x/cover.jpg");
+  assert.equal(b.mediaItems[0].thumbnail, "https://x/cover.jpg");
+  // בלי קאבר, ובקרוסלה של תמונות — אין שדות קאבר
+  assert.equal("thumbnail" in P.buildBody(it, media(), accts("instagram"), TZ).mediaItems[0], false);
+  assert.equal("thumbnail" in P.buildBody(item({ format: "carousel" }), media("image", 1e5, 0, 2), accts("instagram"), TZ, "https://x/c.jpg").mediaItems[0], false);
+});

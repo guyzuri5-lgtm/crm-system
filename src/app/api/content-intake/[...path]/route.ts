@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ZernioError } from "@/lib/content/zernio";
 import { checkIntakeToken, createIntakeItem, intakeContext, intakeStatus, intakeUploaded, replaceMedia } from "@/lib/content/intake";
+import { coverUploaded, presignCover } from "@/lib/content/covers";
 import { confirmVideo, DriveNotConfiguredError, listPieces, matchVideo, runPieces } from "@/lib/content/pieces";
 
 /**
@@ -41,6 +42,11 @@ async function handle(req: NextRequest, ctx: Ctx) {
     if (m === "POST" && p) return json({ media: await intakeUploaded(p[1], req.nextUrl.searchParams.get("replace") === "1") });
     p = /^items\/([\w-]{1,60})\/media$/.exec(path);
     if (m === "POST" && p) return json(await replaceMedia(p[1], await body(req)));
+    // קאבר לסרטון שמחכה לאישור (src/lib/content/covers.ts)
+    p = /^items\/([\w-]{1,60})\/cover$/.exec(path);
+    if (m === "POST" && p) return json(await presignCover(p[1], await body(req)));
+    p = /^items\/([\w-]{1,60})\/cover\/done$/.exec(path);
+    if (m === "POST" && p) return json({ cover: await coverUploaded(p[1]) });
     return json({ error: "not found" }, 404);
   } catch (e) {
     if (e instanceof ZernioError) return json({ error: e.hebrew, status: e.status }, 502);

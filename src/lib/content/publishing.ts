@@ -6,6 +6,7 @@ import { contentDb, getSettings, must, nowIso } from "./db";
 import { zget, zvalidate, zwrite, audit, humanize, ZernioError } from "./zernio";
 import { accountSummary } from "./accounts";
 import { createAction, dryRunView, executor, fingerprint } from "./actions";
+import { allCovers, coverFor } from "./covers";
 import {
   buildBody, isBlocked, mediaKind, PLATFORM_NAMES, POST_STATUS_HE, readPost, selected, validateLocal, opts, fmt,
   whenLocal, TIKTOK_PRIVACY, YT_VISIBILITY, FORMAT_NAMES, type Item, type MediaRow,
@@ -121,6 +122,12 @@ export async function serverView() {
   }
   const media = must(await contentDb().from("content_media").select("*").is("deleted_at", null).order("sort"), "media");
   for (const m of media as any[]) ((out[m.item_id] ||= {}).mediaFiles ||= []).push(mediaPublic(m));
+  // קאבר שהסנכרון מהתיקייה העלה לסרטון שמחכה לאישור (covers.ts)
+  for (const [id, c] of Object.entries(await allCovers())) (out[id] ||= {}).cover = { url: c.url, source: c.source, file: c.file, uploadedAt: c.uploadedAt };
+  for (const r of pubs as any[]) {
+    const sent = r.sent_payload?._cover;
+    if (sent && out[r.item_id]?.pub) out[r.item_id].pub.cover = sent;
+  }
   return out;
 }
 
@@ -197,7 +204,7 @@ export async function validateItem(itemId: string) {
   return validateLocal(item, await mediaRows(itemId), await accountSummary(), timezone);
 }
 
-function summary(item: Item, media: MediaRow[], acct: any, body: any, tz: string) {
+function summary(item: Item, media: MediaRow[], acct: any, body: any, tz: string, cover: Record<string, unknown> | null) {
   const f = fmt(item);
   const networks = (body.platforms as any[]).map((e) => {
     const p = e.platform;
@@ -225,7 +232,7 @@ function summary(item: Item, media: MediaRow[], acct: any, body: any, tz: string
   });
   return {
     when: whenLocal(item), timezone: tz, title: item.title,
-    media: media.map(mediaPublic), networks, tiktok: networks.some((n) => n.platform === "tiktok"),
+    media: media.map(mediaPublic), networks, tiktok: networks.some((n) => n.platform === "tiktok"), cover,
   };
 }
 
@@ -247,7 +254,20 @@ export async function planSchedule(itemId: string, mode: "create" | "update") {
   const val = validateLocal(item, media, acct, timezone);
   if (isBlocked(val, item)) return { status: 200, json: { validation: val, blocked: true } };
 
-  const body = buildBody(item, media, acct, timezone);
+  // קאבר: בתזמון חדש — מה שהסנכרון מהתיקייה העלה אחרון (הבחירה נעשית ברגע האישור,
+  // לא כשהסרטון נכנס). בעדכון — מה שנשלח בפעם הקודמת, כדי שעדכון לא ימחק אותו.
+  let cover: Record<string, unknown> | null = null;
+  if (mode === "create" && item.intake) {
+    const c = await coverFor(itemId);
+    // Zernio מוחק העלאה שאף פוסט לא מפנה אליה אחרי 7 ימים; הסנכרון מחדש אותה כל 5
+    if (c && Date.now() - Date.parse(c.uploadedAt) < 6.5 * 864e5) cover = { url: c.url, source: c.source, file: c.file, sig: c.sig };
+    else if (c) (val._item.warnings ||= []).push("הקאבר מהתיקייה הועלה לפני יותר משישה ימים ולא חודש (המחשב כבוי?) — הפוסט יעלה בלי קאבר.");
+  } else if (mode === "update") {
+    const prev = pub?.sent_payload;
+    const url = prev?.mediaItems?.[0]?.instagramThumbnail;
+    if (url) cover = { ...(prev._cover || {}), url };
+  }
+  const body = buildBody(item, media, acct, timezone, cover?.url as string | undefined);
   // הבדיקה של Zernio עצמו: לא שומרת כלום ולא נוגעת בחשבונות או במדיה
   const probe: any = JSON.parse(JSON.stringify(body));
   delete probe.scheduledFor; delete probe.timezone; delete probe.metadata;
@@ -265,7 +285,8 @@ export async function planSchedule(itemId: string, mode: "create" | "update") {
   const plan = {
     itemId, mode, steps, mediaIds: media.map((m) => m.id),
     itemHash: fingerprint(item, media.map((m) => m.id)),
-    summary: summary(item, media, acct, body, timezone),
+    cover,
+    summary: summary(item, media, acct, body, timezone, cover && { url: cover.url, source: cover.source, file: cover.file }),
   };
   const actionId = await createAction("schedule", itemId, plan);
   return { status: 200, json: { validation: val, remote, actionId, summary: plan.summary, requests: dryRunView(plan) } };
@@ -304,7 +325,7 @@ executor("schedule", async (plan, body) => {
   must(await contentDb().from("content_publications").upsert({
     item_id: itemId, zernio_post_id: postId, status: post.status || (postId ? "scheduled" : "unknown"),
     scheduled_for: String(step.body.scheduledFor).slice(0, 16), timezone: step.body.timezone,
-    sent_payload: { ...step.body, _mediaIds: plan.mediaIds }, last_error: null, updated_at: t,
+    sent_payload: { ...step.body, _mediaIds: plan.mediaIds, _cover: plan.cover || null }, last_error: null, updated_at: t,
   }), "pub upsert");
   const keep = (step.body.platforms as any[]).map((e) => e.platform);
   const old = must(await contentDb().from("content_targets").select("platform").eq("item_id", itemId), "targets") as any[];

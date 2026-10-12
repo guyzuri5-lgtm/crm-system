@@ -998,7 +998,7 @@ window.__startGantt = function (BOOT) {
   }
 
   // ---------- saving: to the local server (SQLite), never localStorage/cloud ----------
-  var SERVER_KEYS = ["pub", "targets", "automation", "mediaFiles"];
+  var SERVER_KEYS = ["pub", "targets", "automation", "mediaFiles", "cover"];
   function serializeState() {
     var out = {};
     Object.keys(state).forEach(function (k) { if (k !== "items") out[k] = state[k]; });
@@ -3194,7 +3194,12 @@ window.__startGantt = function (BOOT) {
       card.setAttribute("aria-pressed", trayPick === it.id ? "true" : "false");
       var thumb = document.createElement("span");
       thumb.className = "ready-thumb";
-      thumb.innerHTML = PLAY_ICON;
+      // הקאבר שיישלח באישור (מהתיקייה: שלך, או פריים שנבחר אוטומטית)
+      if (it.cover && it.cover.url) {
+        var cimg = document.createElement("img");
+        cimg.src = it.cover.url; cimg.alt = ""; cimg.loading = "lazy"; cimg.draggable = false;
+        thumb.appendChild(cimg);
+      } else thumb.innerHTML = PLAY_ICON;
       var body = document.createElement("span");
       body.className = "ready-body";
       var title = document.createElement("span");
@@ -3211,6 +3216,10 @@ window.__startGantt = function (BOOT) {
       meta.appendChild(document.createTextNode((type ? type.name : "ללא סיווג") + (vid && vid.duration ? " · " + fmtDuration(vid.duration) : "")));
       body.appendChild(title);
       body.appendChild(meta);
+      var coverTag = document.createElement("span");
+      coverTag.className = "ready-cover-tag" + (it.cover && it.cover.source === "mine" ? " is-mine" : "");
+      coverTag.textContent = !it.cover ? "קאבר: עוד לא נבחר" : it.cover.source === "mine" ? "קאבר שלך" : "קאבר אוטומטי";
+      body.appendChild(coverTag);
       card.appendChild(thumb);
       card.appendChild(body);
       card.title = it.title + " — גררו ליום בלוח";

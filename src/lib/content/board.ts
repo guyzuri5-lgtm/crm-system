@@ -13,7 +13,7 @@ import { contentDb, must, nowIso } from "./db";
  */
 
 /** שדות שהשרת מחזיק ומציג, ושמירה מהדפדפן לעולם לא דורסת */
-export const SERVER_KEYS = ["pub", "targets", "automation", "mediaFiles"];
+export const SERVER_KEYS = ["pub", "targets", "automation", "mediaFiles", "cover"];
 
 const DEFAULT_TYPES = [
   { id: "edu", name: "חינוכי", color: "#2a78d6" },

@@ -266,13 +266,20 @@ export function isBlocked(v: Validation, item: Item): boolean {
   return v._item.errors.length > 0 || selected(item).some((p) => (v[p]?.errors.length || 0) > 0);
 }
 
-/** גוף POST/PUT /posts המדויק. מדיה בלי כתובת מקבלת placeholder שמוחלף בשליחה. */
-export function buildBody(item: Item, media: MediaRow[], acct: AccountSummary, tz: string) {
+/**
+ * גוף POST/PUT /posts המדויק. מדיה בלי כתובת מקבלת placeholder שמוחלף בשליחה.
+ * cover: תמונת קאבר לווידאו יחיד — instagramThumbnail לריל באינסטגרם, thumbnail לפייסבוק.
+ */
+export function buildBody(item: Item, media: MediaRow[], acct: AccountSummary, tz: string, cover?: string | null) {
   const f = fmt(item);
-  const mediaItems = media.map((m) => ({
+  const mediaItems: Record<string, unknown>[] = media.map((m) => ({
     type: mediaKind(m) === "video" ? "video" : "image",
     url: m.public_url || `{{media:${m.id}}}`,
   }));
+  if (cover && mediaItems.length === 1 && mediaItems[0].type === "video") {
+    mediaItems[0].instagramThumbnail = cover;
+    mediaItems[0].thumbnail = cover;
+  }
   const base = String(item.caption || "").trim();
   const platforms: Record<string, unknown>[] = [];
   let tags: string[] | null = null;
