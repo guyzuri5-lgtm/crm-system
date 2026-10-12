@@ -1,4 +1,4 @@
-/* בנק האוטומציות: תגובה ← הודעה פרטית באינסטגרם. אוטומציה אחת, הרבה פוסטים.
+/* בנק האוטומציות: תגובה ← הודעה פרטית באינסטגרם ובפייסבוק. אוטומציה אחת, הרבה פוסטים.
    הכפתור ⚡ בראש הגאנט פותח את הבנק. בחלון של פוסט מוצגת רק שורת סטטוס. */
 (function () {
   "use strict";
@@ -8,6 +8,8 @@
   var COLOR = { live: "#0ca30c", armed: "#fab219", paused: "#9b9a8f", error: "#d03b3b", active: "#0ca30c", draft: "#9b9a8f" };
   var MATCH = [["word", "מילה שלמה (מומלץ)"], ["exact", "התגובה היא בדיוק המילה"], ["contains", "בכל מקום, גם בתוך מילה"]];
   var STATUS_HE = { draft: "טיוטה", active: "פעילה", paused: "מושהית" };
+  var NET_HE = { instagram: "אינסטגרם", facebook: "פייסבוק" };
+  function netList(ps) { return (ps || []).map(function (p) { return NET_HE[p] || p; }).join(" ו"); }
 
   function fmtDate(d) { return d ? d.slice(8, 10) + "/" + d.slice(5, 7) : ""; }
 
@@ -24,17 +26,18 @@
   // ---------- בחלון של פוסט: רק סטטוס, הקישור עצמו נעשה בבנק ----------
   // הבחירה בחלון הפריט: איזו אוטומציה מהבנק תחובר לפוסט. היא נשמרת על הפריט
   // (automationChoice), והקישור עצמו עדיין עובר דרך מסך האישור של הבנק —
-  // מיד אחרי "אשר ותזמן", או בכפתור כאן כשהפוסט כבר מתוזמן לאינסטגרם.
+  // מיד אחרי "אשר ותזמן", או בכפתור כאן כשהפוסט כבר מתוזמן לאינסטגרם או לפייסבוק.
   var slotChoice = {};
   var bankCache = null;
   function loadBank(force) {
     if (!bankCache || force) bankCache = api("GET", "/api/bank").catch(function (e) { bankCache = null; throw e; });
     return bankCache;
   }
-  function igScheduledOrLive(it) {
-    var t = it && it.targets && it.targets.instagram;
-    if (!t) return false;
-    return t.status === "published" || (it.pub && it.pub.status === "scheduled");
+  function metaScheduledOrLive(it) {
+    return ["instagram", "facebook"].some(function (p) {
+      var t = it && it.targets && it.targets[p];
+      return t && (t.status === "published" || (it.pub && it.pub.status === "scheduled"));
+    });
   }
   X.collectAutomation = function (target) {
     if (!Object.prototype.hasOwnProperty.call(slotChoice, target.id)) return;
@@ -47,9 +50,9 @@
 
   function renderPicker(host, ctx, draft, it) {
     var itemId = ctx.itemId;
-    host.appendChild(el("label", "field-label", "אוטומציה לתגובות (אינסטגרם)"));
-    if (draft && draft.platforms && draft.platforms.indexOf("instagram") === -1) {
-      host.appendChild(el("p", "field-hint-start", "אוטומציה עובדת רק באינסטגרם. סמנו את אינסטגרם ברשתות כדי לבחור אחת."));
+    host.appendChild(el("label", "field-label", "אוטומציה לתגובות (אינסטגרם ופייסבוק)"));
+    if (draft && draft.platforms && draft.platforms.indexOf("instagram") === -1 && draft.platforms.indexOf("facebook") === -1) {
+      host.appendChild(el("p", "field-hint-start", "אוטומציה עובדת רק באינסטגרם ובפייסבוק. סמן אחת מהן ברשתות כדי לבחור אוטומציה."));
       return;
     }
     var box = el("div", "auto-pick");
@@ -81,13 +84,13 @@
 
       function refresh() {
         acts.innerHTML = "";
-        var live = igScheduledOrLive(it);
+        var live = metaScheduledOrLive(it);
         if (!sel.value) {
           hint.textContent = keyword && !suggested
             ? "בסרטון יש קריאה להגיב עם המילה \"" + keyword + "\", ואין בבנק אוטומציה עם המילה הזו. אפשר ליצור אחת בבנק."
             : "";
         } else if (live) {
-          hint.textContent = "הפוסט כבר מתוזמן לאינסטגרם. הקישור עובר דרך מסך אישור.";
+          hint.textContent = "הפוסט כבר מתוזמן. הקישור עובר דרך מסך אישור, ותופעל בכל רשת של Meta שהפוסט עולה אליה.";
           acts.appendChild(X.btn("קשר את האוטומציה", "btn-primary btn-small", function () { X.linkAutomation(sel.value, itemId); }));
         } else {
           hint.textContent = "תחובר אחרי \"אשר ותזמן\": מיד אחרי התזמון ייפתח מסך אישור לקישור.";
@@ -111,9 +114,14 @@
     var row = el("button", "auto-line"); row.type = "button";
     var ic = el("span", "net-ico"); ic.innerHTML = BOLT; ic.style.color = a.overdue ? COLOR.error : (COLOR[a.status] || "inherit");
     row.appendChild(ic);
-    row.appendChild(el("span", null, "אוטומציה: " + (a.name || "") + " · " + (a.statusHe || a.status) + (a.overdue ? " — העובד פספס!" : "")));
+    row.appendChild(el("span", null, "אוטומציה: " + (a.name || "") + " · " + (a.statusHe || a.status) +
+      (a.platforms && a.platforms.length ? " · " + netList(a.platforms) : "") + (a.overdue ? " — העובד פספס!" : "")));
     row.addEventListener("click", function () { openBank(a.automationId); });
     host.appendChild(row);
+    // הפוסט עולה גם לרשת שאין בה עוד אוטומציה (למשל קושר לפני שהיה פייסבוק)
+    if (a.missing && a.missing.length && it && a.status !== "paused") {
+      host.appendChild(X.btn("הפעל גם ב" + netList(a.missing), "btn-ghost btn-small", function () { X.linkAutomation(a.automationId, it.id); }));
+    }
   };
 
   X.buildIgAutomation = function (wrap, item) {
@@ -423,7 +431,7 @@
     var s2 = stepBox(2, "בקשת עוקב — רק למי שלא עוקב");
     var gateBody = el("div");
     s2.body.appendChild(toggle("gate_enabled", "פעיל", function (on) { gateBody.style.display = on ? "" : "none"; }));
-    gateBody.appendChild(el("p", "field-hint-start", "אינסטגרם מגלה אם מישהו עוקב רק אחרי שהוא שלח לך הודעה. עוקב שכבר כתב לך מדלג ישר לשלב 3. מגיב חדש מקבל קודם הודעת אימות עם כפתור — הלחיצה שלו מאפשרת את הבדיקה."));
+    gateBody.appendChild(el("p", "field-hint-start", "אינסטגרם מגלה אם מישהו עוקב רק אחרי שהוא שלח לך הודעה. עוקב שכבר כתב לך מדלג ישר לשלב 3. מגיב חדש מקבל קודם הודעת אימות עם כפתור — הלחיצה שלו מאפשרת את הבדיקה. באינסטגרם בלבד: בפייסבוק אין בדיקת עוקב, וכל מגיב מקבל את ההודעה."));
     gateBody.appendChild(field("הודעת אימות (למי שלא ידוע אם עוקב)", txt("verify_text", { area: true, placeholder: "שנייה, מוודא שזה מגיע אליך 🙌 לחץ למטה" })));
     gateBody.appendChild(field("כפתור האימות", txt("verify_button", { placeholder: "שלח לי", max: 20 })));
     gateBody.appendChild(field("בקשת עוקב (למי שהבדיקה מצאה שלא עוקב)", txt("gate_text", { area: true, placeholder: "רק לעוקבים… עקוב ולחץ שוב. ואם זה לא יעזור לך — תוריד עוקב בכיף 🙂" }),
@@ -487,7 +495,7 @@
       var row = el("div", "bank-link");
       var dot = el("span", "pub-dot"); dot.style.background = COLOR[l.status] || "var(--ink-400)"; row.appendChild(dot);
       var it = l.item || {};
-      var t = el("button", "bank-link-title", fmtDate(it.date) + " · " + (it.title || l.itemId)); t.type = "button";
+      var t = el("button", "bank-link-title", fmtDate(it.date) + " · " + (it.title || l.itemId) + " · " + (l.platformHe || "אינסטגרם")); t.type = "button";
       t.addEventListener("click", function () {
         if (X.view === "automations") { X.navigate("/content?item=" + encodeURIComponent(l.itemId)); return; }
         bankModal.close(); if (it.date) X.G.openDayModal(it.date, l.itemId);
@@ -507,12 +515,14 @@
       picker.innerHTML = ""; picker.appendChild(el("p", "settings-intro", "טוען פוסטים…"));
       api("GET", "/api/bank/candidates").then(function (rows) {
         picker.innerHTML = "";
-        var free = rows.filter(function (r) { return !r.linkedTo; });
-        if (!free.length) { picker.appendChild(el("p", "settings-intro", "אין פוסט אינסטגרם פנוי: צריך פוסט שכבר עלה, או שתוזמן לאינסטגרם מהגאנט, ושאין לו אוטומציה.")); return; }
+        // פנוי: בלי אוטומציה, או מקושר לזו אבל חסר ברשת אחת
+        var free = rows.filter(function (r) { return !r.linkedTo || (r.linkedTo === a.id && r.missing && r.missing.length); });
+        if (!free.length) { picker.appendChild(el("p", "settings-intro", "אין פוסט פנוי: צריך פוסט שכבר עלה לאינסטגרם או לפייסבוק, או שתוזמן לאחת מהן מהגאנט, ושאין לו אוטומציה.")); return; }
         free.slice(0, 60).forEach(function (r) {
           var bt = el("button", "bank-cand"); bt.type = "button";
+          var adding = r.linkedTo === a.id;
           bt.appendChild(el("span", null, fmtDate(r.date) + (r.time ? " " + r.time : "") + " · " + (r.title || r.itemId)));
-          bt.appendChild(el("span", "bank-pill", r.state === "scheduled" ? "מתוזמן" : "עלה"));
+          bt.appendChild(el("span", "bank-pill", adding ? "להוסיף " + netList(r.missing) : netList(r.platforms) + " · " + (r.state === "scheduled" ? "מתוזמן" : "עלה")));
           bt.addEventListener("click", function () {
             save().then(function () {
               confirmScreen("קישור האוטומציה לפוסט", "/api/bank/" + a.id + "/link/plan", { itemId: r.itemId }, { confirmText: r.state === "scheduled" ? "אשר — שמור כממתין" : "אשר והפעל", onDone: function () { openEditor(a.id); } });
@@ -553,7 +563,7 @@
         h.appendChild(el("strong", null, "מיילים שנאספו (" + rows.length + ")"));
         if (rows.length) { var dl = el("a", "btn btn-ghost btn-small", "הורדה כקובץ CSV"); dl.href = "/api/content/bank/" + a.id + "/emails?format=csv"; h.appendChild(dl); }
         emailsHost.appendChild(h);
-        emailsHost.appendChild(el("p", "field-hint-start", "כל מייל נכנס גם לאנשי הקשר ב-CRM, עם התגיות 'אינסטגרם' ו'אוטומציה: " + a.name + "'."));
+        emailsHost.appendChild(el("p", "field-hint-start", "כל מייל נכנס גם לאנשי הקשר ב-CRM, עם תגית הרשת ('אינסטגרם' או 'פייסבוק') ו'אוטומציה: " + a.name + "'."));
         rows.slice(0, 50).forEach(function (r) {
           var row = el("div", "admin-log-row"); var e = el("span", null, r.email); e.dir = "ltr"; row.appendChild(e);
           row.appendChild(el("span", "admin-log-time", new Date(r.collected_at).toLocaleString("he-IL")));
@@ -569,7 +579,8 @@
      "תגובות שנכתבו לפני שהאוטומציה קיימת לא יקבלו הודעה.",
      "התגובה שלכם על הפוסט של עצמכם לא מפעילה כלום — בודקים מחשבון אחר.",
      "לפוסט מתוזמן: עובד הרקע יוצר את האוטומציה 3 דקות לפני הפרסום ומצמיד אותה ברגע שהוא עולה. אם משהו משתבש — היא מושהית ותופיע התראה.",
-     "רק אינסטגרם: בטיקטוק זה לא אפשרי, ביוטיוב אין הודעות פרטיות.",
+     "אינסטגרם ופייסבוק: בטיקטוק זה לא אפשרי, ביוטיוב אין הודעות פרטיות.",
+     "בפייסבוק אין בדיקת עוקב: כשבקשת העוקב דלוקה, היא חלה רק באינסטגרם, ובפייסבוק כל מגיב מקבל את ההודעה.",
      "Link tracking כבוי תמיד — עטיפת הפניה בהודעות נקראת כספאם."].forEach(function (t) { lim.appendChild(el("p", "field-hint-start", t)); });
     b.appendChild(lim);
   }

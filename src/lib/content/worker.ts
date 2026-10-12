@@ -7,6 +7,7 @@ import { fetchAccounts, healthy } from "./accounts";
 import { syncActive, syncOne } from "./publishing";
 import { createCommentAutomation, getAutomation, refreshStats, runHealthSafe, sweepOrphans } from "./automations";
 import { PLATFORM_NAMES, zonedToUtc } from "./pure/platforms";
+import { META_NAMES, type MetaPlatform } from "./pure/automation";
 import { DriveNotConfiguredError, runPieces } from "./pieces";
 
 /**
@@ -16,7 +17,8 @@ import { DriveNotConfiguredError, runPieces } from "./pieces";
  *  - מרענן סטטוס של פוסטים מתוזמנים (GET);
  *  - בודק שכל רשת עדיין מחוברת, ומתריע מראש כשפוסט מתוזמן מיועד לרשת שהתנתקה;
  *  - קישור "ממתין": כמה דקות לפני הפרסום יוצר את אוטומציית התגובה ברמת החשבון,
- *    וברגע שלפוסט יש מזהה באינסטגרם — מצמיד אותה אליו (rescope_on_publish.py).
+ *    וברגע שלפוסט יש מזהה ברשת (אינסטגרם או פייסבוק, לפי הקישור) — מצמיד אותה
+ *    אליו (rescope_on_publish.py).
  *    אם זה לא קורה תוך כמה דקות, או שהפוסט נכשל — משהה אותה ומתריע. אוטומציה
  *    אסור שתישאר ברמת החשבון;
  *  - כל 15 דקות: מספרים, ומיילים שנאספו → אנשי קשר.
@@ -113,6 +115,10 @@ async function checkAccounts(alert: (l: Alert["level"], t: string, i?: string | 
   }
 }
 
+function linkPlatform(l: any): MetaPlatform {
+  return l?.platform === "facebook" ? "facebook" : "instagram";
+}
+
 async function setLink(id: string, patch: Record<string, unknown>) {
   must(await contentDb().from("content_automation_links").update({ ...patch, updated_at: nowIso() }).eq("id", id), "link update");
 }
@@ -131,10 +137,11 @@ async function armDue(alert: (l: Alert["level"], t: string, i?: string | null) =
     }
     const due = zonedToUtc(String(pub.scheduled_for || ""), timezone);
     if (!due || Date.now() < due.getTime() - armLeadMinutes * 60_000) continue;
-    const t = must(await contentDb().from("content_targets").select("platform_post_id, status").eq("item_id", l.item_id).eq("platform", "instagram").maybeSingle(), "ig target") as any;
+    const net = META_NAMES[linkPlatform(l)];
+    const t = must(await contentDb().from("content_targets").select("platform_post_id, status").eq("item_id", l.item_id).eq("platform", linkPlatform(l)).maybeSingle(), "target") as any;
     if (!t) {
-      await setLink(l.id, { status: "error", last_error: "אינסטגרם הוסר מהפוסט — האוטומציה לא נוצרה." });
-      alert("warn", `אוטומציה '${a.name}' לא נוצרה: הפוסט כבר לא עולה לאינסטגרם.`, l.item_id);
+      await setLink(l.id, { status: "error", last_error: `${net} הוסר מהפוסט — האוטומציה לא נוצרה.` });
+      alert("warn", `אוטומציה '${a.name}' לא נוצרה: הפוסט כבר לא עולה ל${net}.`, l.item_id);
       continue;
     }
     // באיחור: לפוסט כבר יש מזהה → יוצרים ישר צמודה לפוסט, בלי שלב ברמת החשבון
@@ -182,7 +189,7 @@ async function rescope(alert: (l: Alert["level"], t: string, i?: string | null) 
   let pending = 0;
   for (const l of links) {
     await syncOne(l.item_id).catch(() => null);
-    const t = must(await contentDb().from("content_targets").select("platform_post_id, status").eq("item_id", l.item_id).eq("platform", "instagram").maybeSingle(), "t") as any;
+    const t = must(await contentDb().from("content_targets").select("platform_post_id, status").eq("item_id", l.item_id).eq("platform", linkPlatform(l)).maybeSingle(), "t") as any;
     const pub = must(await contentDb().from("content_publications").select("status").eq("item_id", l.item_id).maybeSingle(), "pub") as any;
     if (t?.platform_post_id && t.status === "published") {
       if (dry) { log.push(`would scope ${l.id} to ${t.platform_post_id}`); continue; }
@@ -201,7 +208,7 @@ async function rescope(alert: (l: Alert["level"], t: string, i?: string | null) 
     }
     const failed = (t && ["failed", "cancelled"].includes(t.status)) || (pub && ["failed", "cancelled"].includes(pub.status));
     const age = Date.now() - (l.armed_at ? Date.parse(l.armed_at) : Date.now());
-    if (failed) { if (!dry) await pauseLink(l, `הפוסט באינסטגרם ${t?.status === "failed" ? "נכשל" : "בוטל"}`, alert); }
+    if (failed) { if (!dry) await pauseLink(l, `הפוסט ב${META_NAMES[linkPlatform(l)]} ${t?.status === "failed" ? "נכשל" : "בוטל"}`, alert); }
     else if (age > MAX_ACCOUNT_WIDE_MS) { if (!dry) await pauseLink(l, "הפוסט לא עלה 12 דקות אחרי שהאוטומציה נוצרה", alert); }
     else pending++;
   }
@@ -209,7 +216,7 @@ async function rescope(alert: (l: Alert["level"], t: string, i?: string | null) 
 }
 
 async function stats(log: string[]) {
-  const autos = must(await contentDb().from("content_automations").select("id, stats_at").is("archived_at", null).not("zernio_workflow_id", "is", null), "autos") as any[];
+  const autos = must(await contentDb().from("content_automations").select("id, stats_at").is("archived_at", null).or("zernio_workflow_id.not.is.null,fb_workflow_id.not.is.null"), "autos") as any[];
   for (const a of autos) {
     if (a.stats_at && Date.now() - Date.parse(a.stats_at) < STATS_EVERY_MS) continue;
     try {

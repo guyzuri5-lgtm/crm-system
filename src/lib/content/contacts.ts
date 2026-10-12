@@ -3,14 +3,14 @@ import "server-only";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 /**
- * מייל שנאסף בצ'אט של אוטומציה באינסטגרם → איש קשר ב-CRM.
+ * מייל שנאסף בצ'אט של אוטומציה באינסטגרם או בפייסבוק → איש קשר ב-CRM.
  * אותו דפוס כמו upsertRegistrant ב-registration.ts: מוצאים לפי מייל
  * (case-insensitive), מוסיפים תגית, ולא דורסים שם או מייל שכבר קיימים.
  * לא מפעיל כללי אוטומציה ולא שולח כלום — הבעלים שולח את השיעור בעצמו.
  */
-export async function saveEmailContact(email: string, automationName: string): Promise<string | null> {
+export async function saveEmailContact(email: string, automationName: string, network = "אינסטגרם"): Promise<string | null> {
   const db = supabaseAdmin();
-  const tags = ["אינסטגרם", `אוטומציה: ${automationName}`];
+  const tags = [network, `אוטומציה: ${automationName}`];
   // ilike בלי תווים מיוחדים = השוואה לא תלויה ברישיות. % ו-_ מוברחים כדי שלא יתאימו לאיש קשר אחר
   const exact = email.replace(/[\\%_]/g, (c) => `\\${c}`);
   const { data: found, error } = await db.from("contacts").select("id, tags").ilike("email", exact).limit(1);
@@ -24,7 +24,7 @@ export async function saveEmailContact(email: string, automationName: string): P
   }
   const { data, error: insErr } = await db
     .from("contacts")
-    .insert({ email, source: "אינסטגרם", tags })
+    .insert({ email, source: network, tags })
     .select("id")
     .single();
   if (insErr) throw new Error(insErr.message);

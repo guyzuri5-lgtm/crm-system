@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- תשובות ה-API של Zernio ושורות content_* לא מוקלדות; הצורה מתועדת בהערות ונבדקת בזמן ריצה */
 /**
- * בנק האוטומציות: "תגובה ← הודעה פרטית" באינסטגרם — הכללים, הגרף והגוף.
+ * בנק האוטומציות: "תגובה ← הודעה פרטית" באינסטגרם ובפייסבוק — הכללים, הגרף והגוף.
  * בלי מסד ובלי רשת, כדי שאפשר יהיה לבדוק ישירות.
  *
  * זה הסקיל comment-to-dm (scripts/keyword_dm.py) מתורגם, עם שלושה שינויים
@@ -17,7 +17,15 @@
  * על הכפתור מגיעה כהודעה רגילה שמפעילה workflow לפי הטקסט שלו. הודעות עם
  * כפתורים יוצאות דרך צומת webhook שקורא ל-/inbox/conversations/{id}/messages,
  * ו-bodyTemplate הוא מחרוזת JSON ולא אובייקט.
+ *
+ * פייסבוק: אותה אוטומציה בדיוק, עם שני הבדלים. אין בדיקת עוקב (audience ו-
+ * followGate הם של אינסטגרם בלבד ב-Zernio), והכפתור מעביר ישירות ל-workflow
+ * של הדף (payload zernio:workflow:<id>) במקום לסמוך על כך שהלחיצה תגיע כטקסט.
  */
+
+export type MetaPlatform = "instagram" | "facebook";
+export const META_PLATFORMS: MetaPlatform[] = ["instagram", "facebook"];
+export const META_NAMES: Record<MetaPlatform, string> = { instagram: "אינסטגרם", facebook: "פייסבוק" };
 
 export const ZERNIO_BASE = "https://zernio.com/api/v1";
 /** במסד ובמסכים נשמר רק זה. המפתח עצמו מוזרק לכותרת ברגע השליחה (injectKey). */
@@ -49,6 +57,7 @@ export interface Automation {
   closing_text: string | null;
   comment_reply: string | null;
   zernio_workflow_id?: string | null;
+  fb_workflow_id?: string | null;
   status?: string;
 }
 
@@ -304,13 +313,18 @@ export function buildGraph(a: Automation, acct: Account) {
   return { nodes, edges };
 }
 
-export function workflowBody(a: Automation, acct: Account) {
+/** ה-workflow של האוטומציה ברשת הזו: אחד לאינסטגרם ואחד לדף בפייסבוק */
+export function workflowIdOf(a: Pick<Automation, "zernio_workflow_id" | "fb_workflow_id">, platform: MetaPlatform): string | null {
+  return (platform === "facebook" ? a.fb_workflow_id : a.zernio_workflow_id) || null;
+}
+
+export function workflowBody(a: Automation, acct: Account, platform: MetaPlatform = "instagram") {
   const { nodes, edges } = buildGraph(a, acct);
   return {
     profileId: acct.profileId,
     accountId: acct.id,
-    platform: "instagram",
-    name: `gantt · ${a.name} (${a.id.slice(0, 8)})`,
+    platform,
+    name: `gantt · ${a.name} (${a.id.slice(0, 8)})${platform === "facebook" ? " · FB" : ""}`,
     description: `From the content gantt, automation ${a.id}`,
     nodes,
     edges,
@@ -328,27 +342,37 @@ export function injectKey<T>(body: T, key: string): T {
   return out;
 }
 
-export function automationName(a: Automation, itemId: string) {
-  return `gantt-${a.id.slice(0, 8)}-${itemId.slice(0, 24)}`;
+export function automationName(a: Automation, itemId: string, platform: MetaPlatform = "instagram") {
+  return `gantt-${a.id.slice(0, 8)}-${itemId.slice(0, 24)}${platform === "facebook" ? "-fb" : ""}`;
+}
+
+/** בפייסבוק הכפתור מעביר ישר ל-workflow של הדף; עד שהוא קיים — מחזיק מקום */
+export const WF_PLACEHOLDER = "{workflowId}";
+function buttonPayload(a: Automation, platform: MetaPlatform, fbWorkflowId?: string | null) {
+  return platform === "facebook" ? `zernio:workflow:${fbWorkflowId || WF_PLACEHOLDER}` : `gantt_${a.id.slice(0, 8)}`;
 }
 
 /** גוף אוטומציית התגובה לפוסט אחד. linkTracking כבוי תמיד. */
-export function commentAutomationBody(a: Automation, acct: Account, itemId: string, platformPostId?: string | null) {
+export function commentAutomationBody(
+  a: Automation, acct: Account, itemId: string, platformPostId?: string | null,
+  platform: MetaPlatform = "instagram", fbWorkflowId?: string | null,
+) {
   const body: Record<string, unknown> = {
     profileId: acct.profileId,
     accountId: acct.id,
-    name: automationName(a, itemId),
+    name: automationName(a, itemId, platform),
     trigger: "comment",
     keywords: keywordsOf(a),
     matchMode: a.match_mode || "word",
     dmMessage: a.dm1_text || "",
-    buttons: [{ type: "postback", title: String(a.button_title || "").trim(), payload: `gantt_${a.id.slice(0, 8)}` }],
+    buttons: [{ type: "postback", title: String(a.button_title || "").trim(), payload: buttonPayload(a, platform, fbWorkflowId) }],
     linkTracking: false,
   };
   const replies = commentReplies(a);
   if (replies.length) body.commentReply = replies[0];
   if (replies.length > 1) body.commentReplyVariations = replies.slice(1);
-  if (a.gate_enabled) {
+  // בדיקת עוקב קיימת רק באינסטגרם: בפייסבוק Zernio דוחה את השדות האלה
+  if (a.gate_enabled && platform === "instagram") {
     body.audience = { followerStatus: "follower", whenUnknown: "verify" };
     body.followGate = {
       message: String(a.verify_text || "").trim(),
@@ -360,9 +384,16 @@ export function commentAutomationBody(a: Automation, acct: Account, itemId: stri
   return body;
 }
 
+/** גוף פייסבוק שנבנה לפני שה-workflow של הדף נוצר: מכניסים את המזהה האמיתי */
+export function withFbWorkflow<T extends Record<string, any>>(body: T, workflowId: string): T {
+  const out = JSON.parse(JSON.stringify(body));
+  for (const b of out.buttons || []) if (typeof b.payload === "string") b.payload = b.payload.replace(WF_PLACEHOLDER, workflowId);
+  return out;
+}
+
 /** השדות שמשתנים באוטומציה קיימת בעריכה (PATCH). */
-export function commentAutomationPatch(a: Automation) {
-  const b = commentAutomationBody(a, { id: "", profileId: "" }, "x");
+export function commentAutomationPatch(a: Automation, platform: MetaPlatform = "instagram", fbWorkflowId?: string | null) {
+  const b = commentAutomationBody(a, { id: "", profileId: "" }, "x", null, platform, fbWorkflowId);
   const patch: Record<string, unknown> = {
     keywords: b.keywords,
     matchMode: b.matchMode,
@@ -372,6 +403,7 @@ export function commentAutomationPatch(a: Automation) {
     commentReplyVariations: b.commentReplyVariations ?? [],
     linkTracking: false,
   };
+  if (platform === "facebook") return patch;
   // PATCH ששולח audience בלי tapToUnlock מנקה אותו — שולחים במפורש את המצב הרצוי
   patch.audience = a.gate_enabled ? b.audience : { followerStatus: "any", whenUnknown: "send" };
   if (a.gate_enabled) patch.followGate = b.followGate;

@@ -116,3 +116,34 @@ test("public replies: one per line, first is the reply, rest are variations", ()
   assert.equal(p.commentReply, "");
   assert.deepEqual(p.commentReplyVariations, []);
 });
+
+test("facebook: same automation, no follow gate, button goes straight to the page workflow", () => {
+  const gated = auto({ gate_enabled: true, verify_text: "x", verify_button: "אימות", gate_text: "y" });
+  const ig = A.commentAutomationBody(gated, ACCT, "item-1", "1790", "instagram");
+  const fb = A.commentAutomationBody(gated, ACCT, "item-1", "1221", "facebook", "wf-fb");
+  assert.ok(ig.audience && ig.followGate);
+  assert.equal(fb.audience, undefined);
+  assert.equal(fb.followGate, undefined);
+  assert.deepEqual(fb.keywords, ig.keywords);
+  assert.equal(fb.dmMessage, ig.dmMessage);
+  assert.equal(fb.platformPostId, "1221");
+  assert.equal(fb.buttons[0].payload, "zernio:workflow:wf-fb");
+  assert.ok(fb.name.endsWith("-fb") && fb.name !== ig.name);
+  const patch = A.commentAutomationPatch(gated, "facebook", "wf-fb");
+  assert.equal(patch.audience, undefined);
+  assert.equal(patch.buttons[0].payload, "zernio:workflow:wf-fb");
+});
+test("facebook body built before the page workflow exists gets the id injected later", () => {
+  const fb = A.commentAutomationBody(auto(), ACCT, "item-1", null, "facebook");
+  assert.equal(fb.buttons[0].payload, `zernio:workflow:${A.WF_PLACEHOLDER}`);
+  const fixed = A.withFbWorkflow(fb, "wf-9");
+  assert.equal(fixed.buttons[0].payload, "zernio:workflow:wf-9");
+  assert.equal(fb.buttons[0].payload, `zernio:workflow:${A.WF_PLACEHOLDER}`);
+});
+test("workflow per platform", () => {
+  assert.equal(A.workflowBody(auto(), ACCT, "facebook").platform, "facebook");
+  assert.ok(A.workflowBody(auto(), ACCT, "facebook").name.endsWith("· FB"));
+  assert.equal(A.workflowBody(auto(), ACCT).platform, "instagram");
+  assert.equal(A.workflowIdOf({ zernio_workflow_id: "ig", fb_workflow_id: "fb" }, "facebook"), "fb");
+  assert.equal(A.workflowIdOf({ zernio_workflow_id: "ig", fb_workflow_id: null }, "facebook"), null);
+});
