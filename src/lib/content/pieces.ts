@@ -101,6 +101,8 @@ async function docText(d: drive_v3.Drive, id: string): Promise<string> {
 async function insertPiece(row: Record<string, unknown>): Promise<number | null> {
   const res = await contentDb().from("content_pieces").insert(row).select("piece_no").single();
   if (res.error && row.piece_no != null && /duplicate key|content_pieces_pkey/.test(res.error.message)) return null;
+  // ריצה מקבילה (עובד הרקע מול pieces/sync ידני) כבר הכניסה את אותו מסמך — מדלגים, לא מפילים את כל הסנכרון
+  if (res.error && /content_pieces_drive_doc_id_key/.test(res.error.message)) return null;
   return (must(res, "piece insert") as any).piece_no;
 }
 
@@ -139,7 +141,7 @@ export async function syncPrompter(log: (m: string) => void = () => {}) {
         title, drive_doc_id: f.id, drive_folder: folder.source, script, doc_modified: f.modifiedTime, status: "prompter",
       });
       if (pieceNo == null) {
-        log(`דילוג: "${f.name}" נושא מספר שכבר שייך למסמך אחר (עותק?)`);
+        log(`דילוג: "${f.name}" נושא מספר שכבר שייך למסמך אחר (עותק?), או שנוסף כבר בריצה מקבילה`);
         continue;
       }
       const name = pieceName(pieceNo, title);
