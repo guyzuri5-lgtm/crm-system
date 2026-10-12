@@ -132,10 +132,24 @@ export function opts(item: Item, platform: string): Record<string, any> {
   return ((item.platformOptions || {})[platform] || {}) as Record<string, any>;
 }
 
+/**
+ * פוסט עם אוטומציית תגובה: בטיקטוק וביוטיוב אין הודעה פרטית על תגובה, ולכן מי
+ * שמגיב שם את מילת המפתח לא יקבל כלום. המשפט הזה פותח את התיאור שם ומפנה לרשתות
+ * שבהן זה עובד.
+ */
+export const AUTOMATION_NOTE = "האוטומציה עובדת רק בפייסבוק ואינסטגרם, מוזמנים לעקוב אחריי שם: @guy_zuri";
+const NO_DM_PLATFORMS = ["tiktok", "youtube"];
+
+/** נבחרה אוטומציה בחלון הפריט, או שכבר מקושרת אחת (automationLinked, מהשרת) */
+export function hasAutomation(item: Item): boolean {
+  return Boolean(item.automationChoice) || Boolean(item.automationLinked);
+}
+
 export function captionFor(item: Item, platform: string): string {
   const o = opts(item, platform);
-  if (o.useCustomCaption && String(o.caption || "").trim()) return String(o.caption).trim();
-  return String(item.caption || "").trim();
+  const cap = o.useCustomCaption && String(o.caption || "").trim() ? String(o.caption).trim() : String(item.caption || "").trim();
+  if (!NO_DM_PLATFORMS.includes(platform) || !hasAutomation(item) || cap.includes(AUTOMATION_NOTE)) return cap;
+  return cap ? `${AUTOMATION_NOTE}\n\n${cap}` : AUTOMATION_NOTE;
 }
 
 export function selected(item: Item): Platform[] {

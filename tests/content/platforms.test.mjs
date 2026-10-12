@@ -99,3 +99,15 @@ test("readPost maps per-network results", () => {
   assert.ok(t.tiktok.error.startsWith("בעיה בתוכן"));
   assert.equal(t.youtube.status, "publishing");
 });
+
+test("automation note opens the tiktok and youtube caption only, once", () => {
+  const item = { id: "x", caption: "תגיבו שיר", automationChoice: "auto-1" };
+  assert.equal(P.captionFor(item, "tiktok"), `${P.AUTOMATION_NOTE}\n\nתגיבו שיר`);
+  assert.equal(P.captionFor(item, "youtube"), `${P.AUTOMATION_NOTE}\n\nתגיבו שיר`);
+  assert.equal(P.captionFor(item, "instagram"), "תגיבו שיר");
+  assert.equal(P.captionFor(item, "facebook"), "תגיבו שיר");
+  assert.equal(P.captionFor({ id: "x", caption: "תגיבו שיר" }, "tiktok"), "תגיבו שיר");
+  assert.equal(P.captionFor({ id: "x", caption: "", automationLinked: true }, "youtube"), P.AUTOMATION_NOTE);
+  const typed = { id: "x", caption: `${P.AUTOMATION_NOTE}\n\nכבר כתבתי`, automationChoice: "a" };
+  assert.equal(P.captionFor(typed, "tiktok"), typed.caption);
+});

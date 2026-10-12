@@ -184,7 +184,10 @@ export async function syncActive(maxAgeMs = 50_000, deadline = Infinity) {
 
 async function loadItem(itemId: string): Promise<Item | null> {
   const r = must(await contentDb().from("content_items").select("data").eq("id", itemId).is("deleted_at", null).maybeSingle(), "item") as any;
-  return r ? (r.data as Item) : null;
+  if (!r) return null;
+  // פוסט שקושר לאוטומציה מהבנק (ולא מחלון הפריט): גם הוא מקבל את המשפט בטיקטוק וביוטיוב
+  const links = must(await contentDb().from("content_automation_links").select("id").eq("item_id", itemId).is("unlinked_at", null).limit(1), "links") as any[];
+  return { ...(r.data as Item), automationLinked: links.length > 0 };
 }
 
 export async function validateItem(itemId: string) {
