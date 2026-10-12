@@ -20,10 +20,13 @@ import { google } from "googleapis";
 
 const PORT = 53682;
 const REDIRECT_URI = `http://localhost:${PORT}`;
-const SCOPES = [
-  "https://www.googleapis.com/auth/gmail.send",
-  "https://www.googleapis.com/auth/calendar",
-];
+// --drive: טוקן נפרד לדרייב (פיסות תוכן: מספור מסמכים בפרומפטר וגיליון ביצועים),
+// כדי לא להחליף את הטוקן של המייל והיומן. נשמר ב-GOOGLE_DRIVE_REFRESH_TOKEN.
+const DRIVE = process.argv.includes("--drive");
+const SCOPES = DRIVE
+  ? ["https://www.googleapis.com/auth/drive"]
+  : ["https://www.googleapis.com/auth/gmail.send", "https://www.googleapis.com/auth/calendar"];
+const ENV_NAME = DRIVE ? "GOOGLE_DRIVE_REFRESH_TOKEN" : "GOOGLE_REFRESH_TOKEN";
 
 /** קריאת .env.local בלי תלות חיצונית — רק שתי השורות שאנחנו צריכים. */
 function readEnvLocal() {
@@ -107,7 +110,7 @@ const server = createServer(async (request, response) => {
     }
 
     console.log("\n✓ הטוקן הופק. הוסיפו/החליפו ב-.env.local (וגם ב-Environment Variables של Vercel):\n");
-    console.log(`GOOGLE_REFRESH_TOKEN=${tokens.refresh_token}\n`);
+    console.log(`${ENV_NAME}=${tokens.refresh_token}\n`);
     console.log(`  ה-scopes שאושרו: ${tokens.scope}\n`);
   } catch (err) {
     console.error("\n✗ החלפת הקוד בטוקן נכשלה:", err?.message ?? err, "\n");

@@ -7,6 +7,7 @@ import { fetchAccounts, healthy } from "./accounts";
 import { syncActive, syncOne } from "./publishing";
 import { createCommentAutomation, getAutomation, refreshStats, runHealthSafe, sweepOrphans } from "./automations";
 import { PLATFORM_NAMES, zonedToUtc } from "./pure/platforms";
+import { DriveNotConfiguredError, runPieces } from "./pieces";
 
 /**
  * עובד הרקע. pg_cron קורא לו כל דקה (0046_content_worker_cron.sql).
@@ -76,6 +77,18 @@ async function runLocked(
     pending = (await step("rescope", () => rescope(alert, log, opts.dry))) || 0;
   }
   if (Date.now() - started < budget - 10_000) await step("stats", () => stats(log));
+  // פיסות תוכן: פרומפטר → מספר, גאנט → פיסה, אינסטגרם → ביצועים. פעם ב-5 דקות —
+  // המנעול לא משתחרר בכוונה, והוא פג לבד אחרי 300 שניות.
+  if (!opts.dry && process.env.GOOGLE_DRIVE_REFRESH_TOKEN && Date.now() - started < budget - 20_000 && (await tryLease("pieces_tick", 300))) {
+    await step("pieces", async () => {
+      try {
+        const r: any = await runPieces((m) => log.push(`piece ${m}`));
+        if (r?.prompter?.added) log.push(`pieces: ${r.prompter.added} new`);
+      } catch (e) {
+        if (!(e instanceof DriveNotConfiguredError)) throw e;
+      }
+    });
+  }
   if (log.some((l) => !l.startsWith("stats")) && !opts.dry) await runHealthSafe();
 
   const summary = redact(log.slice(-8).join("; ")).slice(0, 1000) || "אין מה לעשות";

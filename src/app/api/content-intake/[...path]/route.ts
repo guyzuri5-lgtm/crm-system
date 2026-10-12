@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ZernioError } from "@/lib/content/zernio";
 import { checkIntakeToken, createIntakeItem, intakeContext, intakeStatus, intakeUploaded, replaceMedia } from "@/lib/content/intake";
+import { confirmVideo, DriveNotConfiguredError, listPieces, matchVideo, runPieces } from "@/lib/content/pieces";
 
 /**
  * הכניסה של הסקיל video-to-gantt (מהמחשב של גיא) אל גאנט התוכן.
@@ -31,6 +32,11 @@ async function handle(req: NextRequest, ctx: Ctx) {
     if (m === "GET" && path === "context") return json(await intakeContext());
     if (m === "GET" && path === "status") return json(await intakeStatus());
     if (m === "POST" && path === "items") return json(await createIntakeItem(await body(req)));
+    // פיסות תוכן (src/lib/content/pieces.ts): התאמת סרטון מצולם לפיסה מהפרומפטר
+    if (m === "GET" && path === "pieces") return json(await listPieces());
+    if (m === "POST" && path === "pieces/match") return json(await matchVideo(await body(req)));
+    if (m === "POST" && path === "pieces/confirm") return json(await confirmVideo(await body(req)));
+    if (m === "POST" && path === "pieces/sync") return json(await runPieces());
     let p = /^media\/([\w-]{1,40})\/done$/.exec(path);
     if (m === "POST" && p) return json({ media: await intakeUploaded(p[1], req.nextUrl.searchParams.get("replace") === "1") });
     p = /^items\/([\w-]{1,60})\/media$/.exec(path);
@@ -38,6 +44,7 @@ async function handle(req: NextRequest, ctx: Ctx) {
     return json({ error: "not found" }, 404);
   } catch (e) {
     if (e instanceof ZernioError) return json({ error: e.hebrew, status: e.status }, 502);
+    if (e instanceof DriveNotConfiguredError) return json({ error: e.message }, 503);
     return json({ error: (e as Error).message }, 500);
   }
 }

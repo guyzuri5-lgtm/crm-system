@@ -67,6 +67,14 @@ export async function refreshIg(body: Record<string, any>) {
     for (const p of posts) if (typeof p.thumb === "string" && p.thumb.length > 40 * 1024) delete p.thumb;
     const payload = { generatedAt: new Date().toISOString(), windowDays: Math.max(windowDays, stored.windowDays || 0), posts };
     await writeIg(payload);
+    // הביצועים נכנסים גם לשורה של כל פיסת תוכן (pieces.ts). import דינמי: pieces מייבא את readIg מכאן.
+    try {
+      const { syncMetrics } = await import("../pieces");
+      const r = await syncMetrics();
+      if (r.updated) note(`עודכנו ביצועים ל-${r.updated} פיסות תוכן`);
+    } catch (e: any) {
+      note(`עדכון הביצועים בפיסות התוכן נכשל: ${e?.message || e}`);
+    }
     return { status: 200, json: { ok: true, added, updated, total: posts.length, generatedAt: payload.generatedAt, log } };
   } catch (e: any) {
     const detail = e instanceof IgError ? (e as any).detail : null;
