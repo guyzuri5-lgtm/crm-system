@@ -1,9 +1,8 @@
 import "server-only";
 /* eslint-disable @typescript-eslint/no-explicit-any -- תשובות Drive ושורות content_* לא מוקלדות; הצורה מתועדת בהערות ונבדקת בזמן ריצה */
 
-import { createHash } from "node:crypto";
 import { google, type drive_v3 } from "googleapis";
-import { contentDb, getMeta, must, nowIso, setMeta } from "./db";
+import { contentDb, getMeta, must, nowIso } from "./db";
 import { readIg } from "./ig/refresh";
 import { extractScript, isDuplicateScript, normPermalink, parsePieceNo, pieceName, rankCandidates, titleFromDocName } from "./pure/pieces";
 
@@ -18,8 +17,7 @@ import { extractScript, isDuplicateScript, normPermalink, parsePieceNo, pieceNam
  * 3. linkItems — פריט בגאנט שה-sourceKey שלו מתחיל במספר נקשר לפיסה.
  * 4. syncMetrics — הרילס שעלה (content_targets) מול הנתונים שהניתוח שלף
  *    מאינסטגרם (content_ig_imports) → metrics בשורה של הפיסה.
- * 5. exportPerformance — גיליון "ביצועי פיסות תוכן" בדרייב, שממנו הסקיל
- *    youtube-pieces לומד מה עבד.
+ * (הביצועים נשמרים רק כאן, בטבלה. גיליון הביצועים בדרייב בוטל ב-2026-10-12 — דאשבורד ייבנה בנפרד.)
  *
  * דרייב: אותם GOOGLE_CLIENT_ID/SECRET, עם GOOGLE_DRIVE_REFRESH_TOKEN נפרד
  * (scope drive), כדי לא לגעת בטוקן של המייל והיומן. מפיקים: npm run auth:google -- --drive
@@ -31,8 +29,6 @@ const DEFAULT_CONFIG = {
     { id: "1Ijsif5QU5txN4WZ-9KlC5yHWnmYl6POR", source: "youtube" },
     { id: "1Vt5ot23EPL_Ii9HJQWIVntIP8RWLiHUk", source: "instagram" },
   ],
-  // תיקיית הרפרנסים: שם נשמר גיליון הביצועים
-  reportFolderId: "1nBzfAl_DmWeHD5v0N_5sSgsIWwVD0Bc5",
 };
 type PiecesConfig = typeof DEFAULT_CONFIG;
 
@@ -250,57 +246,11 @@ export async function listPieces() {
   return must(await contentDb().from("content_pieces").select("*").order("piece_no"), "pieces") as any[];
 }
 
-const csvCell = (v: unknown) => {
-  const s = v == null ? "" : String(v);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-};
-const STATUS_HE: Record<string, string> = { prompter: "בפרומפטר", filmed: "צולם", in_gantt: "בגאנט", published: "פורסם" };
-
-/** גיליון "ביצועי פיסות תוכן" בתיקיית הרפרנסים. נכתב רק כשמשהו השתנה. */
-export async function exportPerformance() {
-  const rows = await listPieces();
-  const header = ["מספר", "כותרת", "סטטוס", "מסמך", "תיקיית סרטון", "פורסם", "צפיות", "Reach", "לייקים", "תגובות", "שיתופים", "שמירות",
-    "זמן צפייה ממוצע (ש')", "אורך (ש')", "שמירות ל-1000 צפיות", "שיתופים ל-1000 צפיות", "רילס"];
-  const per1k = (n: any, v: any) => (Number(v) > 0 && n != null ? Math.round((Number(n) / Number(v)) * 10000) / 10 : "");
-  const lines = [header, ...rows.map((r) => {
-    const m = r.metrics || {};
-    return [r.piece_no, r.title, STATUS_HE[r.status] || r.status,
-      r.drive_doc_id ? `https://docs.google.com/document/d/${r.drive_doc_id}` : "", r.video_folder || "",
-      r.published_at ? String(r.published_at).slice(0, 10) : "", m.views ?? "", m.reach ?? "", m.likes ?? "", m.comments ?? "",
-      m.shares ?? "", m.saved ?? "", m.watchTimeS ?? "", m.durationS ?? "", per1k(m.saved, m.views), per1k(m.shares, m.views), r.ig_permalink || ""];
-  })];
-  const csv = lines.map((l) => l.map(csvCell).join(",")).join("\n");
-  const hash = createHash("sha1").update(csv).digest("hex");
-  const state = (await getMeta<{ fileId?: string; hash?: string }>("pieces_report")) || {};
-  if (state.hash === hash && state.fileId) return { written: false };
-  const d = drive();
-  const cfg = await config();
-  const media = { mimeType: "text/csv", body: csv };
-  let fileId = state.fileId;
-  if (fileId) {
-    try {
-      await d.files.update({ fileId, media });
-    } catch {
-      fileId = undefined; // נמחק בדרייב — יוצרים מחדש
-    }
-  }
-  if (!fileId) {
-    const r = await d.files.create({
-      requestBody: { name: "ביצועי פיסות תוכן", mimeType: "application/vnd.google-apps.spreadsheet", parents: [cfg.reportFolderId] },
-      media, fields: "id",
-    });
-    fileId = r.data.id!;
-  }
-  await setMeta("pieces_report", { fileId, hash, at: nowIso() });
-  return { written: true, fileId };
-}
-
 /** ריצה אחת של כל השלבים. נקראת מעובד הרקע (פעם ב-5 דקות) ומהכפתור/הסקיל. */
 export async function runPieces(log: (m: string) => void = () => {}) {
   const out: Record<string, unknown> = {};
   out.prompter = await syncPrompter(log);
   out.items = await linkItems();
   out.metrics = await syncMetrics();
-  out.report = await exportPerformance();
   return out;
 }
