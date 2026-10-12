@@ -46,6 +46,10 @@ export async function saveBrollCost(b: Record<string, unknown>) {
     details: b.details && typeof b.details === "object" ? b.details : null,
     updated_at: new Date().toISOString(),
   };
+  // מילוי בדיעבד שולח את מועד העריכה המקורי; שליחה רגילה משאירה את ברירת המחדל (now)
+  if (typeof b.editedAt === "string" && !Number.isNaN(Date.parse(b.editedAt))) {
+    Object.assign(row, { edited_at: new Date(b.editedAt).toISOString() });
+  }
   must(await contentDb().from("content_broll_costs").upsert(row, { onConflict: "video_folder" }), "broll cost");
   return { ok: true, videoFolder: folder };
 }
