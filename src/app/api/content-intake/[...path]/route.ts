@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ZernioError } from "@/lib/content/zernio";
 import { checkIntakeToken, createIntakeItem, intakeContext, intakeStatus, intakeUploaded, replaceMedia } from "@/lib/content/intake";
 import { coverUploaded, presignCover } from "@/lib/content/covers";
+import { saveBrollCost } from "@/lib/content/broll-costs";
 import { confirmVideo, DriveNotConfiguredError, listPieces, matchVideo, runPieces } from "@/lib/content/pieces";
 
 /**
@@ -38,6 +39,8 @@ async function handle(req: NextRequest, ctx: Ctx) {
     if (m === "POST" && path === "pieces/match") return json(await matchVideo(await body(req)));
     if (m === "POST" && path === "pieces/confirm") return json(await confirmVideo(await body(req)));
     if (m === "POST" && path === "pieces/sync") return json(await runPieces());
+    // עלות הבירולים של סרטון שנערך באפטר (src/lib/content/broll-costs.ts)
+    if (m === "POST" && path === "broll-costs") return json(await saveBrollCost(await body(req)));
     let p = /^media\/([\w-]{1,40})\/done$/.exec(path);
     if (m === "POST" && p) return json({ media: await intakeUploaded(p[1], req.nextUrl.searchParams.get("replace") === "1") });
     p = /^items\/([\w-]{1,60})\/media$/.exec(path);

@@ -225,6 +225,7 @@ const GROUPS: NavGroup[] = [
       { href: "/content", label: "גאנט תוכן" },
       { href: "/content/automations", label: "בנק אוטומציות" },
       { href: "/content/reels", label: "ניתוח רילז" },
+      { href: "/content/costs", label: "עלויות בירולים" },
     ],
   },
   {
