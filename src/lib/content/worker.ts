@@ -9,6 +9,7 @@ import { createCommentAutomation, getAutomation, refreshStats, runHealthSafe, sw
 import { PLATFORM_NAMES, zonedToUtc } from "./pure/platforms";
 import { META_NAMES, type MetaPlatform } from "./pure/automation";
 import { DriveNotConfiguredError, runPieces } from "./pieces";
+import { guardAutomations, runAutoplan } from "./autoplan";
 
 /**
  * עובד הרקע. pg_cron קורא לו כל דקה (0046_content_worker_cron.sql).
@@ -22,6 +23,8 @@ import { DriveNotConfiguredError, runPieces } from "./pieces";
  *    אם זה לא קורה תוך כמה דקות, או שהפוסט נכשל — משהה אותה ומתריע. אוטומציה
  *    אסור שתישאר ברמת החשבון;
  *  - כל 15 דקות: מספרים, ומיילים שנאספו → אנשי קשר.
+ *  - כל 5 דקות, כשהמתג "תזמון אוטומטי" דלוק: שיבוץ ותזמון (autoplan.ts). זה
+ *    המקום היחיד שבו העובד יוצר פוסט ב-Zernio בלי מסך אישור — גיא ביקש את זה.
  * יצירה חדשה מכבדת את המתג הראשי. השהיה והצמדה לפוסט רצות גם כשהוא כבוי.
  */
 
@@ -69,6 +72,8 @@ async function runLocked(
   let pending = (await step("rescope", () => rescope(alert, log, opts.dry))) || 0;
   if (!opts.dry) await step("sweep", async () => { const n = await sweepOrphans(alert); if (n) log.push(`paused ${n} orphan(s)`); });
   await step("arm", () => armDue(alert, log, opts.dry));
+  // אף פוסט שמבקש אוטומציה לא עולה בלעדיה — כל דקה, גם כשהתזמון האוטומטי כבוי
+  if (!opts.dry) await step("guard", () => guardAutomations(alert, log));
   pending = (await step("rescope", () => rescope(alert, log, opts.dry))) || 0;
   // האיטיים בסוף, ורק כל עוד יש זמן: שום דבר מהם לא קריטי לכלל "לא ברמת החשבון"
   if (Date.now() - started < budget - 25_000) await step("accounts", () => checkAccounts(alert));
@@ -77,6 +82,10 @@ async function runLocked(
   while (pending && !opts.dry && Date.now() - started < budget - 15_000) {
     await new Promise((r) => setTimeout(r, 10_000));
     pending = (await step("rescope", () => rescope(alert, log, opts.dry))) || 0;
+  }
+  // שיבוץ ותזמון אוטומטי, פעם ב-5 דקות (המנעול פג לבד). כבוי — לא עושה כלום.
+  if (!opts.dry && Date.now() - started < budget - 25_000 && (await tryLease("autoplan_tick", 300))) {
+    await step("autoplan", () => runAutoplan(alert, log, started + budget - 12_000));
   }
   if (Date.now() - started < budget - 10_000) await step("stats", () => stats(log));
   // פיסות תוכן: פרומפטר → מספר, גאנט → פיסה, אינסטגרם → ביצועים. פעם ב-5 דקות —

@@ -9,8 +9,9 @@ import { createAction, dryRunView, executor, fingerprint } from "./actions";
 import { allCovers, coverFor } from "./covers";
 import {
   buildBody, isBlocked, mediaKind, PLATFORM_NAMES, POST_STATUS_HE, readPost, selected, validateLocal, opts, fmt,
-  whenLocal, TIKTOK_PRIVACY, YT_VISIBILITY, FORMAT_NAMES, type Item, type MediaRow,
+  whenLocal, TIKTOK_PRIVACY, YT_VISIBILITY, FORMAT_NAMES, hasAutomation, type Item, type MediaRow,
 } from "./pure/platforms";
+import { wantsAutomation } from "./pure/autoplan";
 
 /**
  * תזמון לאינסטגרם, פייסבוק, טיקטוק ויוטיוב דרך Zernio.
@@ -252,6 +253,10 @@ export async function planSchedule(itemId: string, mode: "create" | "update") {
   }
   const acct = await accountSummary(true);
   const val = validateLocal(item, media, acct, timezone);
+  // פוסט שמבקש להגיב במילה לא נשלח בלי אוטומציה (גיא, 14.10.2026). השומר ב-autoplan.ts
+  // מבטל גם אם האוטומציה שנבחרה לא מתחברת אחרי התזמון.
+  if (mode === "create" && wantsAutomation(item) && !hasAutomation(item))
+    val._item.errors.push("בפוסט יש קריאה להגיב במילה, ולא נבחרה לו אוטומציה. בחר אחת בשדה \"אוטומציה לתגובות\" ושמור — בלעדיה הפוסט לא יתוזמן.");
   if (isBlocked(val, item)) return { status: 200, json: { validation: val, blocked: true } };
 
   // קאבר: בתזמון חדש — מה שהסנכרון מהתיקייה העלה אחרון (הבחירה נעשית ברגע האישור,
@@ -325,7 +330,8 @@ executor("schedule", async (plan, body) => {
   must(await contentDb().from("content_publications").upsert({
     item_id: itemId, zernio_post_id: postId, status: post.status || (postId ? "scheduled" : "unknown"),
     scheduled_for: String(step.body.scheduledFor).slice(0, 16), timezone: step.body.timezone,
-    sent_payload: { ...step.body, _mediaIds: plan.mediaIds, _cover: plan.cover || null }, last_error: null, updated_at: t,
+    // _scheduledAt: מתי נשלח — השומר (autoplan.ts) נותן ממנו 15 דקות לקשר אוטומציה
+    sent_payload: { ...step.body, _mediaIds: plan.mediaIds, _cover: plan.cover || null, _scheduledAt: t }, last_error: null, updated_at: t,
   }), "pub upsert");
   const keep = (step.body.platforms as any[]).map((e) => e.platform);
   const old = must(await contentDb().from("content_targets").select("platform").eq("item_id", itemId), "targets") as any[];

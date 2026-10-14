@@ -260,3 +260,14 @@
 .cover-view-tag { align-self: flex-start; padding: 2px 8px; border-radius: 999px; font-weight: 700; font-size: 0.75rem; border: 1px solid var(--line-strong); color: var(--ink-600); }
 .cover-view-tag.is-mine { border-color: var(--accent); color: var(--accent); }
 .cover-view-note { margin: 0; color: var(--ink-500); font-size: 0.8rem; overflow-wrap: anywhere; }
+
+/* תזמון אוטומטי (admin.js → decorateTray, publish.js → needsAutomation) */
+.autoplan-ctl { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-inline-start: auto; }
+.autoplan-btn.is-on { background: color-mix(in srgb, #1baf7a 16%, var(--surface)); color: color-mix(in srgb, #1baf7a 70%, var(--ink-900)); border: 1px solid color-mix(in srgb, #1baf7a 45%, transparent); font-weight: 700; }
+.autoplan-btn.confirm { border-color: var(--danger); color: var(--danger); }
+.autoplan-last { font-size: 0.74rem; color: var(--ink-500); }
+.chip.needs-auto { box-shadow: 0 0 0 2px #e8590c; }
+.needs-auto-tag { flex: none; display: inline-flex; width: 14px; height: 14px; padding: 1px; border-radius: 4px; background: var(--surface-raised); color: #c2410c; }
+.needs-auto-tag svg { width: 100%; height: 100%; }
+.pending-box.is-needs-auto { border-color: color-mix(in srgb, #e8590c 60%, transparent); background: color-mix(in srgb, #e8590c 10%, var(--surface)); }
+.pending-box.is-needs-auto .pending-title { color: color-mix(in srgb, #e8590c 80%, var(--ink-900, currentColor)); }

@@ -1231,9 +1231,12 @@ window.__startGantt = function (BOOT) {
   // סרטון שנכנס מהתיקייה "מוכן לפרסום" ועוד לא תוזמן, ופוסט שנכשל ב-Zernio.
   var PENDING_APPROVAL = { id: "pending-approval", name: "ממתין לאישור", color: "#8b5cf6" };
   var PUB_ERROR = { id: "pub-error", name: "שגיאה", color: "#d03b3b" };
+  // פוסט שמבקש תגובות ועוד אין לו אוטומציה: השיבוץ האוטומטי לא יתזמן אותו עד שבוחרים אחת
+  var NEEDS_AUTOMATION = { id: "needs-automation", name: "חסרה אוטומציה", color: "#e8590c" };
   function derivedStatus(item) {
     var p = item.pub;
     if (p && (p.status === "failed" || p.status === "unknown")) return PUB_ERROR;
+    if (window.GanttExt && window.GanttExt.needsAutomation && window.GanttExt.needsAutomation(item)) return NEEDS_AUTOMATION;
     if (item.intake && !(p && ["scheduled", "publishing", "published", "partial"].indexOf(p.status) !== -1)) return PENDING_APPROVAL;
     return null;
   }
@@ -3174,9 +3177,12 @@ window.__startGantt = function (BOOT) {
     h.appendChild(count);
     var hint = document.createElement("span");
     hint.className = "ready-tray-hint";
-    hint.textContent = trayPick ? "עכשיו לחצו על יום בלוח" : (ready.length ? "גררו סרטון ליום בלוח" : "");
+    var auto = window.GanttExt && window.GanttExt.autoplanOn;
+    hint.textContent = trayPick ? "עכשיו לחצו על יום בלוח"
+      : !ready.length ? "" : auto ? "התזמון האוטומטי ישבץ אותם בדקות הקרובות, ואפשר גם לגרור ליום" : "גררו סרטון ליום בלוח";
     head.appendChild(h);
     head.appendChild(hint);
+    if (window.GanttExt && window.GanttExt.decorateTray) window.GanttExt.decorateTray(head);
     readyTrayEl.appendChild(head);
     var row = document.createElement("div");
     row.className = "ready-tray-cards";
@@ -3213,7 +3219,7 @@ window.__startGantt = function (BOOT) {
       dot.style.background = type ? type.color : "var(--ink-400)";
       var vid = (it.mediaFiles || []).filter(function (m) { return m.kind === "video"; })[0];
       meta.appendChild(dot);
-      meta.appendChild(document.createTextNode((type ? type.name : "ללא סיווג") + (vid && vid.duration ? " · " + fmtDuration(vid.duration) : "")));
+      meta.appendChild(document.createTextNode((type ? type.name : "ללא סיווג") + (it.topic ? " · " + it.topic : "") + (vid && vid.duration ? " · " + fmtDuration(vid.duration) : "")));
       body.appendChild(title);
       body.appendChild(meta);
       var coverTag = document.createElement("span");

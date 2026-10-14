@@ -53,8 +53,10 @@ export interface ContentSettings {
   writesEnabled: boolean;
   /** כמה דקות לפני הפרסום העובד יוצר אוטומציה שממתינה לפוסט מתוזמן */
   armLeadMinutes: number;
+  /** העובד משבץ סרטונים מ"מוכנים לתזמון" לימים ומתזמן אותם ב-Zernio (autoplan.ts) */
+  autoSchedule: boolean;
 }
-const DEFAULT_SETTINGS: ContentSettings = { timezone: "Asia/Jerusalem", writesEnabled: false, armLeadMinutes: 3 };
+const DEFAULT_SETTINGS: ContentSettings = { timezone: "Asia/Jerusalem", writesEnabled: false, armLeadMinutes: 3, autoSchedule: false };
 
 export async function getSettings(): Promise<ContentSettings> {
   const s = (await getMeta<Partial<ContentSettings>>("settings")) || {};

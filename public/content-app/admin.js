@@ -97,6 +97,46 @@
   });
   X.openAdmin = openPanel;
 
+  // ---------- תזמון אוטומטי: המתג בשורה "מוכנים לתזמון" ----------
+  // השרת (src/lib/content/autoplan.ts) משבץ ל-18:00 בכל אחד מ-30 הימים הקרובים,
+  // אחר כך ל-08:00, מרחיק נושאים זהים, ומתזמן ב-Zernio. פוסט שחסרה לו אוטומציה מחכה.
+  function fmtDay(key) {
+    var d = new Date(key + "T12:00:00");
+    return d.toLocaleDateString("he-IL", { weekday: "short", day: "numeric", month: "numeric" });
+  }
+  X.decorateTray = function (head) {
+    var box = el("span", "autoplan-ctl");
+    var on = !!X.autoplanOn;
+    var btn = X.btn(on ? "תזמון אוטומטי: פעיל" : "תזמון אוטומטי: כבוי", "btn-small autoplan-btn" + (on ? " is-on" : " btn-ghost"), function () {
+      if (!on && !btn.classList.contains("confirm")) {
+        btn.classList.add("confirm");
+        btn.textContent = "להדליק? המערכת תשבץ ותתזמן לבד";
+        return;
+      }
+      btn.disabled = true;
+      api("PATCH", "/api/settings", { autoSchedule: !on }).then(function (st) {
+        X.autoplanOn = !!st.autoSchedule;
+        if (X.autoplan) X.autoplan.on = X.autoplanOn;
+        X.G.rerenderCalendar();
+        X.G.showToast(X.autoplanOn ? "התזמון האוטומטי פעיל. הריצה הראשונה בתוך 5 דקות." : "התזמון האוטומטי כבוי. מה שכבר תוזמן נשאר מתוזמן.");
+      }, function (e) { btn.disabled = false; X.G.showToast(e.message, true); });
+    });
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+    box.appendChild(btn);
+    var last = X.autoplan && X.autoplan.last;
+    if (on && last && last.at) {
+      var bits = [];
+      if (last.placed && last.placed.length) bits.push("שובצו " + last.placed.length);
+      if (last.scheduled && last.scheduled.length) bits.push("תוזמנו " + last.scheduled.length);
+      if (last.linked && last.linked.length) bits.push("קושרו " + last.linked.length + " אוטומציות");
+      var txt = "ריצה אחרונה " + ago(last.at) + (bits.length ? ": " + bits.join(", ") : ", אין שינוי");
+      var info = el("span", "autoplan-last", txt);
+      if (last.placed && last.placed.length) info.title = last.placed.map(function (p) { return fmtDay(p.date) + " " + p.time + " · " + p.title; }).join("\n");
+      box.appendChild(info);
+    }
+    head.appendChild(box);
+  };
+
   // alerts from the worker, and a loud warning when it is not running but something depends on it
   var lastAlerts = null;
   X.afterRender = function () { if (lastAlerts && X.G) X.onAlerts.apply(null, lastAlerts); };
@@ -118,6 +158,33 @@
       if (p && p.status === "scheduled" && p.scheduledFor && (it.date + "T" + (it.time || "")) !== p.scheduledFor) {
         list.push({ level: "warn", itemId: it.id, text: "'" + it.title + "' הוזז בלוח, אבל ב-Zernio הוא עדיין מתוזמן ל-" + p.scheduledFor.replace("T", " ") + ". פתחו ולחצו 'עדכון הפוסט ב-Zernio'." });
       }
+    });
+    // תזמון אוטומטי: מה שלא הצליח, ופוסטים שמחכים לאוטומציה (קרוב = אדום)
+    var ap = X.autoplan;
+    if (ap && ap.on) {
+      if (ap.last && ap.last.note) list.push({ level: "error", text: ap.last.note });
+      Object.keys((ap.last && ap.last.failures) || {}).forEach(function (k) {
+        var id = k.replace(/^link:/, "");
+        list.push({ level: "error", itemId: id, text: ap.last.failures[k].text + " (ננסה שוב בעוד שעה)" });
+      });
+    }
+    // פוסט שחסרה לו אוטומציה: התראה מ-48 שעות לפני. ב-24 שעות לפני השרת מזיז אותו (autoplan.ts)
+    // גם כשהמתג כבוי: השומר מבטל גם פוסט שתוזמן ידנית בלי אוטומציה
+    ((ap && ap.last && ap.last.moved) || []).forEach(function (m) {
+      if (Date.now() / 1000 - m.at > 86400 || !X.G.findItem(m.id)) return;
+      list.push(m.reason
+        ? { level: "error", itemId: m.id, text: "'" + m.title + "'" + (m.from ? " (" + m.from + ")" : "") + " בוטל ב-Zernio ולא יעלה: " + m.reason + ". בחר לו אוטומציה, והוא ישובץ מחדש." }
+        : { level: "warn", itemId: m.id, text: "'" + m.title + "' הוזז מ-" + m.from + " כי לא חוברה לו אוטומציה בזמן. הוא שובץ מחדש ליום אחר." });
+    });
+    X.G.state.items.forEach(function (it) {
+      if (!ap || !ap.on || !it.date || !X.needsAutomation || !X.needsAutomation(it)) return;
+      var at = new Date(it.date + "T" + (it.time || "18:00") + ":00").getTime();
+      if (at - Date.now() > 48 * 3600e3) return;
+      var deadline = new Date(at - 24 * 3600e3);
+      var when = deadline.toLocaleDateString("he-IL", { weekday: "short", day: "numeric", month: "numeric" }) + " " +
+        deadline.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
+      list.push({ level: "error", itemId: it.id,
+        text: "'" + it.title + "' (" + fmtDay(it.date) + " " + (it.time || "") + ") מחכה לאוטומציה. אם לא תבחר עד " + when + ", הוא יוזז ליום אחר. לחץ ובחר אוטומציה בחלון הפריט." });
     });
     list.forEach(function (a) {
       var row = el("div", "gantt-alert is-" + (a.level || "warn"), a.text);

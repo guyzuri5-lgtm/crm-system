@@ -54,13 +54,14 @@ const routes: [string, string, Handler][] = [
   ["GET", "server-view", async () => {
     // רענון הסטטוסים רץ אחרי התשובה, כדי שהלוח לא יחכה לו
     after(() => Pub.syncActive(55_000).catch(() => {}));
-    const [items, links, worker, alerts, board] = await Promise.all([Pub.serverView(), Bank.linksView(), getMeta("worker_last"), getMeta("alerts"),
-      contentDb().from("content_board").select("revision").eq("id", true).single()]);
+    const [items, links, worker, alerts, board, autoplan, settings] = await Promise.all([Pub.serverView(), Bank.linksView(), getMeta("worker_last"), getMeta("alerts"),
+      contentDb().from("content_board").select("revision").eq("id", true).single(), getMeta("autoplan_last"), getSettings()]);
     for (const [id, l] of Object.entries(links)) (items[id] ||= {}).automation = l;
     const armed = Object.values(links).filter((l: any) => l.status === "armed").length;
     const w = worker as any;
     // revision: סרטון שנכנס מהתיקייה מעלה אותה, והגאנט הפתוח טוען את עצמו מחדש
     return json({ items, alerts: alerts || [], armedCount: armed, revision: Number(board.data?.revision) || 0,
+      autoplan: { on: settings.autoSchedule, last: autoplan || null },
       worker: w ? { lastRun: w.at, ok: w.ok, summary: w.summary, stale: Date.now() / 1000 - w.at > 180 } : { lastRun: null, stale: true } });
   }],
   // עותק של הלוח לפני ייבוא — הגאנט קורא לזה לפני שהוא ממזג או מחליף
@@ -88,9 +89,11 @@ const routes: [string, string, Handler][] = [
     const b = await body(req);
     const patch: Record<string, unknown> = {};
     if ("writesEnabled" in b) patch.writesEnabled = Boolean(b.writesEnabled);
+    if ("autoSchedule" in b) patch.autoSchedule = Boolean(b.autoSchedule);
     if (typeof b.armLeadMinutes === "number") patch.armLeadMinutes = Math.min(10, Math.max(2, b.armLeadMinutes));
     const s = await updateSettings(patch);
     if ("writesEnabled" in patch) await contentDb().from("content_audit_log").insert({ actor: "ui", action: `writesEnabled -> ${patch.writesEnabled}`, ok: true });
+    if ("autoSchedule" in patch) await contentDb().from("content_audit_log").insert({ actor: "ui", action: `autoSchedule -> ${patch.autoSchedule}`, ok: true });
     return json(s);
   }],
   ["GET", "audit-log", async (req) => {

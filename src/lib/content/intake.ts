@@ -57,11 +57,19 @@ export async function intakeContext() {
     .slice(0, 12)
     .map((p) => ({ date: p.date, views: p.views ?? null, caption: String(p.caption).slice(0, 2200) }));
   const autos = must(await contentDb().from("content_automations").select("name, keyword, status").is("archived_at", null), "automations") as any[];
+  // הנושאים שכבר בשימוש, כדי שסרטון חדש על אותו נושא יקבל בדיוק אותו שם — השיבוץ
+  // האוטומטי מרחיק זה מזה פוסטים לפי השם הזה (pure/autoplan.ts)
+  const topics = new Map<string, number>();
+  for (const it of board.items || []) {
+    const t = typeof it.topic === "string" ? it.topic.trim() : "";
+    if (t) topics.set(t, (topics.get(t) || 0) + 1);
+  }
   return {
     types: (board.types || []).map((t: any) => ({ id: t.id, name: t.name, weeklyTarget: Number(t.weeklyTarget) || 0 })),
     activeWeekdays: board.activeWeekdays,
     voice,
     automationKeywords: autos.filter((a) => a.keyword).map((a) => ({ name: a.name, keyword: a.keyword, status: a.status })),
+    topics: [...topics.entries()].sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count })),
   };
 }
 
@@ -94,7 +102,7 @@ function youtubeTags(v: unknown): string {
   return out.join(", ");
 }
 
-async function bumpRevision() {
+export async function bumpRevision() {
   for (let i = 0; i < 8; i++) {
     const row = must(await contentDb().from("content_board").select("revision").eq("id", true).single(), "board") as any;
     const rev = Number(row.revision) || 0;
@@ -123,8 +131,9 @@ export async function createIntakeItem(b: Record<string, any>) {
   const size = Number(b.size);
   if (!(size > 0)) throw new Error("גודל קובץ לא תקין");
 
-  // הפריט נכנס בלי תאריך: הוא מחכה בשורה "מוכנים לתזמון" בראש הגאנט, וגיא
-  // גורר אותו ליום. המנעול רק מונע שני פריטים לאותו קובץ כשהוא נשלח פעמיים.
+  // הפריט נכנס בלי תאריך: הוא מחכה בשורה "מוכנים לתזמון" בראש הגאנט. משם גיא
+  // גורר אותו ליום, או שהשיבוץ האוטומטי (autoplan.ts) משבץ ומתזמן אותו כשהוא דלוק.
+  // המנעול רק מונע שני פריטים לאותו קובץ כשהוא נשלח פעמיים.
   return withLease(async () => {
     const existing = await findBySource(sourceKey);
     if (existing) {
@@ -137,12 +146,13 @@ export async function createIntakeItem(b: Record<string, any>) {
 
     const id = randomUUID();
     const keyword = str(b.keyword, 40);
+    const topic = str(b.topic, 40);
     const platforms = Array.isArray(b.platforms) ? b.platforms.filter((p: string) => (PLATFORMS as readonly string[]).includes(p)) : [...PLATFORMS];
     const ytTitle = (str(b.youtubeTitle, 100) || title).slice(0, 100);
     const ytTags = youtubeTags(b.youtubeTags);
     const item: Record<string, any> = {
       id, date: null, time: /^\d{2}:\d{2}$/.test(String(b.time)) ? b.time : "18:00",
-      title, caption: str(b.caption, 2200), format: "reel", typeId,
+      title, caption: str(b.caption, 2200), format: "reel", typeId, ...(topic ? { topic } : {}),
       note: str(b.note, 4000),
       filmed: true, edited: true, scheduled: false,
       statusFlags: { filmed: true, edited: true, scheduled: false },

@@ -105,6 +105,20 @@
   }
   X.pendingApproval = pendingApproval;
 
+  // אותו כלל כמו wantsAutomation ב-src/lib/content/pure/autoplan.ts: הפוסט מבקש
+  // להגיב כדי לקבל משהו, ועולה לאינסטגרם או לפייסבוק
+  var CTA = /(תגיבו|הגיבו|תכתבו|כתבו)\s+(לי\s+)?(את\s+המילה\s+)?["“”״]/;
+  function wantsAutomation(item) {
+    var meta = (item.platforms || []).some(function (p) { return p === "instagram" || p === "facebook"; });
+    if (!meta) return false;
+    if (item.intake && item.intake.keyword && String(item.intake.keyword).trim()) return true;
+    return CTA.test(String(item.caption || ""));
+  }
+  // חסרה אוטומציה: התזמון האוטומטי לא ישלח אותו ל-Zernio עד שבוחרים אחת בחלון הפריט
+  X.needsAutomation = function (item) {
+    return !!(item && pendingApproval(item) && wantsAutomation(item) && !item.automationChoice && !item.automation);
+  };
+
   X.decorateChip = function (chip, item) {
     // הצבע הסגול מגיע מהסטטוס הנגזר בלוח; כאן רק ההסבר במעבר עכבר
     if (pendingApproval(item)) chip.title = "ממתין לאישור — הגיע מהתיקייה 'מוכן לפרסום'" + (chip.title ? " · " + chip.title : "");
@@ -117,6 +131,14 @@
       item.platforms.forEach(function (p) { if (NET[p]) { var b = netBadge(p, null); b.classList.add("is-planned"); b.title = NET[p].name + ": מתוכנן, עוד לא נשלח ל-Zernio"; w().appendChild(b); } });
     }
     if (X.decorateAutomation) X.decorateAutomation(w, item);
+    if (X.needsAutomation(item)) {
+      chip.classList.add("needs-auto");
+      chip.title = "חסרה אוטומציה — הפוסט לא יתוזמן עד שתבחר לו אוטומציה בחלון הפריט" + (chip.title ? " · " + chip.title : "");
+      var tag = el("span", "needs-auto-tag");
+      tag.setAttribute("aria-label", "חסרה אוטומציה");
+      tag.innerHTML = '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M11.3 1.8 3.8 11h5l-1.1 7.2L15.2 9h-5l1.1-7.2Z"/></svg>';
+      chip.insertBefore(tag, chip.querySelector(".chip-title"));
+    }
   };
 
   // ---------- confirm screen ----------
@@ -289,11 +311,19 @@
       pendingHost.innerHTML = "";
       var it = editing && X.G.findItem(editing.id);
       if (!pendingApproval(it)) return;
-      var box = el("div", "pending-box");
-      box.appendChild(el("strong", "pending-title", "ממתין לאישור"));
+      var needs = X.needsAutomation(it);
+      var box = el("div", "pending-box" + (needs ? " is-needs-auto" : ""));
+      box.appendChild(el("strong", "pending-title", needs ? "חסרה אוטומציה" : "ממתין לאישור"));
       box.appendChild(el("p", null, "הסרטון הגיע מהתיקייה \"מוכן לפרסום\"" + (it.intake.file ? " (" + it.intake.file + ")" : "") +
-        ". בדוק תאריך, שעה, כיתוב ורשתות, ולחץ \"אשר ותזמן\". שום דבר לא עולה לפני כן."));
-      if (it.intake.keyword) box.appendChild(el("p", null, "בסרטון יש קריאה לתגובה. מילת המפתח המוצעת: \"" + it.intake.keyword + "\". אחרי התזמון אפשר לחבר לה אוטומציה מבנק האוטומציות."));
+        (it.topic ? ". נושא: " + it.topic : "") +
+        (needs ? "."
+          : X.autoplanOn ? ". התזמון האוטומטי ישלח אותו ל-Zernio בדקות הקרובות. אפשר גם לבדוק ולאשר ידנית ב\"אשר ותזמן\"."
+          : ". בדוק תאריך, שעה, כיתוב ורשתות, ולחץ \"אשר ותזמן\". שום דבר לא עולה לפני כן.")));
+      if (needs) box.appendChild(el("p", null, "בסרטון יש קריאה לתגובה" + (it.intake.keyword ? " (מילת המפתח: \"" + it.intake.keyword + "\")" : "") +
+        (X.autoplanOn
+          ? ". בחר אוטומציה למטה, בשדה \"אוטומציה לתגובות\", ושמור. עד אז התזמון האוטומטי לא ישלח אותו, ואם לא תבחר עד 24 שעות לפני — הוא יוזז ליום אחר. אחרי שתבחר, הוא יתוזמן בדקות הקרובות והאוטומציה שבחרת תקושר אליו."
+          : ". בחר אוטומציה למטה, בשדה \"אוטומציה לתגובות\". היא תקושר אחרי \"אשר ותזמן\".")));
+      else if (it.intake.keyword) box.appendChild(el("p", null, "בסרטון יש קריאה לתגובה. מילת המפתח: \"" + it.intake.keyword + "\"."));
       var vid = (it.mediaFiles || []).filter(function (md) { return md.kind === "video"; })[0];
       if (vid) {
         var v = el("video", "pending-video"); v.src = vid.url; v.controls = true; v.playsInline = true; v.preload = "metadata";
@@ -607,6 +637,11 @@
         });
       });
       X.worker = r.worker;
+      if (r.autoplan) {
+        var was = X.autoplanOn;
+        X.autoplan = r.autoplan; X.autoplanOn = !!r.autoplan.on;
+        if (was !== X.autoplanOn) changed = true;
+      }
       // סרטון חדש נכנס מהתיקייה (או שינוי מחלון אחר): טוענים מחדש, אבל רק
       // כשאין שינוי שלא נשמר ואין חלון פתוח — כדי לא לאבד כלום
       if (typeof r.revision === "number" && typeof G.state.revision === "number" && r.revision > G.state.revision &&
