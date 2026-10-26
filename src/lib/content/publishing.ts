@@ -237,6 +237,11 @@ function summary(item: Item, media: MediaRow[], acct: any, body: any, tz: string
   };
 }
 
+/** אותם קבצים באותו סדר כמו בפעם הקודמת שנשלחה */
+function sameMedia(prev: unknown, now: string[]) {
+  return Array.isArray(prev) && prev.length === now.length && prev.every((id, i) => id === now[i]);
+}
+
 export async function planSchedule(itemId: string, mode: "create" | "update") {
   const item = await loadItem(itemId);
   if (!item) return { status: 404, json: { error: "הפריט לא נמצא" } };
@@ -284,9 +289,14 @@ export async function planSchedule(itemId: string, mode: "create" | "update") {
   for (const wr of remote.warnings) (val[wr.platform] ||= { errors: [], warnings: [] }).warnings.push(`Zernio: ${wr.warning || ""}`);
   if (remote.errors.length) return { status: 200, json: { validation: val, remote, blocked: true } };
 
+  // עדכון בלי קובץ חדש: בלי mediaItems, ו-Zernio משאיר את המדיה שכבר בפוסט. אחרת
+  // נשלחת שוב כתובת ההעלאה הזמנית, ש-Zernio מוחק אחרי 7 ימים, והעדכון נכשל ב-"Some media
+  // files failed to upload" (26.10.2026). הקאבר בעדכון ממילא זה שכבר נשלח.
+  const putBody: Record<string, unknown> = { ...body };
+  if (mode === "update" && sameMedia(pub?.sent_payload?._mediaIds, media.map((m) => m.id))) delete putBody.mediaItems;
   const steps = mode === "create"
     ? [{ method: "POST", path: "/posts", body, idempotencyKey: `gantt-${itemId}-${randomUUID().slice(0, 12)}` }]
-    : [{ method: "PUT", path: `/posts/${pub.zernio_post_id}`, body }];
+    : [{ method: "PUT", path: `/posts/${pub.zernio_post_id}`, body: putBody }];
   const plan = {
     itemId, mode, steps, mediaIds: media.map((m) => m.id),
     itemHash: fingerprint(item, media.map((m) => m.id)),
@@ -331,7 +341,9 @@ executor("schedule", async (plan, body) => {
     item_id: itemId, zernio_post_id: postId, status: post.status || (postId ? "scheduled" : "unknown"),
     scheduled_for: String(step.body.scheduledFor).slice(0, 16), timezone: step.body.timezone,
     // _scheduledAt: מתי נשלח — השומר (autoplan.ts) נותן ממנו 15 דקות לקשר אוטומציה
-    sent_payload: { ...step.body, _mediaIds: plan.mediaIds, _cover: plan.cover || null, _scheduledAt: t }, last_error: null, updated_at: t,
+    // עדכון בלי mediaItems: מה שנשלח קודם הוא עדיין מה שבפוסט (והקאבר לעדכון הבא נקרא משם)
+    sent_payload: { ...step.body, mediaItems: step.body.mediaItems ?? prev?.sent_payload?.mediaItems,
+      _mediaIds: plan.mediaIds, _cover: plan.cover || null, _scheduledAt: t }, last_error: null, updated_at: t,
   }), "pub upsert");
   const keep = (step.body.platforms as any[]).map((e) => e.platform);
   const old = must(await contentDb().from("content_targets").select("platform").eq("item_id", itemId), "targets") as any[];
