@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runWorker } from "@/lib/content/worker";
 
-// GET /api/cron/content-worker — עובד הרקע של גאנט התוכן. pg_cron קורא לו כל
-// דקה עם אותו CRON_SECRET של crm-cron (ר' 0046_content_worker_cron.sql).
+// GET /api/cron/content-worker — עובד הרקע של גאנט התוכן. pg_cron קורא לו כשיש
+// עבודה דחופה, ולפחות כל 15 דקות, עם אותו CRON_SECRET של crm-cron (0051).
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 

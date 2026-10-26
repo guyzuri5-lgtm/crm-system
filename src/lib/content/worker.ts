@@ -8,11 +8,14 @@ import { syncActive, syncOne } from "./publishing";
 import { createCommentAutomation, getAutomation, refreshStats, runHealthSafe, sweepOrphans } from "./automations";
 import { PLATFORM_NAMES, zonedToUtc } from "./pure/platforms";
 import { META_NAMES, type MetaPlatform } from "./pure/automation";
-import { DriveNotConfiguredError, runPieces } from "./pieces";
 import { guardAutomations, runAutoplan } from "./autoplan";
 
 /**
- * עובד הרקע. pg_cron קורא לו כל דקה (0046_content_worker_cron.sql).
+ * עובד הרקע. pg_cron בודק כל דקה בתוך המסד אם יש עבודה דחופה, וקורא לו רק
+ * כשיש: פוסט שעולה בקרוב או עלה הרגע, או אוטומציה ברמת החשבון. חוץ מזה —
+ * פעם ב-15 דקות, ופעם ב-5 כשהתזמון האוטומטי דלוק
+ * (0051_content_worker_smart_wake.sql). לכן כל "כל X דקות" כאן הוא לכל הפחות,
+ * והמנעולים והספים קצרים מעט מהמחזור, כדי שקריאה שמקדימה בשנייה לא תדלג.
  *
  * הוא עושה רק מה שהבעלים כבר אישר במסך אישור:
  *  - מרענן סטטוס של פוסטים מתוזמנים (GET);
@@ -29,7 +32,8 @@ import { guardAutomations, runAutoplan } from "./autoplan";
  */
 
 const MAX_ACCOUNT_WIDE_MS = 12 * 60_000;
-const STATS_EVERY_MS = 15 * 60_000;
+// קצת פחות מ-15: הקריאות מגיעות כל 15 דקות בדיוק, ובלי מרווח כל שנייה ריצה הייתה מדלגת למחזור הבא
+const STATS_EVERY_MS = 14 * 60_000;
 
 interface Alert { level: "error" | "warn"; text: string; itemId?: string | null; at: number }
 
@@ -83,15 +87,17 @@ async function runLocked(
     await new Promise((r) => setTimeout(r, 10_000));
     pending = (await step("rescope", () => rescope(alert, log, opts.dry))) || 0;
   }
-  // שיבוץ ותזמון אוטומטי, פעם ב-5 דקות (המנעול פג לבד). כבוי — לא עושה כלום.
-  if (!opts.dry && Date.now() - started < budget - 25_000 && (await tryLease("autoplan_tick", 300))) {
+  // שיבוץ ותזמון אוטומטי, פעם ב-5 דקות (המנעול פג לבד אחרי 270 שניות). כבוי — לא עושה כלום.
+  if (!opts.dry && Date.now() - started < budget - 25_000 && (await tryLease("autoplan_tick", 270))) {
     await step("autoplan", () => runAutoplan(alert, log, started + budget - 12_000));
   }
   if (Date.now() - started < budget - 10_000) await step("stats", () => stats(log));
   // פיסות תוכן: פרומפטר → מספר, גאנט → פיסה, אינסטגרם → ביצועים. פעם ב-5 דקות —
-  // המנעול לא משתחרר בכוונה, והוא פג לבד אחרי 300 שניות.
-  if (!opts.dry && process.env.GOOGLE_DRIVE_REFRESH_TOKEN && Date.now() - started < budget - 20_000 && (await tryLease("pieces_tick", 300))) {
+  // המנעול לא משתחרר בכוונה, והוא פג לבד אחרי 270 שניות. נטען רק כאן: pieces
+  // מושך את googleapis, ספרייה כבדה שאין סיבה לטעון בכל קריאה.
+  if (!opts.dry && process.env.GOOGLE_DRIVE_REFRESH_TOKEN && Date.now() - started < budget - 20_000 && (await tryLease("pieces_tick", 270))) {
     await step("pieces", async () => {
+      const { DriveNotConfiguredError, runPieces } = await import("./pieces");
       try {
         const r: any = await runPieces((m) => log.push(`piece ${m}`));
         if (r?.prompter?.added) log.push(`pieces: ${r.prompter.added} new`);
