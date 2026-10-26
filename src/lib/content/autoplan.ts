@@ -7,7 +7,7 @@ import { bumpRevision } from "./intake";
 import { confirmAction } from "./actions";
 import { planSchedule } from "./publishing";
 import { getAutomation, planLink, validate as validateAutomation } from "./automations";
-import { addDays, AUTO_SWAP_HOURS, guardVerdict, HORIZON_DAYS, hoursUntil, localNow, MIN_LEAD_MINUTES, planSlots, wantsAutomation, type Placed } from "./pure/autoplan";
+import { addDays, AUTO_SWAP_HOURS, DEFAULT_TIME, guardVerdict, HORIZON_DAYS, hoursUntil, localNow, LOCK_HOURS, MIN_LEAD_MINUTES, normalizeRules, planLayout, wantsAutomation, type Movable, type Placed } from "./pure/autoplan";
 import { zonedToUtc } from "./pure/platforms";
 
 /**
@@ -37,6 +37,8 @@ export interface AutoplanReport {
   /** פוסטים שהוזזו כי לא חוברה להם אוטומציה בזמן — נשמר 24 שעות, להתראה בגאנט */
   moved: { id: string; title: string; from: string; at: number; reason?: string }[];
   /** פריט → הסיבה שלא תוזמן או לא קושר. נשמר בין ריצות כדי לא לנסות שוב כל 5 דקות. */
+  /** פוסטים של המערכת שעברו משבצת כי התוכנית השתנתה (ימים, שעות, סרטון חדש) */
+  shifted: { id: string; title: string; from: string; to: string }[];
   failures: Record<string, { at: number; text: string }>;
   note?: string;
 }
@@ -57,7 +59,7 @@ export async function runAutoplan(alert: Alert, log: string[], deadline: number)
   const settings = await getSettings();
   if (!settings.autoSchedule) return;
   const prev = (await getMeta<AutoplanReport>("autoplan_last")) || null;
-  const report: AutoplanReport = { at: Date.now() / 1000, placed: [], scheduled: [], linked: [], failures: {},
+  const report: AutoplanReport = { at: Date.now() / 1000, placed: [], shifted: [], scheduled: [], linked: [], failures: {},
     moved: (prev?.moved || []).filter((m) => Date.now() / 1000 - m.at < 86400) };
   // כישלון מהשעה האחרונה לא מנוסה שוב — אחרת כל ריצה הייתה מציפה את היומן
   for (const [id, f] of Object.entries(prev?.failures || {})) if (Date.now() / 1000 - f.at < RETRY_AFTER_MS / 1000) report.failures[id] = f;
@@ -103,26 +105,49 @@ export async function runAutoplan(alert: Alert, log: string[], deadline: number)
     log.push(`autoplan: moved ${toMove.length} without automation`);
   }
 
-  // ── 1. שיבוץ ──
+  // ── 1. שיבוץ, והזזה של מה שהמערכת שיבצה ──
   // יום תפוס = פוסט אמיתי: סרטון מהתיקייה, פוסט שכבר ב-Zernio, או פריט שהועלה לו קובץ.
-  // רעיון בלוח בלי קובץ (פוסט "לצלם את X") לא תופס את הערב.
+  // רעיון בלוח בלי קובץ (פוסט "לצלם את X") לא תופס משבצת.
+  const rules = normalizeRules({ days: settings.autoplanDays, times: settings.autoplanTimes });
+  const writesOn = await writesEnabled();
+  const slotOf = (d: any) => `${d.date} ${d.time || DEFAULT_TIME}`;
+  // פוסט של המערכת = היא שיבצה אותו ואף אחד לא הזיז אותו מאז. גרירה של גיא משנה
+  // את היום או השעה, ומאותו רגע הפוסט שלו. שיבוץ מלפני 26.10 נשמר בלי slot.
+  const ours = (r: { data: any }) => Boolean(r.data.autoplan?.at) && (!r.data.autoplan.slot || r.data.autoplan.slot === slotOf(r.data));
+  const inZernio = (id: string) => {
+    const p = pubs.get(id);
+    return Boolean(p && p.status === "scheduled" && p.zernio_post_id);
+  };
+  const canMove = (r: { id: string; data: any }) => {
+    const d = r.data;
+    if (!d.intake || !d.date || d.format === "story" || !ours(r) || cancelledByGuy(r) || !media.has(r.id)) return false;
+    if (report.failures[`move:${r.id}`] || hoursUntil(d.date, d.time, now) < LOCK_HOURS) return false;
+    // פוסט שכבר ב-Zernio זז רק כשאפשר לעדכן אותו שם — אחרת הלוח וה-Zernio היו נפרדים
+    if (inZernio(r.id)) return writesOn;
+    return !hasPost(r.id);
+  };
   const from = addDays(now.date, -HORIZON_DAYS);
-  const placed: Placed[] = items
-    .filter((r) => r.data.date && r.data.date >= from && r.data.format !== "story")
-    .filter((r) => r.data.intake || hasPost(r.id) || media.has(r.id))
-    .map((r) => ({ id: r.id, date: r.data.date, time: r.data.time, topic: r.data.topic, auto: automated(r) || wantsAutomation(r.data) }));
+  const fixed: Placed[] = [];
+  const movable: Movable[] = [];
+  for (const r of items) {
+    const d = r.data;
+    if (!d.date || d.date < from || d.format === "story" || !(d.intake || hasPost(r.id) || media.has(r.id))) continue;
+    const auto = automated(r) || wantsAutomation(d);
+    if (canMove(r)) movable.push({ id: r.id, date: d.date, time: d.time, topic: d.topic, createdAt: d.createdAt, auto, needsAuto: needsAuto(r) });
+    else fixed.push({ id: r.id, date: d.date, time: d.time, topic: d.topic, auto });
+  }
   const pool = items
     .filter((r) => r.data.intake && !r.data.date && media.has(r.id) && !hasPost(r.id))
     .map((r) => ({ id: r.id, topic: r.data.topic, createdAt: r.data.createdAt,
       auto: automated(r) || wantsAutomation(r.data), needsAuto: needsAuto(r) }));
-  const plan = planSlots(placed, pool, now);
-  if (plan.length) {
+  const layout = planLayout(fixed, movable, pool, now, rules);
+  if (layout.place.length || layout.move.length) {
     // קודם הגרסה עולה: חלון גאנט פתוח יקבל 409 ויטען מחדש, ולא ידרוס את השיבוץ (כמו ב-intake.ts)
     await bumpRevision();
     const t = nowIso();
-    for (const a of plan) {
+    for (const a of layout.place) {
       const row = items.find((r) => r.id === a.id)!;
-      const data = { ...row.data, date: a.date, time: a.time, autoplan: { at: t } };
+      const data = { ...row.data, date: a.date, time: a.time, autoplan: { at: t, slot: `${a.date} ${a.time}` } };
       // רק אם הוא עדיין בלי תאריך — אם גיא גרר אותו בינתיים, ההחלטה שלו קובעת
       const done = must(await contentDb().from("content_items").update({ data, date: a.date, updated_at: t })
         .eq("id", a.id).is("date", null).is("deleted_at", null).select("id"), "autoplan place") as any[];
@@ -131,10 +156,37 @@ export async function runAutoplan(alert: Alert, log: string[], deadline: number)
       report.placed.push({ id: a.id, title: data.title, date: a.date, time: a.time });
     }
     if (report.placed.length) log.push(`autoplan: placed ${report.placed.length}`);
+
+    for (const m of layout.move.sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))) {
+      if (Date.now() > deadline) break;   // השאר בריצה הבאה — התוכנית תצא אותו דבר
+      const row = items.find((r) => r.id === m.id)!;
+      const before = row.data;
+      const was = `${m.from.date} ${m.from.time}`;
+      const data = { ...before, date: m.date, time: m.time, autoplan: { ...before.autoplan, slot: `${m.date} ${m.time}`, movedAt: t } };
+      // רק אם הוא עדיין ביום שלו — אם גיא גרר אותו בינתיים, ההחלטה שלו קובעת
+      const done = must(await contentDb().from("content_items").update({ data, date: m.date, updated_at: t })
+        .eq("id", m.id).eq("date", m.from.date).is("deleted_at", null).select("id"), "autoplan shift") as any[];
+      if (!done.length) continue;
+      row.data = data;
+      if (inZernio(m.id)) {
+        const res = await sendToZernio(m.id, "update");
+        if (res.error) {
+          // Zernio לא עודכן: הלוח חוזר לשעה שבה הפוסט באמת מתוזמן
+          must(await contentDb().from("content_items").update({ data: before, date: before.date, updated_at: nowIso() }).eq("id", m.id), "autoplan shift back");
+          row.data = before;
+          const text = `'${before.title}' לא הוזז מ-${was}: ${res.error}`;
+          report.failures[`move:${m.id}`] = { at: Date.now() / 1000, text };
+          alert("error", text, m.id);
+          continue;
+        }
+      }
+      report.shifted.push({ id: m.id, title: data.title, from: was, to: `${m.date} ${m.time}` });
+    }
+    if (report.shifted.length) log.push(`autoplan: shifted ${report.shifted.length}`);
   }
 
   // ── 2. תזמון ──
-  const last = addDays(now.date, HORIZON_DAYS);
+  const last = addDays(now.date, Math.max(HORIZON_DAYS, rules.days));
   const nowMs = Date.now();
   const due = items.filter((r) => {
     const d = r.data;
@@ -145,7 +197,7 @@ export async function runAutoplan(alert: Alert, log: string[], deadline: number)
 
   const awaiting = due.filter(needsAuto);
   const ready = due.filter((r) => !awaiting.includes(r));
-  if (ready.length && !(await writesEnabled())) {
+  if (ready.length && !writesOn) {
     report.note = "כתיבה ל-Zernio כבויה, ולכן שום פוסט לא תוזמן. מדליקים אותה במסך 'חיבור ל-Zernio'.";
     alert("error", `תזמון אוטומטי דלוק, אבל כתיבה ל-Zernio כבויה — ${ready.length} פוסטים מחכים לתזמון.`);
   } else {
@@ -162,21 +214,10 @@ export async function runAutoplan(alert: Alert, log: string[], deadline: number)
           continue;
         }
       }
-      const res = await planSchedule(r.id, "create");
-      const j: any = res.json;
-      if (res.status !== 200 || j.blocked || !j.actionId) {
-        const errs = j.error ? [j.error] : Object.values(j.validation || {}).flatMap((v: any) => v?.errors || []);
-        const text = `'${r.data.title}' לא תוזמן: ${errs.slice(0, 2).join(" · ") || "הבדיקה נכשלה"}`;
-        report.failures[r.id] = { at: Date.now() / 1000, text };
-        alert("error", text, r.id);
-        continue;
-      }
-      // ההסכמה של טיקטוק: גיא הדליק את התזמון האוטומטי, וזו ההסכמה שלו לכל פוסט שהוא מתזמן
-      const c = await confirmAction(j.actionId, { tiktokConsent: true });
-      const cj: any = c.json;
-      if (cj.dryRun) { report.note = "כתיבה ל-Zernio כבויה."; break; }
-      if (!cj.ok) {
-        const text = `'${r.data.title}' לא תוזמן: ${cj.error || "שגיאה מ-Zernio"}`;
+      const res = await sendToZernio(r.id, "create");
+      if (res.dryRun) { report.note = "כתיבה ל-Zernio כבויה."; break; }
+      if (res.error) {
+        const text = `'${r.data.title}' לא תוזמן: ${res.error}`;
         report.failures[r.id] = { at: Date.now() / 1000, text };
         alert("error", text, r.id);
         continue;
@@ -212,6 +253,24 @@ export async function runAutoplan(alert: Alert, log: string[], deadline: number)
   }
 
   await setMeta("autoplan_last", report);
+}
+
+/**
+ * תזמון חדש או עדכון שעה ב-Zernio, באותו מסלול כמו "אשר ותזמן" (planSchedule →
+ * confirmAction) עם כל הבדיקות שלו, בלי מסך אישור. error = למה לא, בעברית.
+ */
+async function sendToZernio(itemId: string, mode: "create" | "update"): Promise<{ error?: string; dryRun?: boolean }> {
+  const res = await planSchedule(itemId, mode);
+  const j: any = res.json;
+  if (res.status !== 200 || j.blocked || !j.actionId) {
+    const errs = j.error ? [j.error] : Object.values(j.validation || {}).flatMap((v: any) => v?.errors || []);
+    return { error: errs.slice(0, 2).join(" · ") || "הבדיקה נכשלה" };
+  }
+  // ההסכמה של טיקטוק: גיא הדליק את התזמון האוטומטי, וזו ההסכמה שלו לכל פוסט שהוא מתזמן
+  const c: any = (await confirmAction(j.actionId, { tiktokConsent: true })).json;
+  if (c.dryRun) return { dryRun: true };
+  if (!c.ok) return { error: c.error || "שגיאה מ-Zernio" };
+  return {};
 }
 
 /** למה האוטומציה שנבחרה לא תעבוד (או null אם היא תקינה) */
@@ -303,7 +362,7 @@ async function pullBack(itemId: string, reason: string, alert: Alert, log: strin
   const entry = { id: itemId, title, from: item?.data?.date ? `${item.data.date} ${item.data.time || ""}`.trim() : "", at: Date.now() / 1000, reason };
   if (into) { into.moved.push(entry); return; }
   const report = (await getMeta<AutoplanReport>("autoplan_last")) ||
-    { at: Date.now() / 1000, placed: [], scheduled: [], linked: [], failures: {}, moved: [] };
+    { at: Date.now() / 1000, placed: [], shifted: [], scheduled: [], linked: [], failures: {}, moved: [] };
   report.moved = [...(report.moved || []), entry];
   await setMeta("autoplan_last", report);
 }

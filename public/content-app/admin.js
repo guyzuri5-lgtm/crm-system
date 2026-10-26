@@ -98,8 +98,9 @@
   X.openAdmin = openPanel;
 
   // ---------- תזמון אוטומטי: המתג בשורה "מוכנים לתזמון" ----------
-  // השרת (src/lib/content/autoplan.ts) משבץ ל-18:00 בכל אחד מ-30 הימים הקרובים,
-  // אחר כך ל-08:00, מרחיק נושאים זהים, ומתזמן ב-Zernio. פוסט שחסרה לו אוטומציה מחכה.
+  // השרת (src/lib/content/autoplan.ts) ממלא שכבות: סרטון אחד בכל אחד מ-X הימים הקרובים,
+  // אחר כך שני, וכן הלאה, בשעות שגיא קבע כאן. מרחיק נושאים זהים, מזיז את מה שהוא
+  // שיבץ כשהתוכנית משתנה, ומתזמן ב-Zernio. פוסט שחסרה לו אוטומציה מחכה.
   function fmtDay(key) {
     var d = new Date(key + "T12:00:00");
     return d.toLocaleDateString("he-IL", { weekday: "short", day: "numeric", month: "numeric" });
@@ -127,15 +128,89 @@
     if (on && last && last.at) {
       var bits = [];
       if (last.placed && last.placed.length) bits.push("שובצו " + last.placed.length);
+      if (last.shifted && last.shifted.length) bits.push("הוזזו " + last.shifted.length);
       if (last.scheduled && last.scheduled.length) bits.push("תוזמנו " + last.scheduled.length);
       if (last.linked && last.linked.length) bits.push("קושרו " + last.linked.length + " אוטומציות");
       var txt = "ריצה אחרונה " + ago(last.at) + (bits.length ? ": " + bits.join(", ") : ", אין שינוי");
       var info = el("span", "autoplan-last", txt);
-      if (last.placed && last.placed.length) info.title = last.placed.map(function (p) { return fmtDay(p.date) + " " + p.time + " · " + p.title; }).join("\n");
+      info.title = (last.placed || []).map(function (p) { return fmtDay(p.date) + " " + p.time + " · " + p.title; })
+        .concat((last.shifted || []).map(function (m) { return "הוזז: " + m.title + " · " + m.from + " ← " + m.to; })).join("\n");
       box.appendChild(info);
     }
     head.appendChild(box);
+    head.appendChild(rulesRow());
   };
+
+  // ימים קדימה ושעות הפרסום (גיא, 26.10.2026). השרת מנקה את הערכים (normalizeRules
+  // ב-pure/autoplan.ts), והעובד מסדר את הלוח מחדש בריצה הבאה, בתוך 5 דקות.
+  var ORDINAL = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שביעי", "שמיני", "תשיעי", "עשירי", "11", "12"];
+  function rulesRow() {
+    var r = (X.autoplan && X.autoplan.rules) || { days: 30, times: ["18:00", "08:00"] };
+    var row = el("div", "autoplan-rules");
+    function save(patch) {
+      row.classList.add("is-saving");
+      api("PATCH", "/api/settings", patch).then(function (st) {
+        X.autoplan = X.autoplan || { on: X.autoplanOn };
+        X.autoplan.rules = { days: st.autoplanDays, times: st.autoplanTimes };
+        X.G.rerenderCalendar();
+        X.G.showToast(X.autoplanOn ? "נשמר. הלוח יסודר לפי זה בתוך 5 דקות." : "נשמר. ייכנס לתוקף כשתדליק את התזמון האוטומטי.");
+      }, function (e) { row.classList.remove("is-saving"); X.G.showToast(e.message, true); });
+    }
+
+    var days = el("label", "autoplan-field");
+    days.appendChild(el("span", "autoplan-label", "ימים קדימה"));
+    var din = el("input", "text-input autoplan-days");
+    din.type = "number"; din.min = "1"; din.max = "90"; din.value = r.days; din.inputMode = "numeric";
+    // החצים של השדה יורים שינוי בכל לחיצה: שומרים רק כשהמספר נח לרגע
+    var timer = null;
+    din.addEventListener("input", function () {
+      clearTimeout(timer);
+      timer = setTimeout(function () {
+        var v = Math.round(Number(din.value));
+        if (v >= 1 && v <= 90 && v !== r.days) save({ autoplanDays: v });
+      }, 800);
+    });
+    din.addEventListener("blur", function () { var v = Math.round(Number(din.value)); if (!(v >= 1 && v <= 90)) din.value = r.days; });
+    days.appendChild(din);
+    row.appendChild(days);
+
+    var times = el("div", "autoplan-times");
+    times.appendChild(el("span", "autoplan-label", "שעות"));
+    r.times.forEach(function (t, i) {
+      var chip = el("span", "autoplan-time");
+      chip.appendChild(el("span", "autoplan-ord", ORDINAL[i] || String(i + 1)));
+      var tin = el("input", "text-input");
+      tin.type = "time"; tin.value = t;
+      tin.setAttribute("aria-label", "השעה של הסרטון ה" + (ORDINAL[i] || i + 1) + " ביום");
+      tin.addEventListener("change", function () {
+        if (!tin.value || tin.value === t) return;
+        var next = r.times.slice(); next[i] = tin.value;
+        save({ autoplanTimes: next });
+      });
+      chip.appendChild(tin);
+      if (r.times.length > 1) {
+        var rm = X.btn("×", "btn-small btn-ghost autoplan-rm", function () {
+          save({ autoplanTimes: r.times.filter(function (_, j) { return j !== i; }) });
+        });
+        rm.setAttribute("aria-label", "הסרת השעה " + t);
+        chip.appendChild(rm);
+      }
+      times.appendChild(chip);
+    });
+    if (r.times.length < 12) {
+      times.appendChild(X.btn("+ שעה", "btn-small btn-ghost", function () {
+        // השעה העגולה הפנויה הראשונה מ-13:00, כדי שלא תיפול על שעה שכבר ברשימה
+        var cand = ["13:00", "20:00", "10:00", "15:00", "21:00", "11:00", "16:00", "19:00", "09:00", "12:00", "14:00", "17:00"];
+        var add = cand.filter(function (c) { return r.times.indexOf(c) < 0; })[0];
+        if (add) save({ autoplanTimes: r.times.concat(add) });
+      }));
+    }
+    row.appendChild(times);
+    row.appendChild(el("p", "autoplan-explain",
+      "קודם סרטון אחד בכל יום ל-" + r.days + " הימים הקרובים, ואז שני בכל יום, וכן הלאה. " +
+      "אחרי השעה האחרונה ברשימה המערכת בוחרת שעה פנויה. מה שגררת בעצמך לא זז, ומה שהמערכת שיבצה לא זז ב-24 השעות שלפני הפרסום."));
+    return row;
+  }
 
   // alerts from the worker, and a loud warning when it is not running but something depends on it
   var lastAlerts = null;

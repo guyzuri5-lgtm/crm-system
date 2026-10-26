@@ -8,6 +8,7 @@ import { loadBoard, saveBoard, Conflict, Refused } from "@/lib/content/board";
 import { confirmAction } from "@/lib/content/actions";
 import * as Pub from "@/lib/content/publishing";
 import * as Bank from "@/lib/content/automations";
+import { normalizeRules } from "@/lib/content/pure/autoplan";
 import { readIg, refreshIg } from "@/lib/content/ig/refresh";
 
 /**
@@ -61,7 +62,7 @@ const routes: [string, string, Handler][] = [
     const w = worker as any;
     // revision: סרטון שנכנס מהתיקייה מעלה אותה, והגאנט הפתוח טוען את עצמו מחדש
     return json({ items, alerts: alerts || [], armedCount: armed, revision: Number(board.data?.revision) || 0,
-      autoplan: { on: settings.autoSchedule, last: autoplan || null },
+      autoplan: { on: settings.autoSchedule, last: autoplan || null, rules: normalizeRules({ days: settings.autoplanDays, times: settings.autoplanTimes }) },
       worker: w ? { lastRun: w.at, ok: w.ok, summary: w.summary, stale: Date.now() / 1000 - w.at > 180 } : { lastRun: null, stale: true } });
   }],
   // עותק של הלוח לפני ייבוא — הגאנט קורא לזה לפני שהוא ממזג או מחליף
@@ -90,10 +91,17 @@ const routes: [string, string, Handler][] = [
     const patch: Record<string, unknown> = {};
     if ("writesEnabled" in b) patch.writesEnabled = Boolean(b.writesEnabled);
     if ("autoSchedule" in b) patch.autoSchedule = Boolean(b.autoSchedule);
+    if ("autoplanDays" in b || "autoplanTimes" in b) {
+      const cur = await getSettings();
+      const r = normalizeRules({ days: b.autoplanDays ?? cur.autoplanDays, times: b.autoplanTimes ?? cur.autoplanTimes });
+      patch.autoplanDays = r.days;
+      patch.autoplanTimes = r.times;
+    }
     if (typeof b.armLeadMinutes === "number") patch.armLeadMinutes = Math.min(10, Math.max(2, b.armLeadMinutes));
     const s = await updateSettings(patch);
     if ("writesEnabled" in patch) await contentDb().from("content_audit_log").insert({ actor: "ui", action: `writesEnabled -> ${patch.writesEnabled}`, ok: true });
     if ("autoSchedule" in patch) await contentDb().from("content_audit_log").insert({ actor: "ui", action: `autoSchedule -> ${patch.autoSchedule}`, ok: true });
+    if ("autoplanDays" in patch) await contentDb().from("content_audit_log").insert({ actor: "ui", action: `autoplan rules -> ${patch.autoplanDays} days, ${(patch.autoplanTimes as string[]).join(" ")}`, ok: true });
     return json(s);
   }],
   ["GET", "audit-log", async (req) => {

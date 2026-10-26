@@ -266,6 +266,17 @@
 .autoplan-btn.is-on { background: color-mix(in srgb, #1baf7a 16%, var(--surface)); color: color-mix(in srgb, #1baf7a 70%, var(--ink-900)); border: 1px solid color-mix(in srgb, #1baf7a 45%, transparent); font-weight: 700; }
 .autoplan-btn.confirm { border-color: var(--danger); color: var(--danger); }
 .autoplan-last { font-size: 0.74rem; color: var(--ink-500); }
+.ready-tray-head:has(.autoplan-rules) { flex-wrap: wrap; }
+.autoplan-rules { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; padding-top: 8px; border-top: 1px solid var(--line); }
+.autoplan-rules.is-saving { opacity: 0.6; pointer-events: none; }
+.autoplan-field, .autoplan-times { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.autoplan-label { font-weight: 600; color: var(--ink-600); }
+.autoplan-days { width: 4.5em; padding: 3px 6px; text-align: center; }
+.autoplan-time { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 8px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-raised); }
+.autoplan-time .text-input { width: auto; padding: 2px 4px; border: 0; background: transparent; direction: ltr; }
+.autoplan-ord { font-size: 0.74rem; color: var(--ink-500); }
+.autoplan-rm { padding: 0 6px; line-height: 1.4; }
+.autoplan-explain { flex-basis: 100%; margin: 0; font-size: 0.74rem; color: var(--ink-500); }
 .chip.needs-auto { box-shadow: 0 0 0 2px #e8590c; }
 .needs-auto-tag { flex: none; display: inline-flex; width: 14px; height: 14px; padding: 1px; border-radius: 4px; background: var(--surface-raised); color: #c2410c; }
 .needs-auto-tag svg { width: 100%; height: 100%; }

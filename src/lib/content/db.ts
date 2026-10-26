@@ -55,8 +55,13 @@ export interface ContentSettings {
   armLeadMinutes: number;
   /** העובד משבץ סרטונים מ"מוכנים לתזמון" לימים ומתזמן אותם ב-Zernio (autoplan.ts) */
   autoSchedule: boolean;
+  /** השיבוץ ממלא שכבות על פני כל כך הרבה ימים קדימה (pure/autoplan.ts) */
+  autoplanDays: number;
+  /** השעה של הפוסט הראשון ביום, השני, ... */
+  autoplanTimes: string[];
 }
-const DEFAULT_SETTINGS: ContentSettings = { timezone: "Asia/Jerusalem", writesEnabled: false, armLeadMinutes: 3, autoSchedule: false };
+const DEFAULT_SETTINGS: ContentSettings = { timezone: "Asia/Jerusalem", writesEnabled: false, armLeadMinutes: 3, autoSchedule: false,
+  autoplanDays: 30, autoplanTimes: ["18:00", "08:00"] };
 
 export async function getSettings(): Promise<ContentSettings> {
   const s = (await getMeta<Partial<ContentSettings>>("settings")) || {};
