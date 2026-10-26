@@ -132,8 +132,11 @@ test("an hour already taken on that day is skipped", () => {
 });
 
 test("normalizeRules cleans what comes from the screen", () => {
-  assert.deepEqual(A.normalizeRules({ days: "7", times: ["8:00", "18:00", "08:00", "25:00", "x"] }), { days: 7, times: ["08:00", "18:00"] });
-  assert.deepEqual(A.normalizeRules({ days: 0, times: [] }), { days: 1, times: ["18:00", "08:00"] });
+  assert.deepEqual(A.normalizeRules({ days: "7", times: ["8:00", "18:00", "08:00", "25:00", "x"] }), { days: 7, times: ["08:00", "18:00"], maxPerDay: 0 });
+  assert.deepEqual(A.normalizeRules({ days: 0, times: [] }), { days: 1, times: ["18:00", "08:00"], maxPerDay: 0 });
+  assert.equal(A.normalizeRules({ maxPerDay: "2" }).maxPerDay, 2);
+  assert.equal(A.normalizeRules({ maxPerDay: "" }).maxPerDay, 0);
+  assert.equal(A.normalizeRules({ maxPerDay: 99 }).maxPerDay, A.MAX_PER_DAY);
   assert.deepEqual(A.normalizeRules(null), A.DEFAULT_RULES);
   assert.equal(A.normalizeRules({ days: 500 }).days, A.MAX_DAYS);
 });
@@ -159,6 +162,27 @@ test("fewer days pull posts into a second slot, never inside the next 24 hours",
   const { move } = A.planLayout([], movable, [], now, { days: 3, times: ["18:00", "08:00"] });
   // היום ב-08:00 וב-18:00 פחות מ-24 שעות — שם לא מזיזים. מחר ב-08:00 זה 25 שעות
   assert.deepEqual(move, [{ id: "m3", ...at(1, "08:00"), from: at(3) }, { id: "m4", ...at(2, "08:00"), from: at(4) }]);
+});
+
+test("Guy's example: 30 videos, 7 days, 2 a day — the rest go to the next periods", () => {
+  const now = { date: NOW.date, time: "07:00" };
+  const pool = Array.from({ length: 30 }, (_, i) => ({ id: `v${i}`, createdAt: i }));
+  const out = plan([], pool, now, { days: 7, times: ["18:00", "08:00"], maxPerDay: 2 });
+  assert.equal(out.length, 30);
+  const perDay = {};
+  for (const o of out) perDay[o.date] = (perDay[o.date] || 0) + 1;
+  for (let i = 0; i < 14; i++) assert.equal(perDay[day(i)], 2, `day ${i}`);
+  assert.equal(perDay[day(14)], 1);
+  assert.equal(perDay[day(15)], 1);
+  assert.equal(Object.keys(perDay).length, 16);
+  // תקופה 1 מתמלאת לגמרי (שתי שכבות) לפני שנוגעים ביום 8
+  assert.deepEqual(out.slice(0, 14).map((o) => A.dayDiff(o.date, now.date)).sort((a, b) => a - b), [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6]);
+});
+
+test("a day already at the maximum gets nothing more", () => {
+  const placed = [{ id: "g1", date: day(1), time: "12:00" }, { id: "g2", date: day(1), time: "20:00" }];
+  const out = plan(placed, [{ id: "a" }, { id: "b" }, { id: "c" }], NOW, { days: 2, times: ["18:00", "08:00"], maxPerDay: 2 });
+  assert.ok(!out.some((o) => o.date === day(1)), JSON.stringify(out));
 });
 
 test("a moved post with no room stays where it is", () => {

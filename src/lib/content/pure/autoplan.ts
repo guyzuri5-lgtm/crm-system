@@ -3,7 +3,9 @@
  *
  * הכללים של גיא (14.10.2026; שכבות, שעות והזזה מ-26.10.2026):
  *  1. שכבות: קודם פוסט אחד בכל אחד מ-X הימים הקרובים. רק כשכולם מלאים — פוסט
- *     שני בכל יום, מהיום הקרוב, ואז שלישי, וכן הלאה. בלי תקרה. את X גיא קובע בגאנט.
+ *     שני בכל יום, מהיום הקרוב, ואז שלישי, וכן הלאה. עם מקסימום ביום: כשכל X
+ *     הימים מלאים עד המקסימום, X הימים שאחריהם מתמלאים באותה שיטה, וכן הלאה.
+ *     בלי מקסימום — שכבות בלי סוף בתוך X הימים. את X ואת המקסימום גיא קובע בגאנט.
  *  2. הפוסט הראשון ביום עולה בשעה הראשונה ברשימה שגיא קבע בגאנט, השני בשנייה,
  *     וכן הלאה. מעבר לרשימה — השעה שהכי רחוקה מהפוסטים שכבר יש באותו יום.
  *  3. פוסט שהמערכת שיבצה זז כשהתוכנית משתנה (X השתנה, נכנס סרטון, השעות
@@ -22,6 +24,10 @@
 /** ברירת המחדל ל-X, ולמרחק בין נושאים לאחור */
 export const HORIZON_DAYS = 30;
 export const MAX_DAYS = 90;
+/** הכי הרבה שאפשר לבחור כמקסימום ביום */
+export const MAX_PER_DAY = 24;
+/** עם מקסימום ביום, התקופות ממשיכות עד שנתיים קדימה (רק כדי שלולאה לא תרוץ לנצח) */
+const MAX_AHEAD_DAYS = 730;
 /** השעות של הפוסט הראשון, השני... ביום, עד שגיא קובע אחרות */
 export const DEFAULT_TIMES = ["18:00", "08:00"];
 /** פוסט בלי שעה עולה בשעה הזו (ברירת המחדל של הלוח) */
@@ -74,8 +80,10 @@ export interface Rules {
   days: number;
   /** השעה של הפוסט הראשון ביום, השני, ... */
   times: string[];
+  /** כמה פוסטים ביום לכל היותר. 0 = בלי מקסימום */
+  maxPerDay: number;
 }
-export const DEFAULT_RULES: Rules = { days: HORIZON_DAYS, times: DEFAULT_TIMES };
+export const DEFAULT_RULES: Rules = { days: HORIZON_DAYS, times: DEFAULT_TIMES, maxPerDay: 0 };
 
 const DAY = 864e5;
 const keyMs = (key: string) => Date.parse(`${key}T00:00:00Z`);
@@ -97,8 +105,11 @@ const minutes = (hhmm: string) => {
 };
 const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 
-/** ההגדרות מהגאנט, מנוקות: X בין 1 ל-90, שעות תקינות בלי כפילויות. רשימה ריקה → ברירת המחדל. */
-export function normalizeRules(r: { days?: unknown; times?: unknown } | null | undefined): Rules {
+/**
+ * ההגדרות מהגאנט, מנוקות: X בין 1 ל-90, שעות תקינות בלי כפילויות (רשימה ריקה →
+ * ברירת המחדל), ומקסימום ביום בין 1 ל-24 או 0 (ריק) = בלי מקסימום.
+ */
+export function normalizeRules(r: { days?: unknown; times?: unknown; maxPerDay?: unknown } | null | undefined): Rules {
   const n = Math.round(Number(r?.days));
   const days = Number.isFinite(n) ? Math.min(MAX_DAYS, Math.max(1, n)) : HORIZON_DAYS;
   const times: string[] = [];
@@ -108,7 +119,9 @@ export function normalizeRules(r: { days?: unknown; times?: unknown } | null | u
     const v = hhmm(m);
     if (!times.includes(v)) times.push(v);
   }
-  return { days, times: times.length ? times.slice(0, 12) : DEFAULT_TIMES.slice() };
+  const mx = Math.round(Number(r?.maxPerDay));
+  const maxPerDay = Number.isFinite(mx) && mx > 0 ? Math.min(MAX_PER_DAY, mx) : 0;
+  return { days, times: times.length ? times.slice(0, 12) : DEFAULT_TIMES.slice(), maxPerDay };
 }
 
 /** נושא מנורמל להשוואה: "צ'אקרות" ו"צ׳אקרות " הם אותו נושא */
@@ -138,27 +151,31 @@ export function pickTime(used: number[], times: string[]): string {
 
 /**
  * המשבצות לפי סדר המילוי: שכבה 1 (פוסט ראשון בכל יום מהקרוב), שכבה 2, וכן הלאה.
+ * עם מקסימום ביום — השכבות נעצרות בו, והתקופה הבאה של X ימים מתחילה מאותה שכבה 1.
  * יום שכבר יש בו k פוסטים קבועים מדלג על k השכבות הראשונות. משבצת שעברה (או
  * קרובה מ-30 דקות) לא נכנסת, אבל תופסת את מקומה ביום — השעה הבאה ברשימה היא
  * של הפוסט הבא.
  */
 export function slotOrder(fixed: Placed[], now: { date: string; time: string }, rules: Rules, limit: number): Assignment[] {
   const used = new Map<string, number[]>();
-  const last = addDays(now.date, rules.days - 1);
   for (const p of fixed) {
-    if (p.date < now.date || p.date > last) continue;
+    if (p.date < now.date) continue;
     (used.get(p.date) || used.set(p.date, []).get(p.date)!).push(minutes(p.time || DEFAULT_TIME));
   }
   const out: Assignment[] = [];
-  // תקרה רק כדי שלולאה לא תרוץ לנצח; 48 פוסטים ביום זה כבר יותר מכל לוח
-  for (let level = 1; level <= 48 && out.length < limit; level++) {
-    for (let i = 0; i < rules.days && out.length < limit; i++) {
-      const day = addDays(now.date, i);
-      const list = used.get(day) || used.set(day, []).get(day)!;
-      if (list.length >= level) continue;
-      const time = pickTime(list, rules.times);
-      list.push(minutes(time));
-      if (hoursUntil(day, time, now) * 60 >= MIN_LEAD_MINUTES) out.push({ id: "", date: day, time });
+  // בלי מקסימום: תקופה אחת, ועד 48 שכבות רק כדי שלולאה לא תרוץ לנצח
+  const levels = rules.maxPerDay || 48;
+  const blocks = rules.maxPerDay ? Math.ceil(MAX_AHEAD_DAYS / rules.days) : 1;
+  for (let b = 0; b < blocks && out.length < limit; b++) {
+    for (let level = 1; level <= levels && out.length < limit; level++) {
+      for (let i = b * rules.days; i < (b + 1) * rules.days && out.length < limit; i++) {
+        const day = addDays(now.date, i);
+        const list = used.get(day) || used.set(day, []).get(day)!;
+        if (list.length >= level) continue;
+        const time = pickTime(list, rules.times);
+        list.push(minutes(time));
+        if (hoursUntil(day, time, now) * 60 >= MIN_LEAD_MINUTES) out.push({ id: "", date: day, time });
+      }
     }
   }
   return out;

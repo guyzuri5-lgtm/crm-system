@@ -145,13 +145,13 @@
   // ב-pure/autoplan.ts), והעובד מסדר את הלוח מחדש בריצה הבאה, בתוך 5 דקות.
   var ORDINAL = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שביעי", "שמיני", "תשיעי", "עשירי", "11", "12"];
   function rulesRow() {
-    var r = (X.autoplan && X.autoplan.rules) || { days: 30, times: ["18:00", "08:00"] };
+    var r = (X.autoplan && X.autoplan.rules) || { days: 30, times: ["18:00", "08:00"], maxPerDay: 0 };
     var row = el("div", "autoplan-rules");
     function save(patch) {
       row.classList.add("is-saving");
       api("PATCH", "/api/settings", patch).then(function (st) {
         X.autoplan = X.autoplan || { on: X.autoplanOn };
-        X.autoplan.rules = { days: st.autoplanDays, times: st.autoplanTimes };
+        X.autoplan.rules = { days: st.autoplanDays, times: st.autoplanTimes, maxPerDay: st.autoplanMaxPerDay || 0 };
         X.G.rerenderCalendar();
         X.G.showToast(X.autoplanOn ? "נשמר. הלוח יסודר לפי זה בתוך 5 דקות." : "נשמר. ייכנס לתוקף כשתדליק את התזמון האוטומטי.");
       }, function (e) { row.classList.remove("is-saving"); X.G.showToast(e.message, true); });
@@ -174,6 +174,27 @@
     days.appendChild(din);
     row.appendChild(days);
 
+    // ריק = בלי מקסימום
+    var max = el("label", "autoplan-field");
+    max.appendChild(el("span", "autoplan-label", "מקסימום ביום"));
+    var min = el("input", "text-input autoplan-days");
+    min.type = "number"; min.min = "1"; min.max = "24"; min.inputMode = "numeric";
+    min.placeholder = "ללא"; min.value = r.maxPerDay ? r.maxPerDay : "";
+    var mtimer = null;
+    min.addEventListener("input", function () {
+      clearTimeout(mtimer);
+      mtimer = setTimeout(function () {
+        var v = min.value === "" ? 0 : Math.round(Number(min.value));
+        if (v >= 0 && v <= 24 && v !== (r.maxPerDay || 0)) save({ autoplanMaxPerDay: v });
+      }, 800);
+    });
+    min.addEventListener("blur", function () {
+      var v = Math.round(Number(min.value));
+      if (min.value !== "" && !(v >= 1 && v <= 24)) min.value = r.maxPerDay ? r.maxPerDay : "";
+    });
+    max.appendChild(min);
+    row.appendChild(max);
+
     var times = el("div", "autoplan-times");
     times.appendChild(el("span", "autoplan-label", "שעות"));
     r.times.forEach(function (t, i) {
@@ -182,10 +203,15 @@
       var tin = el("input", "text-input");
       tin.type = "time"; tin.value = t;
       tin.setAttribute("aria-label", "השעה של הסרטון ה" + (ORDINAL[i] || i + 1) + " ביום");
+      // שדה שעה יורה שינוי על כל ספרה (01:00 בדרך ל-13:00) — שומרים רק כשההקלדה נחה
+      var ttimer = null;
       tin.addEventListener("change", function () {
-        if (!tin.value || tin.value === t) return;
-        var next = r.times.slice(); next[i] = tin.value;
-        save({ autoplanTimes: next });
+        clearTimeout(ttimer);
+        ttimer = setTimeout(function () {
+          if (!tin.value || tin.value === t) return;
+          var next = r.times.slice(); next[i] = tin.value;
+          save({ autoplanTimes: next });
+        }, 1500);
       });
       chip.appendChild(tin);
       if (r.times.length > 1) {
@@ -207,7 +233,8 @@
     }
     row.appendChild(times);
     row.appendChild(el("p", "autoplan-explain",
-      "קודם סרטון אחד בכל יום ל-" + r.days + " הימים הקרובים, ואז שני בכל יום, וכן הלאה. " +
+      "קודם סרטון אחד בכל יום ל-" + r.days + " הימים הקרובים, ואז שני בכל יום, וכן הלאה" +
+      (r.maxPerDay ? " עד " + r.maxPerDay + " ביום. כשכל " + r.days + " הימים מלאים, " + r.days + " הימים שאחריהם מתמלאים באותה שיטה. " : ". ") +
       "אחרי השעה האחרונה ברשימה המערכת בוחרת שעה פנויה. מה שגררת בעצמך לא זז, ומה שהמערכת שיבצה לא זז ב-24 השעות שלפני הפרסום."));
     return row;
   }

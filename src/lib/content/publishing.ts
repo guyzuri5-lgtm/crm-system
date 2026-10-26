@@ -350,6 +350,33 @@ executor("schedule", async (plan, body) => {
     message: step.method === "POST" ? "הפוסט תוזמן ב-Zernio" : "הפוסט עודכן ב-Zernio" };
 });
 
+/**
+ * הזזת שעה בלבד, לשיבוץ האוטומטי: PUT חלקי עם scheduledFor ו-timezone. בלי mediaItems,
+ * כי Zernio מוחק העלאה זמנית אחרי 7 ימים — עדכון מלא שולח שוב את הכתובת הישנה ונכשל
+ * ב"Some media files failed to upload" (26.10.2026). מחזיר את הסיבה בעברית, או null.
+ */
+export async function reschedulePost(itemId: string): Promise<string | null> {
+  const item = await loadItem(itemId);
+  const pub = await getPub(itemId);
+  if (!item || !pub?.zernio_post_id || pub.status !== "scheduled") return "הפוסט כבר לא מתוזמן ב-Zernio";
+  const when = whenLocal(item);
+  if (!when) return "אין לפריט תאריך ושעה";
+  const { timezone } = await getSettings();
+  const body = { scheduledFor: `${when}:00`, timezone };
+  let data: any;
+  try {
+    data = await zwrite<any>("PUT", `/posts/${pub.zernio_post_id}`, body, { actor: "worker", action: "autoplan: move post", itemId });
+  } catch (e) {
+    return e instanceof ZernioError ? e.hebrew : (e as Error).message;
+  }
+  const t = nowIso();
+  must(await contentDb().from("content_publications").update({
+    scheduled_for: when, timezone, sent_payload: { ...(pub.sent_payload || {}), ...body }, last_error: null, updated_at: t,
+  }).eq("item_id", itemId), "pub reschedule");
+  if (data?.post) await applyPost(itemId, data.post);
+  return null;
+}
+
 export async function planSimple(itemId: string, kind: "cancel" | "retry") {
   const pub = await getPub(itemId);
   const tg = must(await contentDb().from("content_targets").select("platform, status").eq("item_id", itemId), "targets") as any[];

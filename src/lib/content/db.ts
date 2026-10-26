@@ -59,9 +59,11 @@ export interface ContentSettings {
   autoplanDays: number;
   /** השעה של הפוסט הראשון ביום, השני, ... */
   autoplanTimes: string[];
+  /** כמה פוסטים ביום לכל היותר; 0 = בלי מקסימום */
+  autoplanMaxPerDay: number;
 }
 const DEFAULT_SETTINGS: ContentSettings = { timezone: "Asia/Jerusalem", writesEnabled: false, armLeadMinutes: 3, autoSchedule: false,
-  autoplanDays: 30, autoplanTimes: ["18:00", "08:00"] };
+  autoplanDays: 30, autoplanTimes: ["18:00", "08:00"], autoplanMaxPerDay: 0 };
 
 export async function getSettings(): Promise<ContentSettings> {
   const s = (await getMeta<Partial<ContentSettings>>("settings")) || {};

@@ -5,7 +5,7 @@ import { contentDb, getMeta, getSettings, must, nowIso, setMeta } from "./db";
 import { writesEnabled, zwrite, ZernioError } from "./zernio";
 import { bumpRevision } from "./intake";
 import { confirmAction } from "./actions";
-import { planSchedule } from "./publishing";
+import { planSchedule, reschedulePost } from "./publishing";
 import { getAutomation, planLink, validate as validateAutomation } from "./automations";
 import { addDays, AUTO_SWAP_HOURS, DEFAULT_TIME, guardVerdict, HORIZON_DAYS, hoursUntil, localNow, LOCK_HOURS, MIN_LEAD_MINUTES, normalizeRules, planLayout, wantsAutomation, type Movable, type Placed } from "./pure/autoplan";
 import { zonedToUtc } from "./pure/platforms";
@@ -108,7 +108,7 @@ export async function runAutoplan(alert: Alert, log: string[], deadline: number)
   // ── 1. שיבוץ, והזזה של מה שהמערכת שיבצה ──
   // יום תפוס = פוסט אמיתי: סרטון מהתיקייה, פוסט שכבר ב-Zernio, או פריט שהועלה לו קובץ.
   // רעיון בלוח בלי קובץ (פוסט "לצלם את X") לא תופס משבצת.
-  const rules = normalizeRules({ days: settings.autoplanDays, times: settings.autoplanTimes });
+  const rules = normalizeRules({ days: settings.autoplanDays, times: settings.autoplanTimes, maxPerDay: settings.autoplanMaxPerDay });
   const writesOn = await writesEnabled();
   const slotOf = (d: any) => `${d.date} ${d.time || DEFAULT_TIME}`;
   // פוסט של המערכת = היא שיבצה אותו ואף אחד לא הזיז אותו מאז. גרירה של גיא משנה
@@ -169,12 +169,12 @@ export async function runAutoplan(alert: Alert, log: string[], deadline: number)
       if (!done.length) continue;
       row.data = data;
       if (inZernio(m.id)) {
-        const res = await sendToZernio(m.id, "update");
-        if (res.error) {
+        const error = await reschedulePost(m.id);
+        if (error) {
           // Zernio לא עודכן: הלוח חוזר לשעה שבה הפוסט באמת מתוזמן
           must(await contentDb().from("content_items").update({ data: before, date: before.date, updated_at: nowIso() }).eq("id", m.id), "autoplan shift back");
           row.data = before;
-          const text = `'${before.title}' לא הוזז מ-${was}: ${res.error}`;
+          const text = `'${before.title}' לא הוזז מ-${was}: ${error}`;
           report.failures[`move:${m.id}`] = { at: Date.now() / 1000, text };
           alert("error", text, m.id);
           continue;
@@ -186,7 +186,8 @@ export async function runAutoplan(alert: Alert, log: string[], deadline: number)
   }
 
   // ── 2. תזמון ──
-  const last = addDays(now.date, Math.max(HORIZON_DAYS, rules.days));
+  // עם מקסימום ביום השיבוץ ממשיך לתקופות הבאות, ומה ששובץ נשלח ל-Zernio מיד (גיא, 14.10)
+  const last = addDays(now.date, rules.maxPerDay ? 730 : Math.max(HORIZON_DAYS, rules.days));
   const nowMs = Date.now();
   const due = items.filter((r) => {
     const d = r.data;
@@ -256,10 +257,10 @@ export async function runAutoplan(alert: Alert, log: string[], deadline: number)
 }
 
 /**
- * תזמון חדש או עדכון שעה ב-Zernio, באותו מסלול כמו "אשר ותזמן" (planSchedule →
+ * תזמון חדש ב-Zernio, באותו מסלול כמו "אשר ותזמן" (planSchedule →
  * confirmAction) עם כל הבדיקות שלו, בלי מסך אישור. error = למה לא, בעברית.
  */
-async function sendToZernio(itemId: string, mode: "create" | "update"): Promise<{ error?: string; dryRun?: boolean }> {
+async function sendToZernio(itemId: string, mode: "create"): Promise<{ error?: string; dryRun?: boolean }> {
   const res = await planSchedule(itemId, mode);
   const j: any = res.json;
   if (res.status !== 200 || j.blocked || !j.actionId) {
