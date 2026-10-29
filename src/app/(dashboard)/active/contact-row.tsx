@@ -110,6 +110,12 @@ const ACTIVITY_ICONS: Record<InteractionType, React.ReactNode> = {
       <path d="M6 12v5c3 3 9 3 12 0v-5" />
     </Svg>
   ),
+  guide_lead: (
+    <Svg>
+      <path d="M12 7v14" />
+      <path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" />
+    </Svg>
+  ),
   course_registered: (
     <Svg>
       <path d="M22 10v6M2 10l10-5 10 5-10 5z" />

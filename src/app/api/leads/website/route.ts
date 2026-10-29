@@ -87,17 +87,25 @@ export async function POST(request: NextRequest) {
   }
 
   // היומן הוא ההוכחה להסכמה: מה, מאיזה דף ומתי (created_at של השורה).
-  const { error: logError } = await db.from("interactions").insert({
+  // השורה הראשונה היא שם המדריך בלבד — היא מה שמוצג ברשימה ובכרטיס.
+  const entry = {
     contact_id: contact.id,
-    type: "course_lead",
+    type: "guide_lead" as const,
     content: [
-      `${contact.created ? "נרשם" : "פתח מדריך נוסף"} באתר — ${guideLabel} (${p.guide_slug})`,
+      guideLabel,
+      `${contact.created ? "נרשם" : "פתח מדריך נוסף"} באתר (${p.guide_slug})`,
       `אישר קבלת דיוור שיווקי ב-${formatDateTime(now)}`,
       p.page_url ? `דף: ${p.page_url}` : null,
     ]
       .filter(Boolean)
       .join("\n"),
-  });
+  };
+  let { error: logError } = await db.from("interactions").insert(entry);
+  // 22P02 = הערך guide_lead עוד לא ב-enum, כלומר 0052 לא רצה. עדיף רישום
+  // בסוג הישן מאשר פתיחת מדריך — וההסכמה שבה — שלא נרשמה בכלל.
+  if (logError?.code === "22P02") {
+    ({ error: logError } = await db.from("interactions").insert({ ...entry, type: "course_lead" }));
+  }
   if (logError) console.error("[website-lead] רישום ביומן נכשל:", logError.message);
 
   // מסע שמחכה לליד חדש (למשל לפי סטטוס) יוצא עכשיו ולא בריצת הקרון הבאה.

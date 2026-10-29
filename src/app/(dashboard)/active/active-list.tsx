@@ -24,6 +24,7 @@ const ACTIVITY_LABELS: Record<InteractionType, string> = {
   whatsapp_in: "שלח הודעה",
   quiz_submitted: "מילא שאלון",
   course_lead: "השאיר פרטים לקורס",
+  guide_lead: "השאיר פרטים למדריך",
   event_registered: "נרשם לאירוע",
   course_registered: "נרשם לקורס",
   booking_created: "קבע פגישה",
@@ -40,6 +41,8 @@ type ActivityRow = {
   last_inbound_at: string | null;
   last_inbound_text: string | null;
   last_customer_type: InteractionType | null;
+  /** מ-0053. עד שהיא רצה השדה חסר, והתווית יוצאת בלי שם המדריך. */
+  last_customer_text?: string | null;
   last_any_type: InteractionType | null;
   inbound_count: number;
 };
@@ -56,6 +59,13 @@ function relativeTime(iso: string | null): string {
   const days = Math.floor(hours / 24);
   if (days < 30) return `לפני ${days} ימים`;
   return formatDate(iso);
+}
+
+/** בפתיחת מדריך שם המדריך הוא כל המידע — "השאיר פרטים למדריך · מדריך הנשימה". */
+function summaryLabel(type: InteractionType | null, text: string | null | undefined): string {
+  if (!type) return "—";
+  const guide = type === "guide_lead" ? text?.split("\n")[0]?.trim() : null;
+  return guide ? `${ACTIVITY_LABELS[type]} · ${guide}` : ACTIVITY_LABELS[type];
 }
 
 export type ActiveMode = "inbound" | "sent";
@@ -133,7 +143,7 @@ export async function ActiveList({ mode }: { mode: ActiveMode }) {
         email: contact.email,
         statusName: status ? statusLabel(status.name) : null,
         statusClasses: statusColorClasses(status?.color),
-        summaryLabel: type ? ACTIVITY_LABELS[type] : "—",
+        summaryLabel: summaryLabel(type, mode === "inbound" ? a.last_customer_text : null),
         activityType: type,
         timeLabel: relativeTime(at),
         preview: a.last_inbound_text,

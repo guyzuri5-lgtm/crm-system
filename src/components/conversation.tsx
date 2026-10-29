@@ -39,6 +39,7 @@ const SIDE: Record<InteractionType, Side> = {
   booking_created: "system",
   booking_cancelled: "system",
   course_lead: "system",
+  guide_lead: "system",
   event_registered: "system",
   course_registered: "system",
 };
@@ -49,6 +50,7 @@ const SYSTEM_LABELS: Partial<Record<InteractionType, string>> = {
   booking_created: "קבע פגישה",
   booking_cancelled: "ביטל פגישה",
   course_lead: "השאיר פרטים לקורס",
+  guide_lead: "השאיר פרטים למדריך",
   event_registered: "נרשם לאירוע",
   course_registered: "נרשם לקורס",
 };
@@ -144,12 +146,20 @@ export function Conversation({
 
 function SystemLine({ message }: { message: ConversationMessage }) {
   const label = SYSTEM_LABELS[message.type] ?? message.type;
+  // בפתיחת מדריך השורה מציגה רק את שם המדריך (השורה הראשונה). שאר התוכן —
+  // ה-slug, ההסכמה לדיוור עם השעה והדף — הוא ההוכחה, ונשאר בריחוף.
+  const [firstLine, ...rest] = (message.content ?? "").split("\n");
+  const shown = message.type === "guide_lead" ? firstLine : message.content;
+  const hover = message.type === "guide_lead" && rest.length ? rest.join("\n") : undefined;
 
   return (
     <div className="flex justify-center">
-      <div className="max-w-[85%] rounded-full bg-[var(--background)] px-3 py-1 text-center text-xs text-[var(--muted)] ring-1 ring-inset ring-[var(--border)]">
+      <div
+        title={hover}
+        className="max-w-[85%] rounded-full bg-[var(--background)] px-3 py-1 text-center text-xs text-[var(--muted)] ring-1 ring-inset ring-[var(--border)]"
+      >
         <span className="font-medium">{label}</span>
-        {message.content && <span> · {message.content}</span>}
+        {shown && <span> · {shown}</span>}
         <span className="text-[var(--subtle)]"> · {timeFmt.format(new Date(message.created_at))}</span>
       </div>
     </div>

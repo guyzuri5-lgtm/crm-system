@@ -45,7 +45,10 @@ export type InteractionType =
   // נוסף ב-0024_events.sql — הרשמה לאירוע דרך דף ההרשמה הציבורי
   | "event_registered"
   // נוסף ב-0028_courses.sql — הרשמה לקורס דיגיטלי
-  | "course_registered";
+  | "course_registered"
+  // נוסף ב-0052_guide_lead_type.sql — פתיחת מדריך חינמי באתר (/api/leads/website).
+  // שורה ראשונה בתוכן = שם המדריך; ממנה נבנית התווית ברשימה ובכרטיס.
+  | "guide_lead";
 
 /** סוגי רשומה בשאלון, לפי סדר עולה של "חום" הליד */
 export const QUIZ_KINDS = ["anonymous", "lead", "booking_click"] as const;
