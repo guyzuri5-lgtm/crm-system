@@ -27,7 +27,9 @@ const CONSENT_FIELD_KEY = "website_consent_at";
 const payloadSchema = z.object({
   name: z.string().trim().min(1, "חסר שם").max(200),
   email: z.string().trim().max(320),
-  phone: z.string().trim().max(40),
+  // אופציונלי מ-29.10.26: הטופס באתר מבקש רק שם ומייל. אם בכל זאת נשלח
+  // טלפון, הוא חייב להיות ישראלי תקין — ריק נחשב כאילו לא נשלח.
+  phone: z.string().trim().max(40).optional().default(""),
   marketing_consent: z.literal(true, { error: "נדרשת הסכמה לדיוור (marketing_consent: true)" }),
   guide_slug: z
     .string()
@@ -72,8 +74,8 @@ export async function POST(request: NextRequest) {
 
   const email = usableEmail(p.email);
   if (!email) return NextResponse.json({ ok: false, error: "email: כתובת מייל לא תקינה" }, { status: 400 });
-  const phone = normalizePhone(p.phone);
-  if (!phone) return NextResponse.json({ ok: false, error: "phone: מספר טלפון ישראלי לא תקין" }, { status: 400 });
+  const phone = p.phone ? normalizePhone(p.phone) : null;
+  if (p.phone && !phone) return NextResponse.json({ ok: false, error: "phone: מספר טלפון ישראלי לא תקין" }, { status: 400 });
 
   const db = supabaseAdmin();
   const now = new Date();
@@ -117,19 +119,19 @@ export async function POST(request: NextRequest) {
 type Db = ReturnType<typeof supabaseAdmin>;
 
 /**
- * התאמה לפי טלפון (ייחודי בסכימה) ואז לפי מייל. בליד קיים לא נוגעים בשם,
+ * התאמה לפי טלפון (ייחודי בסכימה, כשנשלח) ואז לפי מייל. בליד קיים לא נוגעים בשם,
  * בסטטוס ובמקור — רק מוסיפים תגית, משלימים פרטים חסרים ומעדכנים את ההסכמה.
  */
 async function upsertContact(
   db: Db,
-  lead: { name: string; email: string; phone: string; tag: string; consentAt: Date },
+  lead: { name: string; email: string; phone: string | null; tag: string; consentAt: Date },
   retried = false
 ): Promise<{ id: string; created: boolean } | { error: string }> {
   type Existing = { id: string; full_name: string | null; email: string | null; phone: string | null; tags: string[]; custom: Record<string, string> | null };
   const columns = "id, full_name, email, phone, tags, custom";
 
   let existing: Existing | null = null;
-  {
+  if (lead.phone) {
     const { data, error } = await db.from("contacts").select(columns).eq("phone", lead.phone).maybeSingle();
     if (error) return { error: error.message };
     existing = data as Existing | null;
