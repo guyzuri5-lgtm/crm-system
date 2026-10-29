@@ -199,17 +199,33 @@ async function othersFor(a: Automation, withZernio = true): Promise<{ others: Ot
   return { others, warn };
 }
 
-async function checkLink(url: string): Promise<string | null> {
+const BROWSER_HEADERS = {
+  "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  "Accept-Language": "he-IL,he;q=0.9,en;q=0.8",
+};
+
+// הגנת בוטים (Cloudflare) חוסמת את השרת שלנו — כתובת IP של דאטה־סנטר — אבל לא
+// אדם שלוחץ על הלינק באינסטגרם. 403 כזה אינו לינק שבור, ולכן הוא אזהרה ולא חוסם.
+function botWall(r: Response) {
+  if (r.headers.get("cf-mitigated")) return true;
+  return (r.status === 403 || r.status === 503) && /cloudflare/i.test(r.headers.get("server") || "");
+}
+
+async function checkLink(url: string): Promise<{ error?: string; warning?: string } | null> {
   for (const method of ["HEAD", "GET"]) {
     try {
-      const r = await fetch(url, { method, redirect: "follow", headers: { "User-Agent": "Mozilla/5.0 (content-gantt link check)" }, signal: AbortSignal.timeout(15_000) });
+      const r = await fetch(url, { method, redirect: "follow", headers: BROWSER_HEADERS, signal: AbortSignal.timeout(15_000) });
       if (r.ok) return null;
-      if (method === "GET") return `הלינק מחזיר שגיאה ${r.status}`;
+      if (method === "GET") {
+        if (botWall(r)) return { warning: `לא הצלחתי לבדוק את הלינק: הגנת הבוטים של האתר (Cloudflare) חסמה את הבדיקה (${r.status}). בדפדפן הוא אמור להיפתח — כדאי לפתוח אותו פעם אחת לוודא.` };
+        return { error: `הלינק מחזיר שגיאה ${r.status}` };
+      }
     } catch (e) {
-      if (method === "GET") return `הלינק לא נטען (${(e as Error).message})`;
+      if (method === "GET") return { error: `הלינק לא נטען (${(e as Error).message})` };
     }
   }
-  return "הלינק לא נטען";
+  return { error: "הלינק לא נטען" };
 }
 
 export async function validate(id: string, extraTopicItemIds: string[] = []) {
@@ -222,7 +238,8 @@ export async function validate(id: string, extraTopicItemIds: string[] = []) {
   if (warn) r.warnings.push(warn);
   if (a.link_enabled && a.link && /^https?:\/\//.test(a.link)) {
     const bad = await checkLink(a.link.trim());
-    if (bad) r.errors.push(bad);
+    if (bad?.error) r.errors.push(bad.error);
+    if (bad?.warning) r.warnings.push(bad.warning);
   }
   const acct = await accountFor("instagram");
   return { ...r, preview: preview(a, acct?.username) };
