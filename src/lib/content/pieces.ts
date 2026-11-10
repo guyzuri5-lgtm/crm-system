@@ -242,6 +242,26 @@ export async function syncMetrics() {
   return { updated };
 }
 
+/** נתוני הרילז למסך הניתוח, וליד כל ריל המספר הסידורי שלו (לפי מזהה המדיה או הקישור, כמו ב-syncMetrics) */
+export async function readIgWithPieceNo() {
+  const ig = await readIg();
+  if (!ig.posts.length) return ig;
+  const pieces = must(await contentDb().from("content_pieces").select("piece_no, ig_media_id, ig_permalink")
+    .or("ig_media_id.not.is.null,ig_permalink.not.is.null"), "pieces ig") as any[];
+  const byId = new Map<string, number>();
+  const byLink = new Map<string, number>();
+  for (const p of pieces) {
+    if (p.ig_media_id) byId.set(String(p.ig_media_id), p.piece_no);
+    const k = normPermalink(p.ig_permalink);
+    if (k) byLink.set(k, p.piece_no);
+  }
+  const posts = ig.posts.map((post: any) => {
+    const n = byId.get(String(post.id)) ?? byLink.get(normPermalink(post.permalink) || "") ?? null;
+    return n == null ? post : { ...post, pieceNo: n };
+  });
+  return { ...ig, posts };
+}
+
 export async function listPieces() {
   return must(await contentDb().from("content_pieces").select("*").order("piece_no"), "pieces") as any[];
 }

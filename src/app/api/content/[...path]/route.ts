@@ -9,7 +9,8 @@ import { confirmAction } from "@/lib/content/actions";
 import * as Pub from "@/lib/content/publishing";
 import * as Bank from "@/lib/content/automations";
 import { normalizeRules } from "@/lib/content/pure/autoplan";
-import { readIg, refreshIg } from "@/lib/content/ig/refresh";
+import { refreshIg } from "@/lib/content/ig/refresh";
+import { readIgWithPieceNo } from "@/lib/content/pieces";
 
 /**
  * כל ה-API של גאנט התוכן, מאחורי התחברות ל-CRM.
@@ -174,7 +175,7 @@ const routes: [string, string, Handler][] = [
   ["POST", "health", async () => json(await Bank.runHealthSafe())],
 
   // ── רילז ──
-  ["GET", "ig", async () => json(await readIg())],
+  ["GET", "ig", async () => json(await readIgWithPieceNo())],
   ["POST", "ig-refresh", async (req) => out(await refreshIg(await body(req)))],
 ];
 

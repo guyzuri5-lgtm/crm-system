@@ -421,6 +421,9 @@
   .an-row-body { min-width: 0; }
   .an-row-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 5px; }
   .an-date { font-size: 0.7rem; color: var(--ink-400); font-variant-numeric: tabular-nums; }
+  .an-no { font-size: 0.7rem; font-weight: 800; padding: 2px 7px; border-radius: 6px; background: var(--accent-soft); color: var(--accent-strong); font-variant-numeric: tabular-nums; }
+  .an-mini-caption .an-no { margin-inline-end: 5px; }
+  .an-search { margin-top: 10px; max-width: 320px; }
   .an-tag { font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--line); color: var(--ink-600); }
   .an-tag.is-green { background: var(--win-soft); color: var(--win); }
   .an-tag.is-amber { background: var(--warn-soft); color: var(--warn); }
@@ -772,6 +775,7 @@ window.__startGantt = function (BOOT) {
   // הנתונים הגולמיים חיים כאן ולא ב-state.items: הלוח צריך רק "מתי פורסם ומה
   // הכותרת", והניתוח צריך את כל השדות. מקור האמת הוא טבלת ig_imports בענן.
   var igData = { generatedAt: null, windowDays: null, posts: [] };
+  var igSearch = "";
 
   var DEFAULT_IG_SETTINGS = {
     windowDays: 90,     // כמה אחורה מנתחים ומציגים
@@ -3467,6 +3471,7 @@ window.__startGantt = function (BOOT) {
       var savePct = reach ? ((num(p.saved) || 0) / reach) * 100 : null;
       return {
         id: p.id,
+        pieceNo: num(p.pieceNo),
         date: p.date,
         caption: p.caption || "",
         permalink: p.permalink || null,
@@ -3693,7 +3698,10 @@ window.__startGantt = function (BOOT) {
     img.loading = "lazy";
     img.addEventListener("error", function () { img.src = PLACEHOLDER_THUMB; });
     var body = el("div", "an-mini-body");
-    body.appendChild(el("p", "an-mini-caption", firstLine(post.caption)));
+    var cap = el("p", "an-mini-caption");
+    if (post.pieceNo !== null) cap.appendChild(el("span", "an-no", "#" + post.pieceNo));
+    cap.appendChild(document.createTextNode(firstLine(post.caption)));
+    body.appendChild(cap);
     body.appendChild(el("span", "an-mini-score", fmtInt(post.hookScore) + " נק׳ · " + fmtInt(post.reach) + " חשיפה"));
     wrap.appendChild(img);
     wrap.appendChild(body);
@@ -3724,6 +3732,7 @@ window.__startGantt = function (BOOT) {
 
     var body = el("div", "an-row-body");
     var top = el("div", "an-row-top");
+    if (post.pieceNo !== null) top.appendChild(el("span", "an-no", "#" + post.pieceNo));
     top.appendChild(el("span", "an-date", post.date));
     var tag = el("span", "an-tag" + (post.diagnosis.tone ? " " + post.diagnosis.tone : ""), post.diagnosis.label);
     top.appendChild(tag);
@@ -3877,8 +3886,33 @@ window.__startGantt = function (BOOT) {
     listCard.appendChild(el("div", "an-card-title", "כל הרילז — לפי " + (sortName ? sortName.name : "")));
     listCard.appendChild(el("p", "an-note", "הצירים הם דירוג יחסי בין הרילז שלכם (0–100), לא ערך מוחלט: 70 בציר החשיפה " +
       "אומר שהריל נחשף יותר מ-70% מהרילז האחרים בחלון."));
+    // חיפוש לפי מספר סידורי ("13" או "#13") או לפי מילה מהכיתוב. מצייר רק את הרשימה, כדי שהשדה לא יאבד פוקוס
+    var search = document.createElement("input");
+    search.type = "search";
+    search.className = "text-input an-search";
+    search.placeholder = "חיפוש לפי מספר סידורי או מילה מהכיתוב";
+    search.setAttribute("aria-label", "חיפוש רילז");
+    search.value = igSearch;
+    listCard.appendChild(search);
     var list = el("div", "an-list");
-    a.ranked.forEach(function (post, i) { list.appendChild(rankedRow(post, i + 1, a)); });
+    function fillList() {
+      list.innerHTML = "";
+      var q = igSearch.trim().replace(/^#/, "");
+      var shown = 0;
+      a.ranked.forEach(function (post, i) {
+        if (q) {
+          var hit = /^\d+$/.test(q) ? post.pieceNo === Number(q) : post.caption.indexOf(q) !== -1;
+          if (!hit) return;
+        }
+        list.appendChild(rankedRow(post, i + 1, a));
+        shown++;
+      });
+      if (!shown) list.appendChild(el("p", "an-note", /^\d+$/.test(q)
+        ? "אין ריל עם המספר #" + q + " בחלון הניתוח. אולי הוא עוד לא עלה, או שהוא ישן יותר מהחלון."
+        : "אין ריל שהכיתוב שלו מכיל “" + q + "”."));
+    }
+    search.addEventListener("input", function () { igSearch = search.value; fillList(); });
+    fillList();
     listCard.appendChild(list);
     igAnalysisBodyEl.appendChild(listCard);
 
