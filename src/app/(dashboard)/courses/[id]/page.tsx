@@ -14,7 +14,12 @@ import {
 import { ActionForm } from "@/components/action-form";
 import { CopyLink } from "../../booking/copy-link";
 import { CopyEmbed } from "@/components/copy-embed";
-import { markCoursePaidAction, toggleCourseActiveAction } from "../actions";
+import { WebsiteSyncCard } from "@/components/website-sync-card";
+import {
+  markCoursePaidAction,
+  retryCourseWordPressSyncAction,
+  toggleCourseActiveAction,
+} from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -89,23 +94,14 @@ export default async function CourseManagePage({ params }: PageProps<"/courses/[
         </div>
       </div>
 
-      {!course.active && (
-        <div className="card flex flex-wrap items-center justify-between gap-3 border-[var(--nav-amber)]">
-          <p className="text-sm">
-            <span className="font-semibold text-[var(--nav-amber)]">הקורס כבוי.</span>{" "}
-            <span className="text-[var(--muted)]">
-              דף ההרשמה הציבורי מחזיר &quot;לא נמצא&quot;, וטופס מוטמע מפסיק להופיע.
-            </span>
-          </p>
-          <ActionForm action={toggleCourseActiveAction}>
-            <input type="hidden" name="id" value={course.id} />
-            <input type="hidden" name="active" value="true" />
-            <button type="submit" className="btn-secondary">
-              הפעלה מחדש
-            </button>
-          </ActionForm>
-        </div>
-      )}
+      <WebsiteSyncCard
+        id={course.id}
+        noun="הקורס"
+        active={course.active}
+        sync={course}
+        toggleAction={toggleCourseActiveAction}
+        retryAction={retryCourseWordPressSyncAction}
+      />
 
       {/* משפך ולא שלושה כרטיסים: ההפרש בין השלבים הוא מה שמעניין בקורס,
           לא הערך המוחלט של כל אחד מהם. */}

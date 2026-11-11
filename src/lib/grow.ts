@@ -5,6 +5,8 @@ import { after } from "next/server";
 import { supabaseAdmin } from "./supabase/admin";
 import { kickoffJourneysForContact } from "./journey-engine";
 import { normalizePhone, usableEmail } from "./quiz";
+import { findOrCreateContact } from "./registration";
+import { requestWordPressSync } from "./wordpress";
 
 /**
  * קליטת אישורי תשלום מגרואו (שלב 6).
@@ -45,8 +47,13 @@ export function verifyGrowSecret(params: URLSearchParams): boolean {
 export interface GrowPayer {
   email: string | null;
   phone: string | null;
-  /** שם המוצר/העמוד כפי שהופיע בתשלום, אם נמצא. משמש רק להודעות. */
+  /**
+   * שם המוצר כפי שהופיע בתשלום (paymentDesc בגרואו). משמש להודעות, ולזיהוי
+   * האירוע כשהשיוך לפי איש הקשר לבדו אינו חד-משמעי.
+   */
   productHint: string | null;
+  /** שם המשלם (fullName), ליצירת איש קשר כשמשלם על אירוע בלי לעבור בטופס. */
+  fullName: string | null;
 }
 
 const EMAIL_KEYS = /mail|מייל|אימייל/i;
@@ -104,10 +111,18 @@ export function extractPayer(payload: unknown): GrowPayer {
 
   walk(payload, "", 0);
 
+  // שני שדות שהמבנה שלהם כבר ידוע מהתשלומים האמיתיים (אוקטובר 2026):
+  // paymentDesc הוא שם המוצר, fullName שם המשלם. נקראים ישירות ולא דרך
+  // החיפוש — paymentDesc לא נתפס ב-PRODUCT_KEYS, ו-name נשאר מחוץ להם בכוונה.
+  const top = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
+  const text = (value: unknown) =>
+    typeof value === "string" && value.trim() ? value.trim().slice(0, 160) : null;
+
   return {
     email: byKey.email ?? byShape.email,
     phone: byKey.phone ?? byShape.phone,
-    productHint: byKey.product,
+    productHint: text(top.paymentDesc) ?? byKey.product,
+    fullName: text(top.fullName),
   };
 }
 
@@ -117,7 +132,19 @@ interface OpenRegistration {
   table: "event_registrations" | "course_registrations";
   id: string;
   contactId: string;
+  /** האירוע או הקורס */
+  targetId: string;
   targetName: string;
+}
+
+/** השוואת שמות שסולחת על רווחים, מקפים ופיסוק — "סדנה- נשימה" = "סדנה נשימה". */
+function sameName(a: string, b: string): boolean {
+  const norm = (v: string) =>
+    v
+      .toLowerCase()
+      .replace(/[\s\-–—_.,:;!?"'״׳()]+/g, " ")
+      .trim();
+  return norm(a) === norm(b);
 }
 
 /**
@@ -152,6 +179,9 @@ export async function settlePayment(payer: GrowPayer): Promise<string> {
     for (const c of data ?? []) contactIds.add(c.id);
   }
   if (contactIds.size === 0) {
+    // ייתכן ששילם על אירוע ישירות בקישור של גרואו, בלי לעבור בטופס.
+    const fromPayment = await registerFromPayment(payer, phone, email);
+    if (fromPayment) return fromPayment;
     throw new Error(
       `לא נמצא איש קשר עם ${[phone && `הטלפון ${phone}`, email && `האימייל ${email}`].filter(Boolean).join(" או ")}`
     );
@@ -164,7 +194,7 @@ export async function settlePayment(payer: GrowPayer): Promise<string> {
 
   const { data: eventRegs, error: eventError } = await db
     .from("event_registrations")
-    .select("id, contact_id, events (name)")
+    .select("id, contact_id, event_id, events (name)")
     .in("contact_id", ids)
     .in("stage", ["interested", "registered"]);
   if (eventError) throw new Error(eventError.message);
@@ -173,13 +203,14 @@ export async function settlePayment(payer: GrowPayer): Promise<string> {
       table: "event_registrations",
       id: r.id,
       contactId: r.contact_id,
+      targetId: r.event_id,
       targetName: nameOf(r),
     });
   }
 
   const { data: courseRegs, error: courseError } = await db
     .from("course_registrations")
-    .select("id, contact_id, courses (name)")
+    .select("id, contact_id, course_id, courses (name)")
     .in("contact_id", ids)
     .in("stage", ["interested", "registered"]);
   if (courseError) throw new Error(courseError.message);
@@ -188,12 +219,33 @@ export async function settlePayment(payer: GrowPayer): Promise<string> {
       table: "course_registrations",
       id: r.id,
       contactId: r.contact_id,
+      targetId: r.course_id,
       targetName: nameOf(r),
     });
   }
 
   if (open.length === 0) {
+    const fromPayment = await registerFromPayment(payer, phone, email);
+    if (fromPayment) return fromPayment;
     throw new Error("נמצא איש קשר, אבל אין לו הרשמה פתוחה לאירוע או לקורס");
+  }
+
+  // כמה הרשמות פתוחות: שם המוצר בתשלום מכריע, אם הוא תואם בדיוק אחת מהן.
+  // עד עכשיו זה היה תמיד "יש לסמן ידנית"; כשהשם לא תואם — עדיין כך.
+  if (open.length > 1 && payer.productHint) {
+    const byName = open.filter((o) => sameName(o.targetName, payer.productHint!));
+    if (byName.length === 1) open.splice(0, open.length, byName[0]);
+  }
+
+  // הרשמה פתוחה אחת, אבל התשלום נושא שם של אירוע *אחר*: מי שהשאיר פרטים
+  // לקורס ושילם ישירות על סדנה. בלי הבדיקה הזו הקורס היה מסומן כמשולם.
+  if (
+    open.length === 1 &&
+    payer.productHint &&
+    !sameName(open[0].targetName, payer.productHint)
+  ) {
+    const fromPayment = await registerFromPayment(payer, phone, email);
+    if (fromPayment) return fromPayment;
   }
   if (open.length > 1) {
     const list = open.map((o) => o.targetName).join(", ");
@@ -218,6 +270,9 @@ export async function settlePayment(payer: GrowPayer): Promise<string> {
   });
   if (logError) console.error("[grow] רישום ביומן איש הקשר נכשל:", logError.message);
 
+  // מקום נתפס — מספר המקומות הפנויים באתר יורד. ברקע ולא חוסם.
+  if (match.table === "event_registrations") await requestWordPressSync("event", match.targetId);
+
   // ── המסע יוצא לדרך עכשיו, לא בריצת הקרון הבאה ──────────────────────────
   //
   // זו אותה שורה בדיוק שקיימת בהרשמה (course/[slug]/actions.ts), והיעדרה
@@ -240,6 +295,66 @@ export async function settlePayment(payer: GrowPayer): Promise<string> {
   after(() => kickoffJourneysForContact(match.contactId));
 
   return match.targetName;
+}
+
+/**
+ * תשלום על אירוע בלי הרשמה פתוחה — מי שלחץ על קישור גרואו ישירות.
+ *
+ * רק כשהשם בתשלום תואם בדיוק אירוע פעיל אחד. אחרת מחזיר null והתשלום נשאר
+ * בתיבה כמו קודם. קורסים לא נכנסים לכאן בכוונה: תהליך הרכישה שלהם עובר
+ * בטופס ועובד, ואין סיבה לגעת בו.
+ *
+ * תופס מקום גם כשהאירוע מלא: הכסף כבר התקבל, וזה מה שגיא צריך לראות.
+ */
+async function registerFromPayment(
+  payer: GrowPayer,
+  phone: string | null,
+  email: string | null
+): Promise<string | null> {
+  if (!payer.productHint) return null;
+  const db = supabaseAdmin();
+
+  const { data: events, error } = await db.from("events").select("id, name").eq("active", true);
+  if (error) throw new Error(error.message);
+  const matches = (events ?? []).filter((e) => sameName(e.name, payer.productHint!));
+  if (matches.length !== 1) return null;
+  const event = matches[0];
+
+  const contact = await findOrCreateContact(
+    db,
+    { fullName: payer.fullName ?? "", phone: phone ?? "", email: email ?? "" },
+    `אירוע: ${event.name}`
+  );
+  if ("error" in contact) throw new Error(contact.error);
+
+  // insert ולא upsert: אם כבר יש לו הרשמה לאירוע הזה, היא בהכרח 'paid'
+  // (פתוחה הייתה נתפסת קודם), כלומר זה תשלום שני — כרטיס נוסף או חיוב כפול.
+  // את זה גיא מכריע, ולכן התשלום נשאר בתיבה.
+  const { error: insertError } = await db.from("event_registrations").insert({
+    event_id: event.id,
+    contact_id: contact.id,
+    stage: "paid",
+    source: "grow",
+    paid_at: new Date().toISOString(),
+  });
+  if (insertError) {
+    if (insertError.code === "23505") {
+      throw new Error(`כבר רשום כמשלם לאירוע "${event.name}" — תשלום שני? יש לבדוק ידנית.`);
+    }
+    throw new Error(insertError.message);
+  }
+
+  const { error: logError } = await db.from("interactions").insert({
+    contact_id: contact.id,
+    type: "event_registered",
+    content: `שילם בגרואו ונרשם לאירוע: ${event.name}`,
+  });
+  if (logError) console.error("[grow] רישום ביומן איש הקשר נכשל:", logError.message);
+
+  await requestWordPressSync("event", event.id);
+  after(() => kickoffJourneysForContact(contact.id));
+
+  return event.name;
 }
 
 /**

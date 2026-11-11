@@ -17,7 +17,12 @@ import { ActionForm } from "@/components/action-form";
 import { CopyLink } from "../../booking/copy-link";
 import { CopyEmbed } from "@/components/copy-embed";
 import { EventReminders } from "./reminders";
-import { markPaidAction } from "../actions";
+import { WebsiteSyncCard } from "@/components/website-sync-card";
+import {
+  markPaidAction,
+  retryEventWordPressSyncAction,
+  toggleEventActiveAction,
+} from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -80,7 +85,7 @@ export default async function EventPage({ params }: PageProps<"/events/[id]">) {
           <p className="mt-1 text-sm text-[var(--muted)]">
             {formatDateTime(new Date(event.starts_at), EVENT_TIMEZONE)}
             {event.location ? ` · ${event.location}` : ""}
-            {left !== null ? ` · נותרו ${left} מקומות` : ""}
+            {left === 0 ? " · מלא" : left !== null ? ` · נותרו ${left} מקומות` : ""}
           </p>
         </div>
 
@@ -96,6 +101,15 @@ export default async function EventPage({ params }: PageProps<"/events/[id]">) {
           </Link>
         </div>
       </div>
+
+      <WebsiteSyncCard
+        id={event.id}
+        noun="האירוע"
+        active={event.active}
+        sync={event}
+        toggleAction={toggleEventActiveAction}
+        retryAction={retryEventWordPressSyncAction}
+      />
 
       <section className="card flex flex-col gap-5">
         {/* תפוסה: הקיבולת מחולקת לשלושה פלחים — מי ששילם, מי ששריין ולא

@@ -9,6 +9,7 @@ import { uploadPublicImage } from "@/lib/media";
 import { EVENT_TIMEZONE } from "@/lib/events";
 import { clockToMinutes, parseDateKey, zonedTimeToUtc } from "@/lib/booking/timezone";
 import { toResult, type ActionResult } from "@/lib/action-result";
+import { requestWordPressSync, scheduleWordPressSync, wpSyncRequest } from "@/lib/wordpress";
 import type { EventCustomField } from "@/lib/supabase/database.types";
 
 // כל הפעולות של לשונית "אירועים". verifyTeamMember בראש כל אחת — Server Action
@@ -53,6 +54,12 @@ const optionalText = z
   .max(2000)
   .optional()
   .transform((value) => value || null);
+
+/** מחיר בשקלים. ריק = לא נקבע, ולכן גם לא נשלח לאתר. */
+const priceField = z
+  .union([z.coerce.number().min(0).max(1_000_000), z.literal("")])
+  .optional()
+  .transform((value) => (value === "" || value === undefined ? null : value));
 
 const capacityField = z
   .union([z.coerce.number().int().min(1).max(100_000), z.literal("")])
@@ -108,6 +115,8 @@ export async function createEventAction(
       location: parsed.data.location,
       capacity: parsed.data.capacity,
       grow_link: parsed.data.grow_link,
+      // נוצר כבוי (ברירת המחדל מ-0050), ולכן באתר הוא נוצר כטיוטה.
+      ...wpSyncRequest(),
     })
     .select("id")
     .single();
@@ -118,6 +127,8 @@ export async function createEventAction(
     }
     return { ok: false, error: explain(error) };
   }
+
+  scheduleWordPressSync("event", data.id);
 
   revalidatePath("/events");
   // ה-redirect מחוץ ל-try ואחרי כל הכתיבות — הוא זורק, וטיפול בו כשגיאה
@@ -155,6 +166,12 @@ const designSchema = z.object({
   location: optionalText,
   capacity: capacityField,
   grow_link: optionalText,
+  // מה שמוצג באתר (0050). שעת סיום ריקה = לא נקבעה.
+  end_date: z.string().trim().optional().default(""),
+  end_time: z.string().trim().optional().default(""),
+  price: priceField,
+  short_description: z.string().trim().max(300).optional().transform((v) => v || null),
+  description: z.string().trim().max(20_000).optional().transform((v) => v || null),
 });
 
 export type EventDesignInput = z.input<typeof designSchema>;
@@ -175,6 +192,17 @@ export async function saveEventDesignAction(
   if ("error" in startsAt) return { ok: false, error: startsAt.error };
 
   const d = parsed.data;
+
+  // שעת הסיום: שני השדות או אף אחד. תאריך סיום ריק = אותו יום כמו ההתחלה.
+  let endsAt: string | null = null;
+  if (d.end_time) {
+    const ends = startsAtFrom(d.end_date || d.date, d.end_time);
+    if ("error" in ends) return { ok: false, error: "תאריך או שעת הסיום אינם תקינים" };
+    if (ends.getTime() <= startsAt.getTime()) {
+      return { ok: false, error: "שעת הסיום חייבת להיות אחרי שעת ההתחלה" };
+    }
+    endsAt = ends.toISOString();
+  }
 
   // העמודות נכתבות אחת-אחת ולא בפריסה של parsed.data: date ו-time אינם
   // עמודות אלא הקלט שממנו starts_at נגזר, ופריסה עיוורת הייתה שולחת אותם
@@ -198,14 +226,57 @@ export async function saveEventDesignAction(
       location: d.location,
       capacity: d.capacity,
       grow_link: d.grow_link,
+      ends_at: endsAt,
+      price: d.price,
+      short_description: d.short_description,
+      description: d.description,
+      ...wpSyncRequest(),
     })
     .eq("id", id);
 
   if (error) return { ok: false, error: explain(error) };
 
+  scheduleWordPressSync("event", id);
+
   revalidatePath("/events");
   revalidatePath(`/events/${id}`);
   return { ok: true };
+}
+
+/**
+ * הדלקה וכיבוי. פעיל = דף ההרשמה פתוח *וגם* האירוע מפורסם באתר; כבוי = דף
+ * ההרשמה סגור והפוסט חוזר לטיוטה.
+ */
+export async function toggleEventActiveAction(formData: FormData): Promise<ActionResult> {
+  return toResult(async () => {
+    await verifyTeamMember();
+
+    const id = String(formData.get("id") ?? "");
+    const active = formData.get("active") === "true";
+    if (!id) throw new Error("לא נמצא האירוע");
+
+    const { error } = await supabaseAdmin()
+      .from("events")
+      .update({ active, ...wpSyncRequest() })
+      .eq("id", id);
+    if (error) throw new Error(explain(error));
+
+    scheduleWordPressSync("event", id);
+
+    revalidatePath("/events");
+    revalidatePath(`/events/${id}`);
+  });
+}
+
+/** "נסה שוב עכשיו" — לא מחכה לקרון אחרי שגיאה. */
+export async function retryEventWordPressSyncAction(formData: FormData): Promise<ActionResult> {
+  return toResult(async () => {
+    await verifyTeamMember();
+    const id = String(formData.get("id") ?? "");
+    if (!id) throw new Error("לא נמצא האירוע");
+    await requestWordPressSync("event", id);
+    revalidatePath(`/events/${id}`);
+  });
 }
 
 export async function uploadEventImageAction(formData: FormData): Promise<UploadResult> {
@@ -334,6 +405,9 @@ export async function markPaidAction(formData: FormData): Promise<ActionResult> 
       .eq("id", registrationId)
       .neq("stage", "paid");
     if (error) throw new Error(explain(error));
+
+    // מקום נתפס — מספר המקומות הפנויים באתר יורד.
+    if (eventId) await requestWordPressSync("event", eventId);
 
     if (eventId) revalidatePath(`/events/${eventId}`);
     revalidatePath("/events");

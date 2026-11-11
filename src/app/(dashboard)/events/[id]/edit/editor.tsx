@@ -38,14 +38,20 @@ type Draft = {
   location: string;
   capacity: string;
   grow_link: string;
+  end_date: string;
+  end_time: string;
+  price: string;
+  short_description: string;
+  description: string;
 };
 
-type TabKey = "landing" | "thanks" | "fields";
+type TabKey = "landing" | "thanks" | "fields" | "website";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "landing", label: "דף ההרשמה" },
   { key: "thanks", label: "דף התודה" },
   { key: "fields", label: "שדות הטופס" },
+  { key: "website", label: "באתר" },
 ];
 
 /** מפתח יציב לשדה מותאם. נוצר פעם אחת ואינו משתנה עם התווית — התשובות
@@ -73,10 +79,14 @@ export function EventDesignEditor({
   event,
   initialDate,
   initialTime,
+  initialEndDate,
+  initialEndTime,
 }: {
   event: EventRow;
   initialDate: string;
   initialTime: string;
+  initialEndDate: string;
+  initialEndTime: string;
 }) {
   const [draft, setDraft] = useState<Draft>({
     name: event.name,
@@ -96,6 +106,11 @@ export function EventDesignEditor({
     location: event.location ?? "",
     capacity: event.capacity === null ? "" : String(event.capacity),
     grow_link: event.grow_link ?? "",
+    end_date: initialEndDate,
+    end_time: initialEndTime,
+    price: event.price === null ? "" : String(event.price),
+    short_description: event.short_description ?? "",
+    description: event.description ?? "",
   });
 
   const [tab, setTab] = useState<TabKey>("landing");
@@ -112,10 +127,11 @@ export function EventDesignEditor({
       const result = await saveEventDesignAction(event.id, {
         ...draft,
         capacity: draft.capacity === "" ? "" : Number(draft.capacity),
+        price: draft.price === "" ? "" : Number(draft.price),
       });
       setMessage(
         result.ok
-          ? { ok: true, text: "נשמר. הדף הציבורי מעודכן." }
+          ? { ok: true, text: "נשמר. הדף הציבורי מעודכן, והאתר מתעדכן ברקע." }
           : { ok: false, text: result.error }
       );
     });
@@ -147,6 +163,7 @@ export function EventDesignEditor({
           {tab === "landing" && <LandingTab draft={draft} set={set} />}
           {tab === "thanks" && <ThanksTab draft={draft} set={set} />}
           {tab === "fields" && <FieldsTab draft={draft} set={set} setDraft={setDraft} />}
+          {tab === "website" && <WebsiteTab draft={draft} set={set} />}
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -516,6 +533,80 @@ function FieldsTab({
       {/* התזכורות ירדו מכאן ל-0027: הן כבר אינן שני מתגים אלא בחירה של
           תבנית מאושרת ומועד, והמקום שלהן הוא מסך האירוע — לצד הנרשמים
           שיקבלו אותן, ולא לצד ההגדרות של איך הדף נראה. */}
+    </>
+  );
+}
+
+// ── לשונית: באתר ───────────────────────────────────────────────────────────
+
+/**
+ * מה שנשלח לפוסט באתר ולא מופיע בדף ההרשמה. שדה ריק כאן לא נשלח בכלל, ולכן
+ * לא מוחק את מה שכבר כתוב באתר.
+ */
+function WebsiteTab({ draft, set }: { draft: Draft; set: Setter }) {
+  return (
+    <>
+      <p className="text-xs text-[var(--muted)]">
+        השדות האלה מתעדכנים בפוסט של האירוע באתר. שדה ריק לא נשלח, והתמונה הראשית באתר לא משתנה.
+      </p>
+
+      <div className="grid grid-cols-2 gap-3">
+        <label className="field-label">
+          תאריך סיום
+          <input
+            type="date"
+            className="input"
+            value={draft.end_date}
+            onChange={(e) => set("end_date", e.target.value)}
+          />
+          <span className="text-xs font-normal text-[var(--subtle)]">ריק = אותו יום</span>
+        </label>
+        <label className="field-label">
+          שעת סיום
+          <input
+            type="time"
+            className="input"
+            value={draft.end_time}
+            onChange={(e) => set("end_time", e.target.value)}
+          />
+        </label>
+      </div>
+
+      <label className="field-label">
+        מחיר (₪)
+        <input
+          type="number"
+          min={0}
+          className="input"
+          value={draft.price}
+          onChange={(e) => set("price", e.target.value)}
+        />
+      </label>
+
+      <label className="field-label">
+        תיאור קצר לכרטיס
+        <textarea
+          className="input"
+          rows={2}
+          value={draft.short_description}
+          maxLength={300}
+          onChange={(e) => set("short_description", e.target.value)}
+        />
+      </label>
+
+      <label className="field-label">
+        תיאור מלא (גוף הפוסט)
+        <textarea
+          className="input"
+          rows={8}
+          value={draft.description}
+          maxLength={20000}
+          onChange={(e) => set("description", e.target.value)}
+        />
+        <span className="text-xs font-normal text-[var(--subtle)]">
+          ריק = הטקסט שכבר כתוב באתר נשאר כמו שהוא
+        </span>
+      </label>
     </>
   );
 }

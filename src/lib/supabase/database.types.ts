@@ -205,13 +205,14 @@ export const EVENT_STAGE_LABELS: Record<EventStage, string> = {
 };
 
 /** מאיפה הגיעה ההרשמה. meta שמור לקליטת לידים ממטא (שלב 6). */
-export const EVENT_SOURCES = ["landing", "meta", "manual"] as const;
+export const EVENT_SOURCES = ["landing", "meta", "manual", "grow"] as const;
 export type EventSource = (typeof EVENT_SOURCES)[number];
 
 export const EVENT_SOURCE_LABELS: Record<EventSource, string> = {
   landing: "דף הרשמה",
   meta: "מטא",
   manual: "ידני",
+  grow: "תשלום בגרואו",
 };
 
 /**
@@ -928,9 +929,14 @@ export type Database = {
           thankyou_text: string | null;
           thankyou_show_calendar: boolean;
           thankyou_show_image: boolean;
+          /** פעיל = דף ההרשמה פתוח *וגם* מפורסם באתר (0050) */
           active: boolean;
           created_at: string;
-        };
+          // ── נוספו ב-0050_wordpress_sync.sql ──
+          ends_at: string | null;
+          price: number | null;
+          short_description: string | null;
+        } & WordPressSyncColumns;
         Insert: Partial<Database["public"]["Tables"]["events"]["Row"]> & {
           slug: string;
           name: string;
@@ -1032,9 +1038,13 @@ export type Database = {
           thankyou_title: string;
           thankyou_text: string | null;
           thankyou_show_image: boolean;
+          /** פעיל = דף ההרשמה פתוח *וגם* מפורסם באתר (0050) */
           active: boolean;
           created_at: string;
-        };
+          // ── נוספו ב-0050_wordpress_sync.sql ──
+          price: number | null;
+          short_description: string | null;
+        } & WordPressSyncColumns;
         Insert: Partial<Database["public"]["Tables"]["courses"]["Row"]> & {
           slug: string;
           name: string;
@@ -1283,6 +1293,18 @@ export type MessageReceipt = Database["public"]["Tables"]["message_receipts"]["R
 /** נוצרות ב-0038 — הצבירות שהמסכים מציגים. */
 export type NewsletterStats = Database["public"]["Views"]["newsletter_stats"]["Row"];
 export type JourneyStepStats = Database["public"]["Views"]["journey_step_stats"]["Row"];
+
+/**
+ * מצב הסנכרון לאתר הוורדפרס, זהה באירועים ובקורסים (0050).
+ * pending נשאר דלוק עד שהאתר אישר; הקרון מנסה שוב את מה שנתקע.
+ */
+export type WordPressSyncColumns = {
+  wp_post_id: number | null;
+  wp_sync_pending: boolean;
+  wp_sync_requested_at: string | null;
+  wp_sync_error: string | null;
+  wp_synced_at: string | null;
+};
 
 /**
  * EventRow ולא Event, באותו נימוק כמו ContactStatusRow: `Event` הוא טיפוס

@@ -18,6 +18,7 @@ export default async function EditEventPage({ params }: PageProps<"/events/[id]/
   // בוודאות, ופירוק בדפדפן היה מציג למי שיושבת בחו"ל שעה אחרת מזו שתופיע
   // בדף ההרשמה.
   const startsAt = new Date(event.starts_at);
+  const endsAt = event.ends_at ? new Date(event.ends_at) : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -37,6 +38,8 @@ export default async function EditEventPage({ params }: PageProps<"/events/[id]/
         event={event}
         initialDate={zonedDateKey(startsAt, EVENT_TIMEZONE)}
         initialTime={minutesToClock(utcToZonedParts(startsAt, EVENT_TIMEZONE).minutes)}
+        initialEndDate={endsAt ? zonedDateKey(endsAt, EVENT_TIMEZONE) : ""}
+        initialEndTime={endsAt ? minutesToClock(utcToZonedParts(endsAt, EVENT_TIMEZONE).minutes) : ""}
       />
     </div>
   );

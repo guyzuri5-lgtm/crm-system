@@ -3,6 +3,7 @@ import { runTimeSinceNoReplyRules } from "@/lib/automation-engine";
 import { runJourneys } from "@/lib/journey-engine";
 import { runNewsletters } from "@/lib/newsletter-engine";
 import { runEventReminders } from "@/lib/event-engine";
+import { runWordPressSync } from "@/lib/wordpress";
 import { recordCronStart, recordCronFinish, recordCronError } from "@/lib/cron-health";
 
 // GET /api/cron/check-rules — per spec section 4, runs once a day (see vercel.json).
@@ -109,12 +110,16 @@ export async function GET(request: NextRequest) {
     summary = await runTimeSinceNoReplyRules(now, Math.floor(remaining() * 0.4));
     journeys = await runJourneys(new Date(), Math.floor(remaining() * 0.4));
     newsletters = await runNewsletters(new Date(), Math.floor(remaining() * 0.75));
-    eventReminders = await runEventReminders(new Date(), remaining());
+    eventReminders = await runEventReminders(new Date(), Math.floor(remaining() * 0.8));
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
     await recordCronError(reason);
     throw err;
   }
+
+  // עדכונים לאתר שנתקעו (ורדפרס לא ענה). מחוץ ל-try: הפונקציה לא זורקת,
+  // וכישלון שלה נשאר רשום על השורה עצמה ומוצג במסך האירוע או הקורס.
+  const wordpress = await runWordPressSync(new Date(), Math.max(0, Math.min(remaining(), 40_000)));
 
   const failed = summary.results.filter((r) => !r.ok);
 
@@ -150,6 +155,7 @@ export async function GET(request: NextRequest) {
       stopped: eventReminders.stopped,
       errors: eventReminders.errors,
     },
+    wordpress,
     // מה שלא נשלח בריצה הזו ייתפס בריצה הבאה — automation_rule_runs מבטיח
     // שמי שכן קיבל לא יקבל שוב.
     skipped: summary.skipped,

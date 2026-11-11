@@ -7,6 +7,7 @@ import { verifyTeamMember } from "@/lib/dal";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { uploadPublicImage } from "@/lib/media";
 import { toResult, type ActionResult } from "@/lib/action-result";
+import { requestWordPressSync, scheduleWordPressSync, wpSyncRequest } from "@/lib/wordpress";
 import type { CourseCustomField } from "@/lib/supabase/database.types";
 
 // כל הפעולות של לשונית "קורסים". verifyTeamMember בראש כל אחת — Server Action
@@ -75,6 +76,8 @@ export async function createCourseAction(
       name: parsed.data.name,
       slug: parsed.data.slug,
       grow_link: parsed.data.grow_link,
+      // נוצר כבוי (ברירת המחדל מ-0050), ולכן באתר הוא נוצר כטיוטה.
+      ...wpSyncRequest(),
     })
     .select("id")
     .single();
@@ -85,6 +88,8 @@ export async function createCourseAction(
     }
     return { ok: false, error: explain(error) };
   }
+
+  scheduleWordPressSync("course", data.id);
 
   revalidatePath("/courses");
   // ה-redirect מחוץ לכל טיפול בשגיאה ואחרי הכתיבה — הוא זורק, וטיפול בו
@@ -115,6 +120,13 @@ const designSchema = z.object({
   // שדות הטופס ושדות הבסיס
   custom_fields: z.array(customFieldSchema).max(20),
   grow_link: optionalText,
+  // מה שמוצג באתר (0050)
+  price: z
+    .union([z.coerce.number().min(0).max(1_000_000), z.literal("")])
+    .optional()
+    .transform((value) => (value === "" || value === undefined ? null : value)),
+  short_description: z.string().trim().max(300).optional().transform((v) => v || null),
+  description: z.string().trim().max(20_000).optional().transform((v) => v || null),
 });
 
 export type CourseDesignInput = z.input<typeof designSchema>;
@@ -147,10 +159,16 @@ export async function saveCourseDesignAction(
       thankyou_show_image: d.thankyou_show_image,
       custom_fields: d.custom_fields as CourseCustomField[],
       grow_link: d.grow_link,
+      price: d.price,
+      short_description: d.short_description,
+      description: d.description,
+      ...wpSyncRequest(),
     })
     .eq("id", id);
 
   if (error) return { ok: false, error: explain(error) };
+
+  scheduleWordPressSync("course", id);
 
   revalidatePath("/courses");
   revalidatePath(`/courses/${id}`);
@@ -200,7 +218,10 @@ export async function markCoursePaidAction(formData: FormData): Promise<ActionRe
   });
 }
 
-/** כיבוי והדלקה של הקורס — דף כבוי מחזיר 404 לציבור. */
+/**
+ * כיבוי והדלקה של הקורס. דף כבוי מחזיר 404 לציבור, והפוסט באתר חוזר לטיוטה;
+ * הדלקה פותחת את הדף ומפרסמת את הפוסט.
+ */
 export async function toggleCourseActiveAction(formData: FormData): Promise<ActionResult> {
   return toResult(async () => {
     await verifyTeamMember();
@@ -209,10 +230,26 @@ export async function toggleCourseActiveAction(formData: FormData): Promise<Acti
     const active = formData.get("active") === "true";
     if (!id) throw new Error("לא נמצא הקורס");
 
-    const { error } = await supabaseAdmin().from("courses").update({ active }).eq("id", id);
+    const { error } = await supabaseAdmin()
+      .from("courses")
+      .update({ active, ...wpSyncRequest() })
+      .eq("id", id);
     if (error) throw new Error(explain(error));
 
+    scheduleWordPressSync("course", id);
+
     revalidatePath("/courses");
+    revalidatePath(`/courses/${id}`);
+  });
+}
+
+/** "נסה שוב עכשיו" — לא מחכה לקרון אחרי שגיאה. */
+export async function retryCourseWordPressSyncAction(formData: FormData): Promise<ActionResult> {
+  return toResult(async () => {
+    await verifyTeamMember();
+    const id = String(formData.get("id") ?? "");
+    if (!id) throw new Error("לא נמצא הקורס");
+    await requestWordPressSync("course", id);
     revalidatePath(`/courses/${id}`);
   });
 }

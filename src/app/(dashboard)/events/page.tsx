@@ -94,7 +94,7 @@ export default async function EventsPage() {
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <h2 className="font-semibold">{event.name}</h2>
-                        <Badge past={isPast || !event.active} label={eventTag(event, isPast)} />
+                        <Badge past={isPast || !event.active} label={eventTag(event, isPast, c.paid)} />
                       </div>
                       <p className="mt-1 text-[12.5px] text-[var(--muted)]">
                         {formatDateTime(new Date(event.starts_at), EVENT_TIMEZONE)}
@@ -143,9 +143,10 @@ export default async function EventsPage() {
   );
 }
 
-function eventTag(event: EventRow, isPast: boolean): string {
+function eventTag(event: EventRow, isPast: boolean, paid: number): string {
   if (!event.active) return "כבוי";
-  return isPast ? "עבר" : "פעיל";
+  if (isPast) return "עבר";
+  return event.capacity !== null && paid >= event.capacity ? "מלא" : "פעיל";
 }
 
 function Badge({ past, label }: { past: boolean; label: string }) {

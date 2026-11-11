@@ -35,14 +35,18 @@ type Draft = {
   thankyou_show_image: boolean;
   custom_fields: CourseCustomField[];
   grow_link: string;
+  price: string;
+  short_description: string;
+  description: string;
 };
 
-type TabKey = "landing" | "thanks" | "fields";
+type TabKey = "landing" | "thanks" | "fields" | "website";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "landing", label: "דף ההרשמה" },
   { key: "thanks", label: "דף התודה" },
   { key: "fields", label: "שדות הטופס" },
+  { key: "website", label: "באתר" },
 ];
 
 /** מפתח יציב לשדה מותאם. נוצר פעם אחת ואינו משתנה עם התווית — התשובות
@@ -63,6 +67,9 @@ export function CourseDesignEditor({ course }: { course: CourseRow }) {
     thankyou_show_image: course.thankyou_show_image,
     custom_fields: course.custom_fields ?? [],
     grow_link: course.grow_link ?? "",
+    price: course.price === null ? "" : String(course.price),
+    short_description: course.short_description ?? "",
+    description: course.description ?? "",
   });
 
   const [tab, setTab] = useState<TabKey>("landing");
@@ -76,10 +83,13 @@ export function CourseDesignEditor({ course }: { course: CourseRow }) {
 
   function save() {
     startTransition(async () => {
-      const result = await saveCourseDesignAction(course.id, draft);
+      const result = await saveCourseDesignAction(course.id, {
+        ...draft,
+        price: draft.price === "" ? "" : Number(draft.price),
+      });
       setMessage(
         result.ok
-          ? { ok: true, text: "נשמר. הדף הציבורי מעודכן." }
+          ? { ok: true, text: "נשמר. הדף הציבורי מעודכן, והאתר מתעדכן ברקע." }
           : { ok: false, text: result.error }
       );
     });
@@ -111,6 +121,7 @@ export function CourseDesignEditor({ course }: { course: CourseRow }) {
           {tab === "landing" && <LandingTab draft={draft} set={set} />}
           {tab === "thanks" && <ThanksTab draft={draft} set={set} />}
           {tab === "fields" && <FieldsTab draft={draft} set={set} setDraft={setDraft} />}
+          {tab === "website" && <WebsiteTab draft={draft} set={set} />}
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -415,6 +426,58 @@ function FieldsTab({
         />
         <span className="text-xs font-normal text-[var(--subtle)]">
           ריק = הטופס מוביל ישר לעמוד התודה, בלי תשלום.
+        </span>
+      </label>
+    </>
+  );
+}
+
+// ── לשונית: באתר ───────────────────────────────────────────────────────────
+
+/**
+ * מה שנשלח לפוסט של הקורס באתר. שדה ריק לא נשלח, ולכן לא מוחק את מה שכבר
+ * כתוב שם. כתובת דף המכירה מנוהלת באתר ולא כאן.
+ */
+function WebsiteTab({ draft, set }: { draft: Draft; set: Setter }) {
+  return (
+    <>
+      <p className="text-xs text-[var(--muted)]">
+        השדות האלה מתעדכנים בפוסט של הקורס באתר. שדה ריק לא נשלח, והתמונה הראשית ודף המכירה באתר לא משתנים.
+      </p>
+
+      <label className="field-label">
+        מחיר (₪)
+        <input
+          type="number"
+          min={0}
+          className="input"
+          value={draft.price}
+          onChange={(e) => set("price", e.target.value)}
+        />
+      </label>
+
+      <label className="field-label">
+        תיאור קצר לכרטיס
+        <textarea
+          className="input"
+          rows={2}
+          value={draft.short_description}
+          maxLength={300}
+          onChange={(e) => set("short_description", e.target.value)}
+        />
+      </label>
+
+      <label className="field-label">
+        תיאור מלא (גוף הפוסט)
+        <textarea
+          className="input"
+          rows={8}
+          value={draft.description}
+          maxLength={20000}
+          onChange={(e) => set("description", e.target.value)}
+        />
+        <span className="text-xs font-normal text-[var(--subtle)]">
+          ריק = הטקסט שכבר כתוב באתר נשאר כמו שהוא
         </span>
       </label>
     </>
