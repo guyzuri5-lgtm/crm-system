@@ -267,7 +267,11 @@ export async function planSchedule(itemId: string, mode: "create" | "update") {
   // קאבר: בתזמון חדש — מה שהסנכרון מהתיקייה העלה אחרון (הבחירה נעשית ברגע האישור,
   // לא כשהסרטון נכנס). בעדכון — מה שנשלח בפעם הקודמת, כדי שעדכון לא ימחק אותו.
   let cover: Record<string, unknown> | null = null;
-  if (mode === "create" && item.intake) {
+  const repostCover = (item as any).repost?.cover;
+  if (mode === "create" && repostCover) {
+    // העלאה חוזרת (reposts.ts): הקאבר של הפוסט המקורי, מהאחסון הקבוע של Zernio — לא פג
+    cover = { url: repostCover, source: "repost" };
+  } else if (mode === "create" && item.intake) {
     const c = await coverFor(itemId);
     // Zernio מוחק העלאה שאף פוסט לא מפנה אליה אחרי 7 ימים; הסנכרון מחדש אותה כל 5
     if (c && Date.now() - Date.parse(c.uploadedAt) < 6.5 * 864e5) cover = { url: c.url, source: c.source, file: c.file, sig: c.sig };

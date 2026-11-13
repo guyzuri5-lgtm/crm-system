@@ -1,7 +1,7 @@
 import "server-only";
 /* eslint-disable @typescript-eslint/no-explicit-any -- תשובות ה-API של Zernio ושורות content_* לא מוקלדות; הצורה מתועדת בהערות ונבדקת בזמן ריצה */
 
-import { contentDb, must, nowIso } from "../db";
+import { contentDb, getMeta, must, nowIso, setMeta } from "../db";
 import { tryLease } from "../db";
 // מודול השליפה מאינסטגרם (Composio) הועבר כמו שהוא מ-content-gantt/api/_lib
 import { IgError, getInstagramConnection, listReelsInWindow, attachInsights, mergePosts } from "./instagram.mjs";
@@ -61,7 +61,10 @@ export async function refreshIg(body: Record<string, any>) {
       return new Date(r.timestamp).getTime() >= cutoff;
     });
     note(`נשלפות תובנות ל-${targets.length} רילז`);
-    if (!targets.length) return { status: 200, json: { ok: true, added: 0, updated: 0, total: stored.posts.length, message: "אין רילז חדשים לנתח.", log } };
+    if (!targets.length) {
+      await reposts(note);
+      return { status: 200, json: { ok: true, added: 0, updated: 0, total: stored.posts.length, message: "אין רילז חדשים לנתח.", log } };
+    }
     await attachInsights(apiKey, COMPOSIO_USER_ID, targets, { concurrency: 4 });
     const { posts, added, updated } = mergePosts(stored.posts, reels);
     for (const p of posts) if (typeof p.thumb === "string" && p.thumb.length > 40 * 1024) delete p.thumb;
@@ -75,9 +78,41 @@ export async function refreshIg(body: Record<string, any>) {
     } catch (e: any) {
       note(`עדכון הביצועים בפיסות התוכן נכשל: ${e?.message || e}`);
     }
+    await reposts(note);
     return { status: 200, json: { ok: true, added, updated, total: posts.length, generatedAt: payload.generatedAt, log } };
   } catch (e: any) {
     const detail = e instanceof IgError ? (e as any).detail : null;
     return { status: 502, json: { error: e?.message || "השליפה נכשלה.", detail: detail ? JSON.stringify(detail).slice(0, 1200) : undefined, log } };
   }
+}
+
+/** העלאות חוזרות (reposts.ts) אחרי כל שליפה — רק אז הצפיות משתנות. כישלון שם לא מכשיל את השליפה. */
+async function reposts(note: (m: string) => void) {
+  try {
+    const { runReposts } = await import("../reposts");
+    const r = await runReposts();
+    for (const c of r.created) note(`העלאה חוזרת: '${c.title}' (${c.views} צפיות) נכנס לגאנט ב-${c.date} ${c.time}`);
+    for (const s of r.skipped) note(`העלאה חוזרת לא נוצרה ל-'${s.title}': ${s.reason}`);
+  } catch (e: any) {
+    note(`בדיקת ההעלאות החוזרות נכשלה: ${e?.message || e}`);
+  }
+}
+
+const DAILY_OK_S = 20 * 3600;
+const DAILY_RETRY_S = 2 * 3600;
+
+/**
+ * שליפה יומית של נתוני אינסטגרם, כדי שההעלאות החוזרות לא יחכו ללחיצה על "ניתוח רילז".
+ * נקראת מהקרון של עובד הרקע אחרי שהוא סיים. 60 הימים האחרונים מתעדכנים: מספיק כדי
+ * לתפוס סרטון שעובר 1000 (או העלאה חוזרת שעוברת 2000) גם שבועות אחרי שעלה.
+ */
+export async function dailyIgRefresh() {
+  const last = await getMeta<{ at: number; ok: boolean }>("ig_daily_last");
+  const age = Date.now() / 1000 - (last?.at || 0);
+  if (last && age < (last.ok ? DAILY_OK_S : DAILY_RETRY_S)) return null;
+  if (!(await tryLease("ig_daily", 280))) return null;
+  const r = await refreshIg({ windowDays: 90, refreshDays: 60, fetchLimit: 50, mode: "incremental" });
+  const j: any = r.json;
+  await setMeta("ig_daily_last", { at: Date.now() / 1000, ok: r.status === 200, status: r.status, error: j.error || null, log: (j.log || []).slice(-12) });
+  return r;
 }

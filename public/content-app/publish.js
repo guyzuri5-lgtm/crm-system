@@ -314,7 +314,11 @@
       var needs = X.needsAutomation(it);
       var box = el("div", "pending-box" + (needs ? " is-needs-auto" : ""));
       box.appendChild(el("strong", "pending-title", needs ? "חסרה אוטומציה" : "ממתין לאישור"));
-      box.appendChild(el("p", null, "הסרטון הגיע מהתיקייה \"מוכן לפרסום\"" + (it.intake.file ? " (" + it.intake.file + ")" : "") +
+      var origin = it.repost
+        ? "העלאה חוזרת: הסרטון עבר " + Number(it.repost.views || 0).toLocaleString("he-IL") + " צפיות באינסטגרם, ועולה שוב חודשיים אחרי" +
+          (it.repost.publishedAt ? " (במקור עלה ב-" + String(it.repost.publishedAt).slice(0, 10).split("-").reverse().join(".") + ")" : "")
+        : "הסרטון הגיע מהתיקייה \"מוכן לפרסום\"" + (it.intake.file ? " (" + it.intake.file + ")" : "");
+      box.appendChild(el("p", null, origin +
         (it.topic ? ". נושא: " + it.topic : "") +
         (needs ? "."
           : X.autoplanOn ? ". התזמון האוטומטי ישלח אותו ל-Zernio בדקות הקרובות. אפשר גם לבדוק ולאשר ידנית ב\"אשר ותזמן\"."
