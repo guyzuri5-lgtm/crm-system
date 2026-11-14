@@ -7,7 +7,7 @@ import { bumpRevision } from "./intake";
 import { readIg } from "./ig/refresh";
 import { localNow } from "./pure/autoplan";
 import { normPermalink } from "./pure/pieces";
-import { qualifies, repostData, repostSlot } from "./pure/reposts";
+import { normalizeRepostRules, qualifies, repostData, repostSlot } from "./pure/reposts";
 
 /**
  * העלאה חוזרת של סרטון שהצליח (הכללים ב-pure/reposts.ts). רץ אחרי כל שליפה של
@@ -69,7 +69,9 @@ export async function runReposts(log: (m: string) => void = () => {}, opts: { dr
   const { posts } = await readIg();
   if (!posts.length) return report;
   const viewsOf = viewsLookup(posts);
-  const { timezone } = await getSettings();
+  const settings = await getSettings();
+  const { timezone } = settings;
+  const rules = normalizeRepostRules(settings.reposts);
   const now = localNow(timezone);
 
   const items = await allItems();
@@ -90,13 +92,13 @@ export async function runReposts(log: (m: string) => void = () => {}, opts: { dr
     if (!pub || !target) continue;
     const post = viewsOf(target);
     const generation = Number(r.data.repost?.generation) || 0;
-    if (!post || !qualifies(post.views, generation)) continue;
+    if (!post || !qualifies(post.views, generation, rules)) continue;
 
     const title = String(r.data.title || "");
     const skip = (reason: string) => { report.skipped.push({ from: r.id, title, reason }); log(`repost skip ${r.id.slice(0, 8)}: ${reason}`); };
 
     const published = String(pub.scheduled_for || (r.data.date ? `${r.data.date}T${r.data.time || "18:00"}` : ""));
-    const slot = repostSlot(published, now);
+    const slot = repostSlot(published, now, rules);
     if (!slot) { skip("אין תאריך העלאה למקור"); continue; }
 
     // המדיה הקבועה מהפוסט המקורי ב-Zernio

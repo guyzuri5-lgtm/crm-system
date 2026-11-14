@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- תשובות ה-API של Zernio ושורות content_* לא מוקלדות; הצורה מתועדת בהערות ונבדקת בזמן ריצה */
 import { NextRequest, NextResponse, after } from "next/server";
 import { requireTeamSession } from "@/lib/api-auth";
-import { getMeta, getSettings, updateSettings, contentDb } from "@/lib/content/db";
+import { getMeta, getSettings, updateSettings, contentDb, must } from "@/lib/content/db";
 import { WritesDisabled, ZernioError, zget } from "@/lib/content/zernio";
 import { accountSummary, accountFor } from "@/lib/content/accounts";
 import { loadBoard, saveBoard, Conflict, Refused } from "@/lib/content/board";
@@ -9,6 +9,7 @@ import { confirmAction } from "@/lib/content/actions";
 import * as Pub from "@/lib/content/publishing";
 import * as Bank from "@/lib/content/automations";
 import { normalizeRules } from "@/lib/content/pure/autoplan";
+import { normalizeRepostRules } from "@/lib/content/pure/reposts";
 import { refreshIg } from "@/lib/content/ig/refresh";
 import { readIgWithPieceNo } from "@/lib/content/pieces";
 
@@ -100,12 +101,32 @@ const routes: [string, string, Handler][] = [
       patch.autoplanTimes = r.times;
       patch.autoplanMaxPerDay = r.maxPerDay;
     }
+    if (b.reposts && typeof b.reposts === "object") patch.reposts = normalizeRepostRules(b.reposts);
     if (typeof b.armLeadMinutes === "number") patch.armLeadMinutes = Math.min(10, Math.max(2, b.armLeadMinutes));
     const s = await updateSettings(patch);
     if ("writesEnabled" in patch) await contentDb().from("content_audit_log").insert({ actor: "ui", action: `writesEnabled -> ${patch.writesEnabled}`, ok: true });
     if ("autoSchedule" in patch) await contentDb().from("content_audit_log").insert({ actor: "ui", action: `autoSchedule -> ${patch.autoSchedule}`, ok: true });
+    if ("reposts" in patch) {
+      const r = patch.reposts as ReturnType<typeof normalizeRepostRules>;
+      await contentDb().from("content_audit_log").insert({ actor: "ui", action: `repost rules -> over ${r.threshold}, after ${r.after} ${r.unit}, repeat over ${r.repeatThreshold}`, ok: true });
+    }
     if ("autoplanDays" in patch) await contentDb().from("content_audit_log").insert({ actor: "ui", action: `autoplan rules -> ${patch.autoplanDays} days, max ${patch.autoplanMaxPerDay || "none"}, ${(patch.autoplanTimes as string[]).join(" ")}`, ok: true });
     return json(s);
+  }],
+  // כללי ההעלאה החוזרת והעלאות שכבר בגאנט ועוד לא עלו — לקטע "העלאות חוזרות" במסך ניתוח הרילז
+  ["GET", "reposts", async () => {
+    const settings = await getSettings();
+    const items = must(await contentDb().from("content_items").select("id, date, data").is("deleted_at", null)
+      .not("data->repost", "is", null), "reposts") as any[];
+    const ids = items.map((r) => r.id);
+    const pubs = ids.length ? must(await contentDb().from("content_publications").select("item_id, status").in("item_id", ids), "pubs") as any[] : [];
+    const st = new Map(pubs.map((p) => [p.item_id, p.status]));
+    const upcoming = items
+      .filter((r) => !["published", "partial"].includes(st.get(r.id)))
+      .map((r) => ({ id: r.id, title: r.data.title, date: r.data.date, time: r.data.time, views: r.data.repost.views ?? null,
+        publishedAt: r.data.repost.publishedAt ?? null, generation: r.data.repost.generation ?? 1, status: st.get(r.id) || null }))
+      .sort((a, b) => `${a.date || "9"} ${a.time}`.localeCompare(`${b.date || "9"} ${b.time}`));
+    return json({ rules: normalizeRepostRules(settings.reposts), upcoming, last: await getMeta("reposts_last") });
   }],
   ["GET", "audit-log", async (req) => {
     const limit = Math.min(500, Number(req.nextUrl.searchParams.get("limit")) || 100);

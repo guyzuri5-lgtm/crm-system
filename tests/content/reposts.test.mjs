@@ -55,3 +55,21 @@ test("the copy keeps the content and drops the old post's state", () => {
   assert.equal(d.repost.generation, 1);
   assert.equal(d.repost.views, 10231);
 });
+
+test("the rules Guy sets: weeks, days, other thresholds", () => {
+  const weeks = R.normalizeRepostRules({ threshold: 2500, after: 3, unit: "weeks", repeatThreshold: 5000 });
+  assert.deepEqual(R.repostSlot("2026-11-10T17:00", NOW, weeks), { date: "2026-12-01", time: "17:00" });
+  assert.equal(R.qualifies(2400, 0, weeks), false);
+  assert.equal(R.qualifies(2600, 0, weeks), true);
+  assert.equal(R.qualifies(4000, 1, weeks), false);
+  const days = R.normalizeRepostRules({ threshold: 1000, after: 10, unit: "days", repeatThreshold: 1000 });
+  assert.deepEqual(R.repostSlot("2026-11-10T17:00", NOW, days), { date: "2026-11-20", time: "17:00" });
+});
+
+test("saved rules are always sane", () => {
+  assert.deepEqual(R.normalizeRepostRules(null), R.DEFAULT_REPOST_RULES);
+  assert.deepEqual(R.normalizeRepostRules({ threshold: "abc", after: 0, unit: "years", repeatThreshold: 50 }),
+    { threshold: 1000, after: 1, unit: "months", repeatThreshold: 1000 });
+  assert.equal(R.normalizeRepostRules({ after: 40, unit: "months" }).after, 12);
+  assert.equal(R.normalizeRepostRules({ threshold: 3000, repeatThreshold: 2000 }).repeatThreshold, 3000);
+});

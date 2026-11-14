@@ -61,6 +61,8 @@ export interface ContentSettings {
   autoplanTimes: string[];
   /** כמה פוסטים ביום לכל היותר; 0 = בלי מקסימום */
   autoplanMaxPerDay: number;
+  /** כללי ההעלאה החוזרת (pure/reposts.ts). חסר = ברירת המחדל: 1000 צפיות, חודשיים, 2000 */
+  reposts?: { threshold?: number; after?: number; unit?: string; repeatThreshold?: number };
 }
 const DEFAULT_SETTINGS: ContentSettings = { timezone: "Asia/Jerusalem", writesEnabled: false, armLeadMinutes: 3, autoSchedule: false,
   autoplanDays: 30, autoplanTimes: ["18:00", "08:00"], autoplanMaxPerDay: 0 };

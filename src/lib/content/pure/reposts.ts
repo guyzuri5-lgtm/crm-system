@@ -2,25 +2,47 @@
  * העלאה חוזרת של סרטון שהצליח (גיא, 14.11.2026). הכללים בלבד, בלי מסד — הבדיקות
  * ב-tests/content/reposts.test.mjs. המנוע ב-src/lib/content/reposts.ts.
  *
- *  - סרטון שעבר 1000 צפיות באינסטגרם עולה שוב חודשיים אחרי העלייה המקורית,
- *    באותו יום בחודש ובאותה שעה (22.10 18:00 → 22.12 18:00), לאותן רשתות.
- *  - העלאה חוזרת עולה שוב (חודשיים אחריה) רק אם היא עצמה עברה 2000 צפיות.
+ *  - סרטון שעבר `threshold` צפיות באינסטגרם עולה שוב `after` ימים/שבועות/חודשים אחרי
+ *    העלייה המקורית, באותה שעה, לאותן רשתות (ברירת המחדל: 1000, חודשיים).
+ *  - העלאה חוזרת עולה שוב (אחרי אותו זמן) רק אם היא עצמה עברה `repeatThreshold` (2000).
  *  - כל העלאה מולידה לכל היותר העלאה חוזרת אחת.
+ * גיא משנה את הכללים במסך ניתוח הרילז; הם נשמרים בהגדרות (content_meta 'settings').
  */
 
-export const FIRST_THRESHOLD = 1000;
-export const REPEAT_THRESHOLD = 2000;
-export const REPOST_MONTHS = 2;
+export type RepostUnit = "days" | "weeks" | "months";
+export interface RepostRules { threshold: number; after: number; unit: RepostUnit; repeatThreshold: number }
+
+export const DEFAULT_REPOST_RULES: RepostRules = { threshold: 1000, after: 2, unit: "months", repeatThreshold: 2000 };
+export const MAX_AFTER: Record<RepostUnit, number> = { days: 365, weeks: 52, months: 12 };
+const MIN_THRESHOLD = 100;
+const MAX_THRESHOLD = 10_000_000;
+
+/** מה שנשמר תמיד תקין: מספרים שלמים בטווח, והסף להעלאה נוספת לא נמוך מהראשון */
+export function normalizeRepostRules(r: Partial<Record<keyof RepostRules, unknown>> | null | undefined): RepostRules {
+  const d = DEFAULT_REPOST_RULES;
+  const int = (v: unknown, fb: number, min: number, max: number) => {
+    const n = Math.round(Number(v));
+    return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fb;
+  };
+  const unit: RepostUnit = r?.unit === "days" || r?.unit === "weeks" || r?.unit === "months" ? r.unit : d.unit;
+  const threshold = int(r?.threshold, d.threshold, MIN_THRESHOLD, MAX_THRESHOLD);
+  return {
+    threshold,
+    after: int(r?.after, d.after, 1, MAX_AFTER[unit]),
+    unit,
+    repeatThreshold: Math.max(threshold, int(r?.repeatThreshold, d.repeatThreshold, MIN_THRESHOLD, MAX_THRESHOLD)),
+  };
+}
 
 /** הסף לסרטון: מקורי (generation 0) או העלאה חוזרת */
-export function thresholdFor(generation: number) {
-  return generation > 0 ? REPEAT_THRESHOLD : FIRST_THRESHOLD;
+export function thresholdFor(generation: number, rules: RepostRules = DEFAULT_REPOST_RULES) {
+  return generation > 0 ? rules.repeatThreshold : rules.threshold;
 }
 
 /** "מעל 1000" — 1000 בדיוק לא נחשב */
-export function qualifies(views: unknown, generation: number) {
+export function qualifies(views: unknown, generation: number, rules: RepostRules = DEFAULT_REPOST_RULES) {
   const n = Number(views);
-  return Number.isFinite(n) && n > thresholdFor(generation);
+  return Number.isFinite(n) && n > thresholdFor(generation, rules);
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -35,23 +57,28 @@ export function addMonths(date: string, months: number) {
   return `${ty}-${pad(tm + 1)}-${pad(Math.min(d, last))}`;
 }
 
-function nextDay(date: string) {
+function shiftDays(date: string, n: number) {
   const t = new Date(`${date}T12:00:00Z`);
-  t.setUTCDate(t.getUTCDate() + 1);
+  t.setUTCDate(t.getUTCDate() + n);
   return t.toISOString().slice(0, 10);
+}
+
+/** YYYY-MM-DD + הזמן שבכללים */
+export function addAfter(date: string, after: number, unit: RepostUnit) {
+  return unit === "months" ? addMonths(date, after) : shiftDays(date, after * (unit === "weeks" ? 7 : 1));
 }
 
 /**
  * מתי ההעלאה החוזרת. `published` הוא השעה המקומית שבה המקור עלה (YYYY-MM-DDTHH:MM).
  * אם היום הזה כבר הגיע (הצפיות הגיעו באיחור) — מחר באותה שעה, ולא בעבר.
  */
-export function repostSlot(published: string, now: { date: string; time: string }) {
+export function repostSlot(published: string, now: { date: string; time: string }, rules: RepostRules = DEFAULT_REPOST_RULES) {
   const m = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/.exec(published || "");
   if (!m) return null;
-  let date = addMonths(m[1], REPOST_MONTHS);
+  let date = addAfter(m[1], rules.after, rules.unit);
   const time = m[2];
   // גם היום עצמו נדחה למחר: שעה קרובה מדי לא תספיק להיתזמן
-  if (date <= now.date) date = nextDay(now.date);
+  if (date <= now.date) date = shiftDays(now.date, 1);
   return { date, time };
 }
 

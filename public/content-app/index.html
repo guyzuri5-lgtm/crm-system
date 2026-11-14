@@ -356,6 +356,43 @@
 
   .an-card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin-bottom: 14px; }
   .an-card-title { font-size: 0.74rem; font-weight: 800; letter-spacing: 0.04em; color: var(--ink-400); margin-bottom: 12px; }
+  /* העלאות חוזרות (reposts.js) */
+  .rp-title { margin: 0 0 6px; font-size: 1rem; letter-spacing: 0; color: var(--ink-900); }
+  .rp-intro { margin: 0 0 14px; font-size: 0.85rem; color: var(--ink-600); line-height: 1.6; }
+  .rp-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; }
+  @media (max-width: 860px) { .rp-grid { grid-template-columns: minmax(0, 1fr); } }
+  .rp-form { display: flex; flex-direction: column; gap: 16px; padding: 16px; border-radius: 12px; background: var(--paper); border: 1px solid var(--line); }
+  .rp-h3 { margin: 0; font-size: 0.92rem; font-weight: 800; color: var(--ink-900); }
+  .rp-row { display: flex; flex-direction: column; gap: 6px; }
+  .rp-row > label { font-size: 0.86rem; font-weight: 700; color: var(--ink-900); }
+  .rp-in { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .rp-in input, .rp-in select { font: inherit; font-size: 1rem; min-height: 44px; padding: 0 12px; border-radius: 9px; border: 1px solid var(--line-strong); background: var(--surface-raised); color: var(--ink-900); }
+  .rp-in input { width: 120px; direction: ltr; text-align: right; font-variant-numeric: tabular-nums; }
+  .rp-in input[aria-invalid="true"] { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger); }
+  .rp-in select { min-width: 120px; cursor: pointer; }
+  .rp-in span { font-size: 0.86rem; color: var(--ink-600); }
+  .rp-in input:focus-visible, .rp-in select:focus-visible, .rp-form .btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .rp-help { margin: 0; font-size: 0.8rem; color: var(--ink-500); line-height: 1.55; }
+  .rp-error { margin: 0; padding: 10px 12px; border-radius: 9px; background: var(--danger-soft); color: var(--danger); font-size: 0.86rem; font-weight: 700; }
+  .rp-sentence { margin: 0; padding: 12px 14px; border-radius: 9px; background: var(--surface-raised); border: 1px solid var(--line); font-size: 0.92rem; color: var(--ink-900); line-height: 1.6; }
+  .rp-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .rp-actions .btn { min-height: 44px; }
+  .rp-actions .btn:disabled { background: var(--line); color: var(--ink-500); cursor: not-allowed; }
+  .rp-status { font-size: 0.86rem; font-weight: 700; color: var(--win); }
+  .rp-status.is-error { color: var(--danger); }
+  .rp-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .rp-side { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .rp-side-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .rp-count { font-size: 0.82rem; color: var(--ink-600); }
+  .rp-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; max-height: 520px; overflow-y: auto; }
+  .rp-item { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+  .rp-date { flex: none; width: 50px; display: flex; flex-direction: column; align-items: center; padding: 4px 0; border-radius: 9px; background: var(--accent-soft); color: var(--accent); }
+  .rp-date b { font-size: 1.05rem; line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .rp-date span { font-size: 0.72rem; font-weight: 700; }
+  .rp-what { display: flex; flex-direction: column; min-width: 0; }
+  .rp-what b { font-size: 0.86rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rp-what span { font-size: 0.78rem; color: var(--ink-500); }
+  .rp-empty { padding: 12px 0; font-size: 0.86rem; color: var(--ink-600); }
   .an-note { font-size: 0.8rem; color: var(--ink-500); line-height: 1.6; }
 
   /* שליפה */
@@ -545,6 +582,54 @@
       </div>
       <div class="an-log" id="igRefreshLog" hidden></div>
     </div>
+
+    <section class="an-card rp-card" id="repostCard" aria-labelledby="rpTitle">
+      <h2 class="an-card-title rp-title" id="rpTitle">העלאות חוזרות</h2>
+      <p class="rp-intro">ריל שהצליח עולה שוב לאותן רשתות, באותה שעה ועם אותו כיתוב. רק סרטונים שעלו מהגאנט. הצפיות נבדקות פעם ביום מאינסטגרם.</p>
+      <div class="rp-grid">
+        <form class="rp-form" id="rpForm" novalidate aria-labelledby="rpFormTitle">
+          <h3 class="rp-h3" id="rpFormTitle">הכללים</h3>
+          <div class="rp-row">
+            <label for="rpThr">ריל עולה שוב כשהוא עובר</label>
+            <div class="rp-in"><input id="rpThr" name="threshold" type="number" inputmode="numeric" min="100" step="100" aria-describedby="rpThrHelp"><span>צפיות</span></div>
+            <p class="rp-help" id="rpThrHelp">נבדק כל יום, גם שבועות אחרי שהריל עלה.</p>
+          </div>
+          <div class="rp-row">
+            <label for="rpAfter">ועולה שוב אחרי</label>
+            <div class="rp-in">
+              <input id="rpAfter" name="after" type="number" inputmode="numeric" min="1" aria-describedby="rpAfterHelp">
+              <label class="rp-sr" for="rpUnit">יחידת זמן</label>
+              <select id="rpUnit" name="unit">
+                <option value="days">ימים</option>
+                <option value="weeks">שבועות</option>
+                <option value="months">חודשים</option>
+              </select>
+            </div>
+            <p class="rp-help" id="rpAfterHelp">נספר מהיום שבו הריל עלה במקור, לא מהיום שבו עבר את הסף.</p>
+          </div>
+          <div class="rp-row">
+            <label for="rpRep">העלאה חוזרת עולה פעם נוספת רק אם עברה</label>
+            <div class="rp-in"><input id="rpRep" name="repeatThreshold" type="number" inputmode="numeric" min="100" step="100" aria-describedby="rpRepHelp"><span>צפיות</span></div>
+            <p class="rp-help" id="rpRepHelp">אחרי אותו זמן. כל העלאה מולידה לכל היותר העלאה חוזרת אחת.</p>
+          </div>
+          <p class="rp-error" id="rpError" role="alert" hidden></p>
+          <p class="rp-sentence" id="rpSentence" aria-live="polite"></p>
+          <div class="rp-actions">
+            <button type="submit" class="btn btn-primary" id="rpSave" disabled>שמירת הכללים</button>
+            <button type="button" class="btn btn-ghost" id="rpReset" hidden>ביטול השינויים</button>
+            <span class="rp-status" id="rpStatus" role="status"></span>
+          </div>
+          <p class="rp-help">שינוי חל על רילז שעוד לא נכנסו לגאנט. העלאות שכבר שם נשארות בתאריך שלהן, ואפשר להזיז או למחוק אותן בגאנט.</p>
+        </form>
+        <div class="rp-side">
+          <div class="rp-side-head">
+            <h3 class="rp-h3" id="rpListTitle">בגאנט ועוד לא עלו</h3>
+            <span class="rp-count" id="rpCount"></span>
+          </div>
+          <ul class="rp-list" id="rpList" aria-labelledby="rpListTitle"></ul>
+        </div>
+      </div>
+    </section>
 
     <div class="an-card">
       <div class="an-card-title">פרמטרים</div>
@@ -4056,6 +4141,7 @@ window.__startGantt = function (BOOT) {
 <script src="/content-app/automation.js"></script>
 <script src="/content-app/admin.js"></script>
 <script src="/content-app/report.js"></script>
+<script src="/content-app/reposts.js"></script>
 <script>
 (function () {
   function fail(msg) {
