@@ -5,6 +5,8 @@ import { contentDb, getMeta, must, nowIso, setMeta } from "../db";
 import { tryLease } from "../db";
 // מודול השליפה מאינסטגרם (Composio) הועבר כמו שהוא מ-content-gantt/api/_lib
 import { IgError, getInstagramConnection, listReelsInWindow, attachInsights, mergePosts } from "./instagram.mjs";
+// החיבור הישיר דרך האפליקציה של מטא. כשיש לו טוקן — הוא המקור, ו-Composio לא נקרא בכלל.
+import * as graph from "./graph";
 
 /**
  * "ניתוח רילז חדשים" — אותה לוגיקה כמו api/ig-refresh.mjs בגאנט הישן, רק שהנתונים
@@ -34,9 +36,10 @@ async function writeIg(payload: unknown) {
 }
 
 export async function refreshIg(body: Record<string, any>) {
+  const direct = Boolean(graph.graphToken());
   const apiKey = (process.env.COMPOSIO_API_KEY || "").trim();
-  if (!apiKey) return { status: 500, json: { error: "COMPOSIO_API_KEY לא מוגדר בשרת.", hint: "Vercel → crm-system → Settings → Environment Variables → COMPOSIO_API_KEY, ואז deploy מחדש." } };
-  // אחת לדקה — בלי זה לחיצה כפולה או לולאה תקועה שורפות את המכסה של Composio
+  if (!direct && !apiKey) return { status: 500, json: { error: "אין חיבור לאינסטגרם בשרת.", hint: "Vercel → crm-system → Settings → Environment Variables → INSTAGRAM_GRAPH_TOKEN, ואז deploy מחדש." } };
+  // אחת לדקה — בלי זה לחיצה כפולה או לולאה תקועה שורפות את המכסה
   if (!(await tryLease("ig_refresh_lock", 60))) return { status: 429, json: { error: "שליפה רצה ממש עכשיו. נסו שוב בעוד דקה." } };
 
   const windowDays = clamp(body.windowDays, 30, 1, MAX_WINDOW_DAYS);
@@ -46,12 +49,16 @@ export async function refreshIg(body: Record<string, any>) {
   const log: string[] = [];
   const note = (m: string) => log.push(m);
   try {
-    const connection = await getInstagramConnection(apiKey, COMPOSIO_USER_ID);
-    if (!connection.connected) return { status: 409, json: { error: "אינסטגרם לא מחוברת ל-Composio.", hint: "חיבור ראשוני הוא אישור OAuth ידני (ig-report: npm run agent)." } };
+    if (!direct) {
+      const connection = await getInstagramConnection(apiKey, COMPOSIO_USER_ID);
+      if (!connection.connected) return { status: 409, json: { error: "אינסטגרם לא מחוברת ל-Composio.", hint: "חיבור ראשוני הוא אישור OAuth ידני (ig-report: npm run agent)." } };
+    }
     const stored = await readIg();
     const byId = new Map(stored.posts.map((p) => [p.id, p]));
-    note(`שמורים כרגע: ${stored.posts.length} רילז`);
-    const { reels } = await listReelsInWindow(apiKey, COMPOSIO_USER_ID, { windowDays, fetchLimit, log: note });
+    note(`שמורים כרגע: ${stored.posts.length} רילז (${direct ? "חיבור ישיר למטא" : "Composio"})`);
+    const reels: any[] = direct
+      ? await graph.listReels({ windowDays, pageSize: Math.max(fetchLimit, 50), log: note })
+      : (await listReelsInWindow(apiKey, COMPOSIO_USER_ID, { windowDays, fetchLimit, log: note })).reels;
     note(`נמצאו ${reels.length} רילז בחלון של ${windowDays} ימים`);
     const cutoff = Date.now() - refreshDays * 864e5;
     const targets = mode === "full" ? reels : reels.filter((r: any) => {
@@ -65,7 +72,12 @@ export async function refreshIg(body: Record<string, any>) {
       await reposts(note);
       return { status: 200, json: { ok: true, added: 0, updated: 0, total: stored.posts.length, message: "אין רילז חדשים לנתח.", log } };
     }
-    await attachInsights(apiKey, COMPOSIO_USER_ID, targets, { concurrency: 4 });
+    if (direct) {
+      const { failures } = await graph.attachInsights(targets);
+      if (failures.length) note(`תובנות לא נשלפו ל-${failures.length} רילז: ${failures[0]}`);
+    } else {
+      await attachInsights(apiKey, COMPOSIO_USER_ID, targets, { concurrency: 4 });
+    }
     const { posts, added, updated } = mergePosts(stored.posts, reels);
     for (const p of posts) if (typeof p.thumb === "string" && p.thumb.length > 40 * 1024) delete p.thumb;
     const payload = { generatedAt: new Date().toISOString(), windowDays: Math.max(windowDays, stored.windowDays || 0), posts };
@@ -81,7 +93,7 @@ export async function refreshIg(body: Record<string, any>) {
     await reposts(note);
     return { status: 200, json: { ok: true, added, updated, total: posts.length, generatedAt: payload.generatedAt, log } };
   } catch (e: any) {
-    const detail = e instanceof IgError ? (e as any).detail : null;
+    const detail = e instanceof IgError || e instanceof graph.GraphError ? (e as any).detail : null;
     return { status: 502, json: { error: e?.message || "השליפה נכשלה.", detail: detail ? JSON.stringify(detail).slice(0, 1200) : undefined, log } };
   }
 }
