@@ -3,7 +3,7 @@ import "server-only";
 
 import { contentDb, getMeta, getSettings, must, nowIso, setMeta } from "./db";
 import { writesEnabled, zwrite, ZernioError } from "./zernio";
-import { bumpRevision } from "./intake";
+import { boardWrite, bumpRevision } from "./intake";
 import { confirmAction } from "./actions";
 import { planSchedule, reschedulePost } from "./publishing";
 import { getAutomation, planLink, validate as validateAutomation } from "./automations";
@@ -103,6 +103,8 @@ export async function runAutoplan(alert: Alert, log: string[], deadline: number)
       report.moved.push({ id: r.id, title: data.title, from, at: Date.now() / 1000 });
       alert("warn", `'${data.title}' הוצא מ-${from}: אין לו אוטומציה. הוא מחכה בחלונית "מחכים לאוטומציה".`, r.id);
     }
+    // ועוד פעם אחרי הלולאה: חלון שנטען בזמן שהיא רצה מחזיק עותק ישן (ראו boardWrite)
+    await bumpRevision();
     log.push(`autoplan: moved ${toMove.length} without automation`);
   }
 
@@ -158,6 +160,8 @@ export async function runAutoplan(alert: Alert, log: string[], deadline: number)
       row.data = data;
       report.placed.push({ id: a.id, title: data.title, date: a.date, time: a.time });
     }
+    // ועוד פעם אחרי הלולאה: חלון שנטען בזמן שהיא רצה מחזיק עותק ישן (ראו boardWrite)
+    if (report.placed.length) await bumpRevision();
     if (report.placed.length) log.push(`autoplan: placed ${report.placed.length}`);
 
     for (const m of layout.move.sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))) {
@@ -167,15 +171,17 @@ export async function runAutoplan(alert: Alert, log: string[], deadline: number)
       const was = `${m.from.date} ${m.from.time}`;
       const data = { ...before, date: m.date, time: m.time, autoplan: { ...before.autoplan, slot: `${m.date} ${m.time}`, movedAt: t } };
       // רק אם הוא עדיין ביום שלו — אם גיא גרר אותו בינתיים, ההחלטה שלו קובעת
-      const done = must(await contentDb().from("content_items").update({ data, date: m.date, updated_at: t })
-        .eq("id", m.id).eq("date", m.from.date).is("deleted_at", null).select("id"), "autoplan shift") as any[];
+      // הגרסה עולה סביב כל הזזה (boardWrite): הלולאה נמשכת דקות בגלל Zernio, וגאנט
+      // שנטען באמצע היה שומר מעליה את היום הישן
+      const done = await boardWrite(async () => must(await contentDb().from("content_items").update({ data, date: m.date, updated_at: t })
+        .eq("id", m.id).eq("date", m.from.date).is("deleted_at", null).select("id"), "autoplan shift") as any[]);
       if (!done.length) continue;
       row.data = data;
       if (inZernio(m.id)) {
         const error = await reschedulePost(m.id);
         if (error) {
           // Zernio לא עודכן: הלוח חוזר לשעה שבה הפוסט באמת מתוזמן
-          must(await contentDb().from("content_items").update({ data: before, date: before.date, updated_at: nowIso() }).eq("id", m.id), "autoplan shift back");
+          await boardWrite(async () => must(await contentDb().from("content_items").update({ data: before, date: before.date, updated_at: nowIso() }).eq("id", m.id), "autoplan shift back"));
           row.data = before;
           const text = `'${before.title}' לא הוזז מ-${was}: ${error}`;
           report.failures[`move:${m.id}`] = { at: Date.now() / 1000, text };
@@ -355,10 +361,9 @@ async function pullBack(itemId: string, reason: string, alert: Alert, log: strin
   await contentDb().from("content_automation_links").update({ status: "unlinked", unlinked_at: nowIso(), last_error: reason })
     .eq("item_id", itemId).is("unlinked_at", null).is("zernio_automation_id", null).in("status", ["armed", "error"]);
   if (item?.data?.intake) {
-    await bumpRevision();
     const data = { ...item.data, date: null, autoplan: { ...(item.data.autoplan || {}), pulledAt: nowIso(), pulledReason: reason } };
     delete data.automationChoice;
-    must(await contentDb().from("content_items").update({ data, date: null, updated_at: nowIso() }).eq("id", itemId), "pull back");
+    await boardWrite(async () => must(await contentDb().from("content_items").update({ data, date: null, updated_at: nowIso() }).eq("id", itemId), "pull back"));
   }
   alert("error", `'${title}' בוטל ב-Zernio ולא יעלה: ${reason}.${item?.data?.intake ? " הוא חזר לחלונית \"מחכים לאוטומציה\" — שייך לו אוטומציה, והוא ישובץ מחדש." : ""}`, itemId);
   log.push(`guard: pulled back ${itemId.slice(0, 8)}`);

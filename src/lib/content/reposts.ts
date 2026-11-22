@@ -3,7 +3,7 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 import { contentDb, getSettings, must, nowIso, setMeta } from "./db";
-import { bumpRevision } from "./intake";
+import { boardWrite } from "./intake";
 import { readIg } from "./ig/refresh";
 import { hoursUntil, localNow, LOCK_HOURS } from "./pure/autoplan";
 import { normPermalink } from "./pure/pieces";
@@ -147,9 +147,8 @@ export async function runReposts(log: (m: string) => void = () => {}, opts: { dr
       continue;
     }
 
-    // קודם הגרסה עולה, ורק אז הפריט נכנס (כמו ב-intake.ts): חלון גאנט פתוח ייטען מחדש ולא ימחק אותו
-    await bumpRevision();
-    must(await contentDb().from("content_items").insert({ id, data, date: slot.date, updated_at: at }), "repost insert");
+    // הגרסה עולה סביב ההכנסה (boardWrite): חלון גאנט פתוח ייטען מחדש ולא ימחק אותו
+    await boardWrite(async () => must(await contentDb().from("content_items").insert({ id, data, date: slot.date, updated_at: at }), "repost insert"));
     must(await contentDb().from("content_media").insert(media.map((m, i) => ({
       id: randomUUID().replace(/-/g, "").slice(0, 16), item_id: id,
       filename: m.local?.filename || lastSegment(m.url), public_url: m.url, zernio_key: null,
@@ -191,7 +190,6 @@ async function spaceOut(items: { id: string; data: any; deleted_at: string | nul
   const moves = spaceReposts(fixed, movable);
   const dateOf = new Map(reposts.map((r) => [r.id, r.data.date as string]));
 
-  if (moves.length && !opts.dry) await bumpRevision();
   for (const m of moves) {
     const r = reposts.find((x) => x.id === m.id)!;
     const before = r.data;
@@ -199,13 +197,14 @@ async function spaceOut(items: { id: string; data: any; deleted_at: string | nul
     if (opts.dry) { report.spaced.push({ id: m.id, title, from: m.from, to: m.to }); dateOf.set(m.id, m.to); continue; }
     const data = { ...before, date: m.to, repost: { ...before.repost, slot: `${m.to} ${before.time}` } };
     // רק אם הוא עדיין ביום שלו — אם גיא גרר אותו בינתיים, ההחלטה שלו קובעת
-    const done = must(await contentDb().from("content_items").update({ data, date: m.to, updated_at: nowIso() })
-      .eq("id", m.id).eq("date", m.from).is("deleted_at", null).select("id"), "repost space") as any[];
+    // הגרסה עולה סביב כל כתיבה (boardWrite): גאנט פתוח לא ישמור מעליה עותק ישן
+    const done = await boardWrite(async () => must(await contentDb().from("content_items").update({ data, date: m.to, updated_at: nowIso() })
+      .eq("id", m.id).eq("date", m.from).is("deleted_at", null).select("id"), "repost space") as any[]);
     if (!done.length) continue;
     if (status.get(m.id)) {
       const error = await reschedulePost(m.id);
       if (error) {
-        must(await contentDb().from("content_items").update({ data: before, date: before.date, updated_at: nowIso() }).eq("id", m.id), "repost space back");
+        await boardWrite(async () => must(await contentDb().from("content_items").update({ data: before, date: before.date, updated_at: nowIso() }).eq("id", m.id), "repost space back"));
         log(`repost space ${m.id.slice(0, 8)} failed: ${error}`);
         report.skipped.push({ from: m.id, title, reason: `לא הוזז מ-${m.from} ל-${m.to}: ${error}` });
         continue;

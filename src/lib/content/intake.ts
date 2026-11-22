@@ -111,6 +111,21 @@ export async function bumpRevision() {
   throw new Error("הלוח נשמר שוב ושוב ברגע זה — נסו שוב");
 }
 
+/**
+ * כתיבה של השרת לפריט בלוח, עם הגרסה עולה גם לפני וגם אחרי — צמוד לכתיבה עצמה.
+ * לפני: שמירה של חלון שקרא את הלוח לפני הכתיבה נחסמת (409) ולא מוחקת פריט חדש.
+ * אחרי: חלון שנטען בין שני הצעדים מחזיק עותק ישן של הפריט; בלי העלייה השנייה הוא
+ * היה שומר אותו מעל הכתיבה. זה קרה ב-22.11.2026: פריסת ההעלאות החוזרות העלתה את
+ * הגרסה פעם אחת ואז הזיזה 20 פריטים במשך שלוש דקות (כל אחד גם ב-Zernio), והגאנט
+ * הפתוח, שנטען מחדש באמצע, החזיר ארבעה מהם ליום הישן. בלולאה ארוכה — לכל פריט.
+ */
+export async function boardWrite<T>(write: () => Promise<T>): Promise<T> {
+  await bumpRevision();
+  const out = await write();
+  await bumpRevision();
+  return out;
+}
+
 async function withLease<T>(fn: () => Promise<T>): Promise<T> {
   // כמה קבצים בבת אחת: כל אחד רואה את השיבוץ של הקודם, ולכן מקבל יום אחר
   for (let i = 0; i < 40 && !(await tryLease("intake", 60)); i++) await new Promise((r) => setTimeout(r, 500));
