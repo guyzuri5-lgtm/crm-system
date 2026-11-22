@@ -112,11 +112,7 @@
     .stat-tile:nth-child(n+3) { border-top: 1px solid var(--line); }
   }
 
-  .legend-row { display: flex; flex-wrap: wrap; align-items: center; gap: 11px; margin-bottom: 6px; }
   .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.78rem; color: var(--ink-600); }
-  .legend-manage { display: flex; align-items: center; gap: 4px; font-size: 0.76rem; font-weight: 700; color: var(--accent); padding: 3px 8px 3px 4px; border-radius: 999px; }
-  .legend-manage svg { width: 12px; height: 12px; }
-  .legend-manage:hover { background: var(--accent-soft); }
 
   .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink-900) 14%, transparent); }
 
@@ -138,9 +134,6 @@
   .is-other-month .day-num { color: var(--ink-400); }
   .is-today .day-num { background: var(--accent); color: var(--surface-raised); }
   .day-weekday-inline { display: none; font-size: 0.62rem; color: var(--ink-500); font-weight: 600; }
-  .day-reco { display: inline-flex; align-items: center; gap: 4px; margin-inline-start: 5px; min-width: 0; flex: 1 1 auto; overflow: hidden; }
-  .day-reco-dot { width: 8px; height: 8px; border-radius: 50%; background: transparent; border: 2px solid var(--ink-400); flex: none; }
-  .day-reco-label { font-size: 0.62rem; font-weight: 600; color: var(--ink-500); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-width: 88px; }
 
   .chips-wrap { display: flex; flex-direction: column; gap: 3px; overflow: hidden; }
   .chip { display: flex; align-items: center; gap: 5px; padding: 3px 6px; border-radius: 7px; border: 1px solid var(--line); background: var(--surface-raised); font-size: 0.72rem; max-width: 100%; text-align: start; }
@@ -221,14 +214,7 @@
   .seg-btn svg { width: 14px; height: 14px; }
   .seg-btn.is-active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 
-  .type-picker { display: flex; flex-wrap: wrap; gap: 8px; }
-  .type-chip { display: flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 999px; border: 1px solid var(--line); font-size: 0.82rem; color: var(--ink-600); }
-  .type-chip.is-active { border-color: var(--accent); color: var(--ink-900); background: var(--accent-soft); }
-  .type-chip-add { color: var(--accent); border-style: dashed; }
-  .type-chip-add svg { width: 12px; height: 12px; }
 
-  .new-type-row { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
-  .new-type-row .text-input { flex: 1; }
   .color-input { width: 34px; height: 34px; padding: 2px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); flex: none; }
 
   .checkbox-row { display: flex; align-items: center; gap: 8px; margin-top: 16px; font-size: 0.88rem; color: var(--ink-600); }
@@ -258,7 +244,6 @@
   .day-item-main .fmt-icon { width: 13px; height: 13px; flex: none; color: var(--ink-500); }
   .day-item-main .fmt-icon svg { width: 100%; height: 100%; }
   .day-item-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 0.88rem; }
-  .day-item-type { font-size: 0.72rem; color: var(--ink-500); flex: none; }
   .day-item-go { width: 14px; height: 14px; flex: none; color: var(--ink-400); }
   .day-item-go svg { width: 100%; height: 100%; }
   .day-item-row.is-scheduled .day-item-title { text-decoration: line-through; color: var(--ink-400); }
@@ -283,26 +268,14 @@
   .ig-watch-note { font-size: 0.76rem; color: var(--ink-500); margin: 0 0 12px; }
 
   .settings-intro { font-size: 0.78rem; color: var(--ink-500); line-height: 1.5; margin: 0 0 12px; }
-  .weekday-picker { display: flex; gap: 6px; margin-bottom: 14px; }
-  .weekday-toggle-btn { flex: 1; height: 36px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-500); font-size: 0.82rem; font-weight: 700; }
-  .weekday-toggle-btn.is-active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
   .settings-list-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; padding: 0 4px; }
   .settings-list-head-name { flex: 1; font-size: 0.68rem; font-weight: 700; color: var(--ink-400); }
-  .settings-list-head-qty { width: 52px; text-align: center; font-size: 0.68rem; font-weight: 700; color: var(--ink-400); }
   .settings-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
   .settings-row { display: flex; align-items: center; gap: 8px; }
   .settings-row .text-input { flex: 1; }
-  .type-quota-input { width: 52px; padding: 8px 4px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); text-align: center; font-size: 0.85rem; font-variant-numeric: tabular-nums; flex: none; }
-  .settings-summary { font-size: 0.74rem; color: var(--ink-500); margin: 8px 0 0; }
   .settings-section-divider { border: 0; border-top: 1px solid var(--line); margin: 22px 0 16px; }
   .settings-row-spacer { flex: none; width: 97px; }
   .settings-row-base-tag { flex: none; font-size: 0.68rem; font-weight: 700; color: var(--ink-400); }
-  .color-source-row { display: flex; align-items: center; gap: 10px; }
-  .color-source-row + .color-source-row { margin-top: 8px; }
-  .color-source-name { flex: 1; font-size: 0.84rem; color: var(--ink-600); }
-  .color-source-seg { display: flex; gap: 3px; flex: none; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); }
-  .color-source-seg button { border: 0; background: transparent; border-radius: 6px; padding: 6px 11px; font-size: 0.78rem; font-weight: 700; color: var(--ink-500); }
-  .color-source-seg button.is-active { background: var(--accent-soft); color: var(--accent); }
   .icon-btn.has-dot { position: relative; }
   .sync-dot { position: absolute; top: 3px; inset-inline-end: 3px; width: 7px; height: 7px; border-radius: 50%; background: var(--ink-400); box-shadow: 0 0 0 1.5px var(--paper); }
   .sync-dot.is-synced { background: #0ca30c; }
@@ -558,7 +531,6 @@
       <div class="stat-tile"><span class="stat-value" id="statDone">0/0</span><span class="stat-label" id="statDoneLabel">תוזמנו</span></div>
     </div>
 
-    <div class="legend-row" id="legendRow"></div>
     <p class="progress-legend" id="progressLegend"></p>
     <p class="hint" id="hintText">טיפ: לחצו על כל יום בלוח כדי לשבץ בו תוכן חדש.</p>
     </div>
@@ -683,22 +655,6 @@
           <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="5" y1="5" x2="15" y2="15"/><line x1="15" y1="5" x2="5" y2="15"/></svg>
         </button>
       </div>
-      <label class="field-label">ימי העלאה</label>
-      <p class="settings-intro">סמנו על אילו ימים בשבוע אתם מעלים תוכן בכלל — שאר הימים לא יקבלו המלצה.</p>
-      <div class="weekday-picker" id="weekdayPicker"></div>
-      <p class="settings-intro">קבעו כמה פעמים בשבוע תרצו להעלות מכל סוג — לפי הפרופורציה ביניהם הלוח ימליץ מה להעלות בכל יום פעיל.</p>
-      <div class="settings-list-head">
-        <span class="settings-list-head-name">סוג תוכן</span>
-        <span class="settings-list-head-qty">לשבוע</span>
-      </div>
-      <div class="settings-list" id="settingsList"></div>
-      <p class="settings-summary" id="settingsSummary"></p>
-      <button type="button" class="btn btn-add-dashed" id="addTypeBtn">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="10" y1="4" x2="10" y2="16"/><line x1="4" y1="10" x2="16" y2="10"/></svg>
-        <span>הוספת סוג תוכן</span>
-      </button>
-
-      <hr class="settings-section-divider">
       <label class="field-label">סטטוסי התקדמות</label>
       <p class="settings-intro">אלו שלבי ההתקדמות של כל פיסת תוכן. אפשר לשנות שם וצבע, להוסיף שלב או למחוק. הסדר קובע — הצבע שמוצג הוא של השלב האחרון שסומן.</p>
       <div class="settings-list-head">
@@ -709,11 +665,6 @@
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="10" y1="4" x2="10" y2="16"/><line x1="4" y1="10" x2="16" y2="10"/></svg>
         <span>הוספת סטטוס</span>
       </button>
-
-      <hr class="settings-section-divider">
-      <label class="field-label">צבעי הכרטיסייה בלוח</label>
-      <p class="settings-intro">בחרו ממה יושפע כל צבע — מסוג התוכן או מהסטטוס.</p>
-      <div id="colorSourceRows"></div>
     </div>
   </div>
 </div>
@@ -761,7 +712,6 @@ window.__startGantt = function (BOOT) {
   var WEEKDAY_LABELS = ["א", "ב", "ג", "ד", "ה", "ו", "ש"];
   var MONTH_NAMES = ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"];
   var WEEKDAY_FULL = ["יום ראשון", "יום שני", "יום שלישי", "יום רביעי", "יום חמישי", "יום שישי", "יום שבת"];
-  var PALETTE = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948"];
 
   var STATUS_PALETTE = ["#d03b3b", "#fab219", "#0ca30c", "#2a78d6", "#8b5cf6", "#e87ba4", "#0f9b8e", "#a8642a"];
 
@@ -773,16 +723,6 @@ window.__startGantt = function (BOOT) {
     { id: "scheduled", name: "תוזמן", color: "#0ca30c" }
   ];
   var DEFAULT_STATUS_NONE = { name: "טרם צולם", color: "#d03b3b" };
-  var DEFAULT_COLOR_SOURCES = { chip: "type", dot: "status" };
-
-  var DEFAULT_TYPES = [
-    { id: "edu", name: "חינוכי", color: PALETTE[0] },
-    { id: "ent", name: "בידור", color: PALETTE[1] },
-    { id: "bts", name: "מאחורי הקלעים", color: PALETTE[2] },
-    { id: "insp", name: "השראה", color: PALETTE[3] },
-    { id: "pers", name: "אישי", color: PALETTE[4] },
-    { id: "promo", name: "מכירתי", color: PALETTE[5] }
-  ];
 
   var ICONS = {
     post: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="12" height="12" rx="2.5"/></svg>',
@@ -847,12 +787,12 @@ window.__startGantt = function (BOOT) {
 
   function loadState() {
     // The board lives on the local server (SQLite), not in localStorage or Supabase.
-    if (BOOT && Array.isArray(BOOT.types) && Array.isArray(BOOT.items)) {
+    if (BOOT && Array.isArray(BOOT.items)) {
       var parsed = BOOT;
       delete parsed.settings;
       return parsed;
     }
-    return { types: DEFAULT_TYPES.map(function (t) { return { id: t.id, name: t.name, color: t.color }; }), items: [], activeWeekdays: [true, true, true, true, true, true, true] };
+    return { items: [] };
   }
 
   var state = loadState();
@@ -891,7 +831,6 @@ window.__startGantt = function (BOOT) {
   var DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
   function normalizeState() {
-    if (!Array.isArray(state.types)) state.types = [];
     if (!Array.isArray(state.items)) state.items = [];
     // כל הציור נשען על parseKey(item.date), ופריט בלי תאריך תקין הפיל את הלוח
     // כולו. בלוח משותף שכל אחד יכול לכתוב אליו זה אומר שפריט פגום אחד נועל את
@@ -903,9 +842,6 @@ window.__startGantt = function (BOOT) {
       if (it.intake && !it.date) { it.date = null; return true; }
       return typeof it.date === "string" && DATE_KEY_RE.test(it.date);
     });
-    if (!Array.isArray(state.activeWeekdays) || state.activeWeekdays.length !== 7) {
-      state.activeWeekdays = [true, true, true, true, true, true, true];
-    }
     if (!Array.isArray(state.statuses) || !state.statuses.length) {
       state.statuses = DEFAULT_STATUSES.map(function (st) { return { id: st.id, name: st.name, color: st.color }; });
     }
@@ -917,9 +853,6 @@ window.__startGantt = function (BOOT) {
     if (!state.statusNone || typeof state.statusNone !== "object") state.statusNone = {};
     if (!state.statusNone.name) state.statusNone.name = DEFAULT_STATUS_NONE.name;
     if (!isHexColor(state.statusNone.color)) state.statusNone.color = DEFAULT_STATUS_NONE.color;
-    if (!state.colorSources || typeof state.colorSources !== "object") state.colorSources = {};
-    if (state.colorSources.chip !== "type" && state.colorSources.chip !== "status") state.colorSources.chip = DEFAULT_COLOR_SOURCES.chip;
-    if (state.colorSources.dot !== "type" && state.colorSources.dot !== "status") state.colorSources.dot = DEFAULT_COLOR_SOURCES.dot;
     normalizeIgSettings();
   }
 
@@ -1002,7 +935,6 @@ window.__startGantt = function (BOOT) {
           date: post.date,
           title: title,
           format: "post",
-          typeId: null,
           note: "",
           filmed: true,
           edited: true,
@@ -1181,100 +1113,6 @@ window.__startGantt = function (BOOT) {
   function formatFullDate(d) {
     return WEEKDAY_FULL[d.getDay()] + ", " + d.getDate() + " ב" + MONTH_NAMES[d.getMonth()] + " " + d.getFullYear();
   }
-  function findType(id) {
-    for (var i = 0; i < state.types.length; i++) if (state.types[i].id === id) return state.types[i];
-    return null;
-  }
-
-  // ---------- daily content-type recommendation, from weekly proportions ----------
-  // Given each active type's weekly target (a weight, not a hard count), split one
-  // calendar week (7 days) into integer picks proportional to those weights (largest-
-  // remainder / Hamilton apportionment), then arrange the picks across the week with a
-  // greedy max-count-first placement so identical types never land on adjacent days
-  // unless the numbers leave no other option.
-  function getActiveWeekdaySet() {
-    var arr = state.activeWeekdays;
-    var set = new Set();
-    for (var i = 0; i < 7; i++) {
-      if (!arr || arr.length !== 7 || arr[i]) set.add(i);
-    }
-    return set;
-  }
-
-  function computeWeekAssignment(activeTypes, startPrevType, slotCount) {
-    var emptyPicks = [];
-    for (var e = 0; e < slotCount; e++) emptyPicks.push(null);
-
-    var totalWeight = 0;
-    for (var i = 0; i < activeTypes.length; i++) totalWeight += activeTypes[i].weeklyTarget;
-    if (totalWeight <= 0 || slotCount <= 0) return { picks: emptyPicks, lastType: startPrevType };
-
-    var shares = activeTypes.map(function (t) {
-      var exact = (slotCount * t.weeklyTarget) / totalWeight;
-      var count = Math.floor(exact);
-      return { id: t.id, count: count, remainder: exact - count };
-    });
-    var allocated = 0;
-    for (var i2 = 0; i2 < shares.length; i2++) allocated += shares[i2].count;
-    var remaining = slotCount - allocated;
-    var byRemainder = shares.slice().sort(function (a, b) { return b.remainder - a.remainder; });
-    for (var r = 0; r < remaining; r++) byRemainder[r % byRemainder.length].count++;
-
-    var pool = shares.filter(function (s) { return s.count > 0; }).map(function (s) { return { id: s.id, count: s.count }; });
-    var picks = [];
-    var prev = startPrevType;
-    for (var d = 0; d < slotCount; d++) {
-      pool.sort(function (a, b) { return b.count - a.count; });
-      var pick = null;
-      for (var p = 0; p < pool.length; p++) {
-        if (pool[p].id !== prev) { pick = pool[p]; break; }
-      }
-      if (!pick) pick = pool[0] || null;
-      if (!pick) { picks.push(null); continue; }
-      picks.push(pick.id);
-      pick.count -= 1;
-      prev = pick.id;
-      for (var q = pool.length - 1; q >= 0; q--) { if (pool[q].count <= 0) pool.splice(q, 1); }
-    }
-    return { picks: picks, lastType: prev };
-  }
-
-  function computeMonthRecommendations(year, month) {
-    var map = {};
-    var activeTypes = state.types.filter(function (t) { return (t.weeklyTarget || 0) > 0; });
-    var activeWeekdaySet = getActiveWeekdaySet();
-    if (activeTypes.length === 0 || activeWeekdaySet.size === 0) return map;
-
-    var firstWeekday = new Date(year, month, 1).getDay();
-    var daysInMonth = new Date(year, month + 1, 0).getDate();
-    var daysInPrevMonth = new Date(year, month, 0).getDate();
-    var totalCells = Math.ceil((firstWeekday + daysInMonth) / 7) * 7;
-    var totalWeeks = totalCells / 7;
-    var slotsPerWeek = activeWeekdaySet.size;
-
-    var prevType = null;
-    for (var w = 0; w < totalWeeks; w++) {
-      var weekResult = computeWeekAssignment(activeTypes, prevType, slotsPerWeek);
-      var pickIdx = 0;
-      for (var d = 0; d < 7; d++) {
-        if (!activeWeekdaySet.has(d)) continue;
-        var i = w * 7 + d;
-        var dayNum = i - firstWeekday + 1;
-        var cellDate;
-        if (dayNum < 1) cellDate = new Date(year, month - 1, daysInPrevMonth + dayNum);
-        else if (dayNum > daysInMonth) cellDate = new Date(year, month + 1, dayNum - daysInMonth);
-        else cellDate = new Date(year, month, dayNum);
-        var key = dateKey(cellDate.getFullYear(), cellDate.getMonth(), cellDate.getDate());
-        var pick = weekResult.picks[pickIdx];
-        pickIdx++;
-        if (pick) map[key] = pick;
-      }
-      prevType = weekResult.lastType;
-    }
-    return map;
-  }
-
-  var currentRecoMap = {};
   var FORMAT_LABELS = { reel: "ריל", post: "פוסט", carousel: "קרוסלה", story: "סטורי" };
   window.GANTT = {
     get state() { return state; },
@@ -1287,7 +1125,6 @@ window.__startGantt = function (BOOT) {
     openDayModal: function (k, id) { openDayModal(k, id); },
     showToast: function (m, sticky) { showSaveError(m, sticky); },
     findItem: function (id) { for (var i = 0; i < state.items.length; i++) if (state.items[i].id === id) return state.items[i]; return null; },
-    findType: function (id) { return findType(id); },
     icons: ICONS
   };
 
@@ -1357,14 +1194,6 @@ window.__startGantt = function (BOOT) {
     return last ? itemHasStatus(item, last.id) : false;
   }
 
-  function colorBySource(item, source) {
-    if (source === "status") return statusColorFor(item);
-    var type = findType(item.typeId);
-    return type ? type.color : null;
-  }
-
-  function chipBgColor(item) { return colorBySource(item, state.colorSources.chip); }
-  function chipDotColor(item) { return colorBySource(item, state.colorSources.dot); }
   function statusIconFor(statusId) { return ICONS[statusId] || ICONS.check; }
 
   // ---------- drag & drop: reschedule a chip by dragging it to another day ----------
@@ -1476,12 +1305,9 @@ window.__startGantt = function (BOOT) {
   // פריט שקיים רק בצד השני נוסף לרשימה. זו ההגנה מפני אובדן מידע בסנכרון.
   function mergeStates(preferred, other) {
     var merged = {
-      types: (preferred.types || []).slice(),
       items: (preferred.items || []).slice(),
       statuses: (preferred.statuses || []).slice(),
       statusNone: preferred.statusNone,
-      colorSources: preferred.colorSources,
-      activeWeekdays: preferred.activeWeekdays,
       igSettings: preferred.igSettings || other.igSettings
     };
     function addMissing(targetList, sourceList) {
@@ -1490,7 +1316,6 @@ window.__startGantt = function (BOOT) {
       (sourceList || []).forEach(function (x) { if (x && x.id && !seen[x.id]) { seen[x.id] = true; targetList.push(x); } });
     }
     addMissing(merged.items, other.items);
-    addMissing(merged.types, other.types);
     addMissing(merged.statuses, other.statuses);
     return merged;
   }
@@ -1502,18 +1327,15 @@ window.__startGantt = function (BOOT) {
   }
 
   function applyState(next) {
-    state.types = Array.isArray(next.types) ? next.types : [];
     state.items = Array.isArray(next.items) ? next.items : [];
     state.statuses = Array.isArray(next.statuses) ? next.statuses : null;
     state.statusNone = next.statusNone;
-    state.colorSources = next.colorSources;
-    state.activeWeekdays = next.activeWeekdays;
     state.igSettings = next.igSettings;
     normalizeState();
   }
 
   function looksLikeBoard(obj) {
-    return !!obj && typeof obj === "object" && Array.isArray(obj.types) && Array.isArray(obj.items);
+    return !!obj && typeof obj === "object" && Array.isArray(obj.items);
   }
 
   function rerenderAll() {
@@ -1522,10 +1344,7 @@ window.__startGantt = function (BOOT) {
     if (typeof renderAnalytics === "function") renderAnalytics();
     if (dayModalOverlay.classList.contains("is-open")) renderDayModal();
     if (settingsModalOverlay.classList.contains("is-open")) {
-      renderWeekdayPicker();
-      renderSettingsList();
       renderStatusList();
-      renderColorSources();
     }
   }
 
@@ -1550,7 +1369,7 @@ window.__startGantt = function (BOOT) {
     text.className = "import-preview-text";
     var newFromFile = countMissingItems(state, incoming);
     var localOnly = countMissingItems(incoming, state);
-    text.textContent = "בקובץ יש " + incoming.items.length + " פריטים ו-" + incoming.types.length + " סוגי תוכן. " +
+    text.textContent = "בקובץ יש " + incoming.items.length + " פריטים. " +
       (newFromFile > 0 ? newFromFile + " מהם עדיין לא קיימים בלוח. " : "כולם כבר קיימים בלוח. ") +
       "מיזוג יוסיף אותם וישמור על " + state.items.length + " הפריטים שכבר יש לכם" +
       (localOnly > 0 ? " (מתוכם " + localOnly + " שלא נמצאים בקובץ)." : ".");
@@ -1936,7 +1755,6 @@ window.__startGantt = function (BOOT) {
   var statStoriesEl = document.getElementById("statStories");
   var statDoneEl = document.getElementById("statDone");
   var statDoneLabelEl = document.getElementById("statDoneLabel");
-  var legendEl = document.getElementById("legendRow");
   var progressLegendEl = document.getElementById("progressLegend");
   var hintEl = document.getElementById("hintText");
   var bootGateEl = document.getElementById("bootGate");
@@ -1956,10 +1774,6 @@ window.__startGantt = function (BOOT) {
 
   var settingsModalOverlay = document.getElementById("settingsModalOverlay");
   var settingsModalCloseBtn = document.getElementById("settingsModalCloseBtn");
-  var settingsListEl = document.getElementById("settingsList");
-  var settingsSummaryEl = document.getElementById("settingsSummary");
-  var weekdayPickerEl = document.getElementById("weekdayPicker");
-  var addTypeBtn = document.getElementById("addTypeBtn");
   var openSyncBtn = document.getElementById("openSyncBtn");
   var syncDotEl = document.getElementById("syncDot");
   var syncModalOverlay = document.getElementById("syncModalOverlay");
@@ -1971,7 +1785,6 @@ window.__startGantt = function (BOOT) {
   var importPreviewEl = document.getElementById("importPreview");
   var statusListEl = document.getElementById("statusList");
   var addStatusBtn = document.getElementById("addStatusBtn");
-  var colorSourceRowsEl = document.getElementById("colorSourceRows");
 
   // ---------- modal state ----------
   var dayModal = { dateKey: null, mode: "list", editingId: null };
@@ -1996,34 +1809,10 @@ window.__startGantt = function (BOOT) {
     dayModalOverlay.classList.remove("is-open");
     unlockScrollIfClear();
   }
-  function renderWeekdayPicker() {
-    weekdayPickerEl.innerHTML = "";
-    WEEKDAY_LABELS.forEach(function (label, idx) {
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "weekday-toggle-btn" + (state.activeWeekdays[idx] ? " is-active" : "");
-      btn.textContent = label;
-      btn.setAttribute("aria-pressed", state.activeWeekdays[idx] ? "true" : "false");
-      btn.title = state.activeWeekdays[idx] ? "יום העלאה — לחצו לביטול" : "אין העלאה ביום זה — לחצו להפעלה";
-      btn.addEventListener("click", function () {
-        state.activeWeekdays[idx] = !state.activeWeekdays[idx];
-        persist();
-        renderWeekdayPicker();
-        renderSettingsSummary();
-        renderHeader();
-        renderCalendar();
-      });
-      weekdayPickerEl.appendChild(btn);
-    });
-  }
-
   function openSettingsModal() {
     settingsModalOverlay.classList.add("is-open");
     lockScroll();
-    renderWeekdayPicker();
-    renderSettingsList();
     renderStatusList();
-    renderColorSources();
   }
   function closeSettingsModal() {
     settingsModalOverlay.classList.remove("is-open");
@@ -2145,7 +1934,6 @@ window.__startGantt = function (BOOT) {
 
   function buildDayItemRow(item) {
     if (item.source === "instagram") return buildIgDayItemRow(item);
-    var type = findType(item.typeId);
     var row = document.createElement("div");
     row.className = "day-item-row" + (isItemComplete(item) ? " is-scheduled" : "");
 
@@ -2156,8 +1944,8 @@ window.__startGantt = function (BOOT) {
 
     var dot = document.createElement("span");
     dot.className = "dot";
-    dot.style.background = chipDotColor(item) || "var(--ink-400)";
-    dot.title = state.colorSources.dot === "status" ? statusLabelFor(item) : (type ? type.name : "ללא סיווג");
+    dot.style.background = statusColorFor(item);
+    dot.title = statusLabelFor(item);
 
     var icon = document.createElement("span");
     icon.className = "fmt-icon";
@@ -2167,10 +1955,6 @@ window.__startGantt = function (BOOT) {
     title.className = "day-item-title";
     title.textContent = item.title;
 
-    var typeName = document.createElement("span");
-    typeName.className = "day-item-type";
-    typeName.textContent = type ? type.name : "ללא סיווג";
-
     var go = document.createElement("span");
     go.className = "day-item-go";
     go.innerHTML = ICONS.go;
@@ -2179,7 +1963,6 @@ window.__startGantt = function (BOOT) {
     main.appendChild(icon);
     main.appendChild(title);
     if (window.GanttExt && window.GanttExt.decorateChip) window.GanttExt.decorateChip(main, item);
-    main.appendChild(typeName);
     main.appendChild(go);
     main.addEventListener("click", function () {
       dayModal.mode = "form";
@@ -2287,42 +2070,6 @@ window.__startGantt = function (BOOT) {
     titleInput.maxLength = 80;
     titleInput.value = item.title;
 
-    var typeLabel = document.createElement("label");
-    typeLabel.className = "field-label";
-    typeLabel.textContent = "סוג תוכן";
-    var typeWrap = document.createElement("div");
-    typeWrap.className = "type-picker";
-    var currentTypeId = item.typeId || "";
-    function refreshTypeBtns() {
-      var chips = typeWrap.querySelectorAll(".type-chip");
-      for (var i = 0; i < chips.length; i++) {
-        chips[i].classList.toggle("is-active", chips[i].getAttribute("data-type-id") === currentTypeId);
-      }
-    }
-    var noneChip = document.createElement("button");
-    noneChip.type = "button";
-    noneChip.className = "type-chip";
-    noneChip.setAttribute("data-type-id", "");
-    noneChip.textContent = "ללא סיווג";
-    noneChip.addEventListener("click", function () { currentTypeId = ""; refreshTypeBtns(); });
-    typeWrap.appendChild(noneChip);
-    state.types.forEach(function (t) {
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "type-chip";
-      btn.setAttribute("data-type-id", t.id);
-      var dot = document.createElement("span");
-      dot.className = "dot";
-      dot.style.background = t.color;
-      var label = document.createElement("span");
-      label.textContent = t.name;
-      btn.appendChild(dot);
-      btn.appendChild(label);
-      btn.addEventListener("click", function () { currentTypeId = t.id; refreshTypeBtns(); });
-      typeWrap.appendChild(btn);
-    });
-    refreshTypeBtns();
-
     var actions = document.createElement("div");
     actions.className = "modal-actions";
     var deleteBtn = document.createElement("button");
@@ -2365,7 +2112,6 @@ window.__startGantt = function (BOOT) {
     saveBtn.addEventListener("click", function () {
       var t = titleInput.value.trim();
       item.title = t || item.title;
-      item.typeId = currentTypeId || null;
       item.note = noteInput.value.trim();
       persist();
       dayModal.mode = "list";
@@ -2381,8 +2127,6 @@ window.__startGantt = function (BOOT) {
 
     wrap.appendChild(titleLabel);
     wrap.appendChild(titleInput);
-    wrap.appendChild(typeLabel);
-    wrap.appendChild(typeWrap);
     if (window.GanttExt && window.GanttExt.buildIgAutomation) window.GanttExt.buildIgAutomation(wrap, item);
     wrap.appendChild(actions);
 
@@ -2454,82 +2198,6 @@ window.__startGantt = function (BOOT) {
       formatWrap.appendChild(b);
     });
     refreshFormatBtns();
-
-    var typeLabel = document.createElement("label");
-    typeLabel.className = "field-label";
-    typeLabel.textContent = "סוג תוכן";
-    var typeWrap = document.createElement("div");
-    typeWrap.className = "type-picker";
-    var currentTypeId = editing ? editing.typeId : (currentRecoMap[key] || (state.types[0] ? state.types[0].id : null));
-
-    function refreshTypeBtns() {
-      var chips = typeWrap.querySelectorAll(".type-chip");
-      for (var i = 0; i < chips.length; i++) {
-        chips[i].classList.toggle("is-active", chips[i].getAttribute("data-type-id") === currentTypeId);
-      }
-    }
-    function buildTypeChip(t) {
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "type-chip";
-      btn.setAttribute("data-type-id", t.id);
-      var dot = document.createElement("span");
-      dot.className = "dot";
-      dot.style.background = t.color;
-      var label = document.createElement("span");
-      label.textContent = t.name;
-      btn.appendChild(dot);
-      btn.appendChild(label);
-      btn.addEventListener("click", function () { currentTypeId = t.id; refreshTypeBtns(); });
-      return btn;
-    }
-    state.types.forEach(function (t) { typeWrap.appendChild(buildTypeChip(t)); });
-
-    var addTypeInlineBtn = document.createElement("button");
-    addTypeInlineBtn.type = "button";
-    addTypeInlineBtn.className = "type-chip type-chip-add";
-    addTypeInlineBtn.innerHTML = ICONS.plus + "<span>סוג חדש</span>";
-
-    var newTypeRow = document.createElement("div");
-    newTypeRow.className = "new-type-row";
-    newTypeRow.style.display = "none";
-    var newTypeColor = document.createElement("input");
-    newTypeColor.type = "color";
-    newTypeColor.className = "color-input";
-    newTypeColor.value = PALETTE[state.types.length % PALETTE.length];
-    var newTypeName = document.createElement("input");
-    newTypeName.type = "text";
-    newTypeName.className = "text-input";
-    newTypeName.placeholder = "שם הסוג";
-    newTypeName.maxLength = 24;
-    var newTypeConfirm = document.createElement("button");
-    newTypeConfirm.type = "button";
-    newTypeConfirm.className = "btn btn-primary";
-    newTypeConfirm.textContent = "הוספה";
-    newTypeConfirm.addEventListener("click", function () {
-      var name = newTypeName.value.trim();
-      if (!name) { newTypeName.focus(); return; }
-      var t = { id: uid(), name: name, color: newTypeColor.value };
-      state.types.push(t);
-      persist();
-      var chip = buildTypeChip(t);
-      typeWrap.insertBefore(chip, addTypeInlineBtn);
-      currentTypeId = t.id;
-      refreshTypeBtns();
-      newTypeRow.style.display = "none";
-      newTypeName.value = "";
-    });
-    newTypeRow.appendChild(newTypeColor);
-    newTypeRow.appendChild(newTypeName);
-    newTypeRow.appendChild(newTypeConfirm);
-
-    addTypeInlineBtn.addEventListener("click", function () {
-      var showing = newTypeRow.style.display !== "none";
-      newTypeRow.style.display = showing ? "none" : "flex";
-      if (!showing) newTypeName.focus();
-    });
-    typeWrap.appendChild(addTypeInlineBtn);
-    refreshTypeBtns();
 
     var noteLabel = document.createElement("label");
     noteLabel.className = "field-label";
@@ -2700,7 +2368,6 @@ window.__startGantt = function (BOOT) {
         target.title = title;
         target.date = newDate;
         target.format = currentFormat;
-        target.typeId = currentTypeId;
         target.note = noteInput.value.trim();
         target.caption = captionInput.value.trim();
       } else {
@@ -2709,7 +2376,6 @@ window.__startGantt = function (BOOT) {
           date: newDate,
           title: title,
           format: currentFormat,
-          typeId: currentTypeId,
           note: noteInput.value.trim(),
           caption: captionInput.value.trim(),
           statusFlags: {},
@@ -2757,9 +2423,6 @@ window.__startGantt = function (BOOT) {
     form.appendChild(captionHint);
     form.appendChild(formatLabel);
     form.appendChild(formatWrap);
-    form.appendChild(typeLabel);
-    form.appendChild(typeWrap);
-    form.appendChild(newTypeRow);
     form.appendChild(statusLabel);
     form.appendChild(statusRowsWrap);
     ext = window.GanttExt && window.GanttExt.buildPublishSection ? window.GanttExt.buildPublishSection({
@@ -2777,83 +2440,7 @@ window.__startGantt = function (BOOT) {
     titleInput.focus();
   }
 
-  function renderSettingsList() {
-    settingsListEl.innerHTML = "";
-    state.types.forEach(function (t) {
-      var row = document.createElement("div");
-      row.className = "settings-row";
-
-      var colorInput = document.createElement("input");
-      colorInput.type = "color";
-      colorInput.className = "color-input";
-      colorInput.value = t.color;
-      colorInput.setAttribute("aria-label", "צבע עבור " + t.name);
-      colorInput.addEventListener("input", function () {
-        t.color = colorInput.value;
-        persist();
-        refreshColors();
-      });
-
-      var nameInput = document.createElement("input");
-      nameInput.type = "text";
-      nameInput.className = "text-input";
-      nameInput.maxLength = 24;
-      nameInput.value = t.name;
-      nameInput.addEventListener("change", function () {
-        var v = nameInput.value.trim();
-        t.name = v || t.name;
-        nameInput.value = t.name;
-        persist();
-        refreshColors();
-      });
-
-      var quotaInput = document.createElement("input");
-      quotaInput.type = "number";
-      quotaInput.className = "type-quota-input";
-      quotaInput.min = "0";
-      quotaInput.step = "1";
-      quotaInput.value = t.weeklyTarget || 0;
-      quotaInput.setAttribute("aria-label", "כמות בשבוע עבור " + t.name);
-      quotaInput.addEventListener("change", function () {
-        var v = Math.max(0, Math.round(Number(quotaInput.value) || 0));
-        t.weeklyTarget = v;
-        quotaInput.value = v;
-        persist();
-        renderSettingsSummary();
-        renderHeader();
-        renderCalendar();
-      });
-
-      var delBtn = document.createElement("button");
-      delBtn.type = "button";
-      delBtn.className = "icon-btn small danger";
-      delBtn.innerHTML = ICONS.trash;
-      delBtn.setAttribute("aria-label", "מחיקת סוג " + t.name);
-      delBtn.title = "מחיקת סוג";
-      delBtn.addEventListener("click", function () {
-        if (delBtn.classList.contains("confirm")) {
-          state.types = state.types.filter(function (x) { return x.id !== t.id; });
-          state.items.forEach(function (it) { if (it.typeId === t.id) it.typeId = null; });
-          persist();
-          renderSettingsList();
-          renderHeader();
-          renderCalendar();
-        } else {
-          delBtn.classList.add("confirm");
-          setTimeout(function () { delBtn.classList.remove("confirm"); }, 3000);
-        }
-      });
-
-      row.appendChild(colorInput);
-      row.appendChild(nameInput);
-      row.appendChild(quotaInput);
-      row.appendChild(delBtn);
-      settingsListEl.appendChild(row);
-    });
-    renderSettingsSummary();
-  }
-
-  // refresh everything that can be tinted by a status/type color change
+  // refresh everything that can be tinted by a status color change
   function refreshColors() {
     renderHeader();
     renderCalendar();
@@ -2981,55 +2568,6 @@ window.__startGantt = function (BOOT) {
     });
   }
 
-  var COLOR_SOURCE_TARGETS = [
-    { key: "chip", label: "צבע המלבן של פיסת התוכן" },
-    { key: "dot", label: "העיגול הקטן שבתוך המלבן" }
-  ];
-  var COLOR_SOURCE_OPTIONS = [
-    { value: "type", label: "סוג תוכן" },
-    { value: "status", label: "סטטוס" }
-  ];
-
-  function renderColorSources() {
-    colorSourceRowsEl.innerHTML = "";
-    COLOR_SOURCE_TARGETS.forEach(function (target) {
-      var row = document.createElement("div");
-      row.className = "color-source-row";
-      var name = document.createElement("span");
-      name.className = "color-source-name";
-      name.textContent = target.label;
-      var seg = document.createElement("div");
-      seg.className = "color-source-seg";
-      COLOR_SOURCE_OPTIONS.forEach(function (opt) {
-        var btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = state.colorSources[target.key] === opt.value ? "is-active" : "";
-        btn.textContent = opt.label;
-        btn.setAttribute("aria-pressed", state.colorSources[target.key] === opt.value ? "true" : "false");
-        btn.addEventListener("click", function () {
-          state.colorSources[target.key] = opt.value;
-          persist();
-          renderColorSources();
-          refreshColors();
-        });
-        seg.appendChild(btn);
-      });
-      row.appendChild(name);
-      row.appendChild(seg);
-      colorSourceRowsEl.appendChild(row);
-    });
-  }
-
-  function renderSettingsSummary() {
-    var total = state.types.reduce(function (s, t) { return s + (t.weeklyTarget || 0); }, 0);
-    var activeDays = getActiveWeekdaySet().size;
-    if (total <= 0) {
-      settingsSummaryEl.textContent = "עדיין לא נקבעו כמויות — הלוח לא ימליץ עד שתגדירו לפחות סוג אחד.";
-    } else {
-      settingsSummaryEl.textContent = "סה\"כ לשבוע: " + total + " מתוך " + activeDays + " ימי העלאה שסימנתם" + (total === activeDays ? " ✓" : "") + ".";
-    }
-  }
-
   function renderHeader() {
     monthLabelEl.textContent = MONTH_NAMES[view.month] + " " + view.year;
 
@@ -3048,26 +2586,6 @@ window.__startGantt = function (BOOT) {
     statDoneEl.textContent = done + "/" + monthItems.length;
     var lastStatus = state.statuses[state.statuses.length - 1];
     statDoneLabelEl.textContent = lastStatus ? lastStatus.name : "הושלמו";
-
-    legendEl.innerHTML = "";
-    state.types.forEach(function (t) {
-      var el = document.createElement("span");
-      el.className = "legend-item";
-      var dot = document.createElement("span");
-      dot.className = "dot";
-      dot.style.background = t.color;
-      var name = document.createElement("span");
-      name.textContent = t.name;
-      el.appendChild(dot);
-      el.appendChild(name);
-      legendEl.appendChild(el);
-    });
-    var manage = document.createElement("button");
-    manage.type = "button";
-    manage.className = "legend-manage";
-    manage.innerHTML = ICONS.plus + "<span>הגדרות</span>";
-    manage.addEventListener("click", openSettingsModal);
-    legendEl.appendChild(manage);
 
     progressLegendEl.innerHTML = "";
     [{ name: state.statusNone.name, color: state.statusNone.color }].concat(state.statuses).forEach(function (st) {
@@ -3118,25 +2636,15 @@ window.__startGantt = function (BOOT) {
 
   function buildChip(item) {
     if (item.source === "instagram") return buildIgChip(item);
-    var type = findType(item.typeId);
     var chip = document.createElement("button");
     chip.type = "button";
     chip.className = "chip chip-draggable" + (isItemComplete(item) ? " is-scheduled" : "");
-    var textColor = null;
-    var bg = chipBgColor(item);
-    if (bg) {
-      textColor = textColorForBg(bg);
-      chip.style.background = bg;
-      chip.style.borderColor = "transparent";
-      chip.style.color = textColor;
-    }
     var pdot = document.createElement("span");
     pdot.className = "progress-dot";
-    pdot.style.background = chipDotColor(item) || "var(--ink-400)";
+    pdot.style.background = statusColorFor(item);
     var icon = document.createElement("span");
     icon.className = "fmt-icon";
     icon.innerHTML = ICONS[item.format] || ICONS.post;
-    if (textColor) icon.style.color = textColor;
     var title = document.createElement("span");
     title.className = "chip-title";
     title.textContent = item.title;
@@ -3145,7 +2653,7 @@ window.__startGantt = function (BOOT) {
     chip.appendChild(title);
     if (window.GanttExt && window.GanttExt.decorateChip) window.GanttExt.decorateChip(chip, item);
     var statusBits = state.statuses.filter(function (st) { return itemHasStatus(item, st.id); }).map(function (st) { return st.name; });
-    chip.title = (type ? type.name : "ללא סיווג") + " · " + (FORMAT_LABELS[item.format] || "פוסט") + " · " + (statusBits.length ? statusBits.join(" · ") : state.statusNone.name);
+    chip.title = (FORMAT_LABELS[item.format] || "פוסט") + " · " + (statusBits.length ? statusBits.join(" · ") : state.statusNone.name);
     chip.addEventListener("click", function (e) {
       if (suppressNextChipClick) { suppressNextChipClick = false; return; }
       e.stopPropagation();
@@ -3166,7 +2674,6 @@ window.__startGantt = function (BOOT) {
     var daysInPrevMonth = new Date(year, month, 0).getDate();
     var totalCells = Math.ceil((firstWeekday + daysInMonth) / 7) * 7;
     var tKey = todayKey();
-    currentRecoMap = computeMonthRecommendations(year, month);
 
     for (var i = 0; i < totalCells; i++) {
       var dayNum = i - firstWeekday + 1;
@@ -3195,24 +2702,6 @@ window.__startGantt = function (BOOT) {
       chipsWrap.className = "chips-wrap";
       var dayItems = state.items.filter(function (it) { return it.date === key; })
         .sort(function (a, b) { return (a.createdAt || 0) - (b.createdAt || 0); });
-
-      if (!otherMonth && dayItems.length === 0 && currentRecoMap[key]) {
-        var recoType = findType(currentRecoMap[key]);
-        if (recoType) {
-          var recoWrap = document.createElement("span");
-          recoWrap.className = "day-reco";
-          recoWrap.title = "המלצה להיום: " + recoType.name;
-          var recoDot = document.createElement("span");
-          recoDot.className = "day-reco-dot";
-          recoDot.style.borderColor = recoType.color;
-          var recoLabel = document.createElement("span");
-          recoLabel.className = "day-reco-label";
-          recoLabel.textContent = recoType.name;
-          recoWrap.appendChild(recoDot);
-          recoWrap.appendChild(recoLabel);
-          numWrap.appendChild(recoWrap);
-        }
-      }
 
       var visible = dayItems.slice(0, 3);
       visible.forEach(function (it) { chipsWrap.appendChild(buildChip(it)); });
@@ -3287,7 +2776,6 @@ window.__startGantt = function (BOOT) {
       row.appendChild(empty);
     }
     ready.forEach(function (it) {
-      var type = findType(it.typeId);
       var card = document.createElement("button");
       card.type = "button";
       card.className = "ready-card chip-draggable" + (trayPick === it.id ? " is-picked" : "");
@@ -3308,12 +2796,8 @@ window.__startGantt = function (BOOT) {
       title.textContent = (num ? num[1] + "- " : "") + it.title;
       var meta = document.createElement("span");
       meta.className = "ready-meta";
-      var dot = document.createElement("span");
-      dot.className = "ready-dot";
-      dot.style.background = type ? type.color : "var(--ink-400)";
       var vid = (it.mediaFiles || []).filter(function (m) { return m.kind === "video"; })[0];
-      meta.appendChild(dot);
-      meta.appendChild(document.createTextNode((type ? type.name : "ללא סיווג") + (it.topic ? " · " + it.topic : "") + (vid && vid.duration ? " · " + fmtDuration(vid.duration) : "")));
+      meta.textContent = [it.topic, vid && vid.duration ? fmtDuration(vid.duration) : ""].filter(Boolean).join(" · ");
       body.appendChild(title);
       body.appendChild(meta);
       var coverTag = document.createElement("span");
@@ -3351,13 +2835,6 @@ window.__startGantt = function (BOOT) {
     renderHeader(); renderCalendar();
   });
   openSettingsBtn.addEventListener("click", openSettingsModal);
-  addTypeBtn.addEventListener("click", function () {
-    var t = { id: uid(), name: "סוג חדש", color: PALETTE[state.types.length % PALETTE.length] };
-    state.types.push(t);
-    persist();
-    renderSettingsList();
-    renderHeader();
-  });
   addStatusBtn.addEventListener("click", function () {
     var st = { id: uid(), name: "סטטוס חדש", color: STATUS_PALETTE[state.statuses.length % STATUS_PALETTE.length] };
     state.statuses.push(st);

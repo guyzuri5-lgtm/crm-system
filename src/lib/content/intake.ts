@@ -65,8 +65,6 @@ export async function intakeContext() {
     if (t) topics.set(t, (topics.get(t) || 0) + 1);
   }
   return {
-    types: (board.types || []).map((t: any) => ({ id: t.id, name: t.name, weeklyTarget: Number(t.weeklyTarget) || 0 })),
-    activeWeekdays: board.activeWeekdays,
     voice,
     automationKeywords: autos.filter((a) => a.keyword).map((a) => ({ name: a.name, keyword: a.keyword, status: a.status })),
     topics: [...topics.entries()].sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count })),
@@ -141,9 +139,6 @@ export async function createIntakeItem(b: Record<string, any>) {
         media: (await mediaRows(existing.id)).map(mediaPublic) };
     }
 
-    const board = await loadBoard();
-    const typeId = (board.types || []).some((t: any) => t.id === b.typeId) ? String(b.typeId) : null;
-
     const id = randomUUID();
     const keyword = str(b.keyword, 40);
     const topic = str(b.topic, 40);
@@ -152,7 +147,7 @@ export async function createIntakeItem(b: Record<string, any>) {
     const ytTags = youtubeTags(b.youtubeTags);
     const item: Record<string, any> = {
       id, date: null, time: /^\d{2}:\d{2}$/.test(String(b.time)) ? b.time : "18:00",
-      title, caption: str(b.caption, 2200), format: "reel", typeId, ...(topic ? { topic } : {}),
+      title, caption: str(b.caption, 2200), format: "reel", ...(topic ? { topic } : {}),
       note: str(b.note, 4000),
       filmed: true, edited: true, scheduled: false,
       statusFlags: { filmed: true, edited: true, scheduled: false },

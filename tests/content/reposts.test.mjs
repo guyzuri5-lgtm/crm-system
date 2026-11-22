@@ -33,7 +33,7 @@ test("over 1000 for an original, over 2000 for a repost; exactly the threshold i
 test("the copy keeps the content and drops the old post's state", () => {
   const src = {
     id: "old", date: "2026-10-22", time: "18:00", title: "כובע", caption: "כיתוב", format: "reel", topic: "צ'אקרות",
-    platforms: ["instagram", "youtube"], platformOptions: { youtube: { title: "יוטיוב" } }, typeId: "edu", note: "",
+    platforms: ["instagram", "youtube"], platformOptions: { youtube: { title: "יוטיוב" } }, note: "",
     autoplan: { at: "x" }, statusFlags: { scheduled: true }, scheduled: true, ig: { id: 1 }, source: "ig", pieceNo: 26,
     intake: { source: "folder", sourceKey: "dir:26- כובע", file: "26.mp4", keyword: "כובע" }, createdAt: 1,
   };

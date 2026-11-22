@@ -4,8 +4,8 @@ import "server-only";
 import { contentDb, must, nowIso } from "./db";
 
 /**
- * הלוח: פריטים, סוגים, סטטוסים, ימי העלאה — באותו מבנה שהגאנט תמיד השתמש בו
- * ({items, types, activeWeekdays, statuses, ...}), עכשיו ב-Supabase.
+ * הלוח: פריטים וסטטוסים — באותו מבנה שהגאנט תמיד השתמש בו
+ * ({items, statuses, ...}), עכשיו ב-Supabase.
  *
  * שמירה היא של הלוח כולו (המודל של persist() בגאנט), עם מספר גרסה כדי ששני
  * חלונות לא ידרסו זה את זה בשקט. מחיקה רכה. לוח ריק שמגיע מעל לוח מלא נחסם —
@@ -15,14 +15,9 @@ import { contentDb, must, nowIso } from "./db";
 /** שדות שהשרת מחזיק ומציג, ושמירה מהדפדפן לעולם לא דורסת */
 export const SERVER_KEYS = ["pub", "targets", "automation", "mediaFiles", "cover"];
 
-const DEFAULT_TYPES = [
-  { id: "edu", name: "חינוכי", color: "#2a78d6" },
-  { id: "ent", name: "בידור", color: "#eb6834" },
-  { id: "bts", name: "מאחורי הקלעים", color: "#1baf7a" },
-  { id: "insp", name: "השראה", color: "#eda100" },
-  { id: "pers", name: "אישי", color: "#e87ba4" },
-  { id: "promo", name: "מכירתי", color: "#008300" },
-];
+/** שדות שהוסרו מהלוח (סוגי תוכן, ימי העלאה, מקור הצבעים): לא נשמרים, ונמחקים מנתונים ישנים בשמירה הבאה */
+const DROPPED_ITEM_KEYS = ["typeId"];
+const DROPPED_BOARD_KEYS = ["types", "activeWeekdays", "colorSources"];
 
 export class Conflict extends Error {
   constructor(public revision: number) {
@@ -35,7 +30,7 @@ type Board = Record<string, any>;
 
 function cleanItem(it: Record<string, any>) {
   const o: Record<string, any> = {};
-  for (const [k, v] of Object.entries(it)) if (!SERVER_KEYS.includes(k)) o[k] = v;
+  for (const [k, v] of Object.entries(it)) if (!SERVER_KEYS.includes(k) && !DROPPED_ITEM_KEYS.includes(k)) o[k] = v;
   return o;
 }
 
@@ -60,11 +55,15 @@ async function liveItems(): Promise<Record<string, any>[]> {
 export async function loadBoard(): Promise<Board> {
   const row = await boardRow();
   const data = (row.data || {}) as Board;
-  const items = (await liveItems()).map((r) => r.data);
+  const items = (await liveItems()).map((r) => {
+    const it = { ...(r.data || {}) };
+    for (const k of DROPPED_ITEM_KEYS) delete it[k];
+    return it;
+  });
+  const extra = { ...(data.extra || {}) };
+  for (const k of DROPPED_BOARD_KEYS) delete extra[k];
   const state: Board = {
-    ...(data.extra || {}),
-    types: Array.isArray(data.types) ? data.types : DEFAULT_TYPES.map((t) => ({ ...t })),
-    activeWeekdays: Array.isArray(data.activeWeekdays) && data.activeWeekdays.length === 7 ? data.activeWeekdays : Array(7).fill(true),
+    ...extra,
     items,
     revision: Number(row.revision) || 0,
   };
@@ -86,7 +85,7 @@ async function protectedIds(): Promise<Set<string>> {
 
 /** מחליף את הלוח ב-payload. מחזיר את הגרסה החדשה ואת מה שלא נמחק כי הוא מוגן. */
 export async function saveBoard(payload: Board, opts: { allowEmpty?: boolean } = {}) {
-  if (!payload || !Array.isArray(payload.items) || !Array.isArray(payload.types)) throw new Refused("מבנה לא תקין: חסרים items או types");
+  if (!payload || !Array.isArray(payload.items)) throw new Refused("מבנה לא תקין: חסרים items");
   const row = await boardRow();
   const rev = Number(row.revision) || 0;
   let sent: number | null = null;
@@ -104,16 +103,12 @@ export async function saveBoard(payload: Board, opts: { allowEmpty?: boolean } =
 
   // תופסים את הגרסה *לפני* שכותבים: שני חלונות שמגיעים יחד — רק אחד עובר
   const extra: Board = {};
-  for (const [k, v] of Object.entries(payload)) if (!["items", "types", "activeWeekdays", "revision"].includes(k)) extra[k] = v;
+  for (const [k, v] of Object.entries(payload)) if (!["items", "revision", ...DROPPED_BOARD_KEYS].includes(k)) extra[k] = v;
   const claimed = must(
     await contentDb().from("content_board")
       .update({
         revision: rev + 1,
-        data: {
-          types: payload.types,
-          activeWeekdays: Array.isArray(payload.activeWeekdays) && payload.activeWeekdays.length === 7 ? payload.activeWeekdays : Array(7).fill(true),
-          extra,
-        },
+        data: { extra },
         updated_at: nowIso(),
       })
       .eq("id", true).eq("revision", rev).select("revision"),
@@ -157,6 +152,5 @@ export function parseImport(blob: unknown): Board {
   }
   if (b && typeof b === "object" && b.state && typeof b.state === "object") b = b.state;
   if (!b || typeof b !== "object" || !Array.isArray(b.items)) throw new Refused("הקובץ לא נראה כמו ייצוא של הגאנט (לא נמצאה רשימת items).");
-  if (!Array.isArray(b.types)) b.types = [];
   return b;
 }
