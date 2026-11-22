@@ -112,11 +112,9 @@
     .stat-tile:nth-child(n+3) { border-top: 1px solid var(--line); }
   }
 
-  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.78rem; color: var(--ink-600); }
 
   .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink-900) 14%, transparent); }
 
-  .progress-legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 4px 0 0; }
   .hint { font-size: 0.78rem; color: var(--ink-500); margin-top: 2px; }
 
   /* ---------- calendar ---------- */
@@ -531,7 +529,6 @@
       <div class="stat-tile"><span class="stat-value" id="statDone">0/0</span><span class="stat-label" id="statDoneLabel">תוזמנו</span></div>
     </div>
 
-    <p class="progress-legend" id="progressLegend"></p>
     <p class="hint" id="hintText">טיפ: לחצו על כל יום בלוח כדי לשבץ בו תוכן חדש.</p>
     </div>
   </header>
@@ -1755,7 +1752,6 @@ window.__startGantt = function (BOOT) {
   var statStoriesEl = document.getElementById("statStories");
   var statDoneEl = document.getElementById("statDone");
   var statDoneLabelEl = document.getElementById("statDoneLabel");
-  var progressLegendEl = document.getElementById("progressLegend");
   var hintEl = document.getElementById("hintText");
   var bootGateEl = document.getElementById("bootGate");
   var syncLabelEl = document.getElementById("syncLabel");
@@ -2586,20 +2582,6 @@ window.__startGantt = function (BOOT) {
     statDoneEl.textContent = done + "/" + monthItems.length;
     var lastStatus = state.statuses[state.statuses.length - 1];
     statDoneLabelEl.textContent = lastStatus ? lastStatus.name : "הושלמו";
-
-    progressLegendEl.innerHTML = "";
-    [{ name: state.statusNone.name, color: state.statusNone.color }].concat(state.statuses).forEach(function (st) {
-      var el = document.createElement("span");
-      el.className = "legend-item";
-      var dot = document.createElement("span");
-      dot.className = "dot";
-      dot.style.background = st.color;
-      var name = document.createElement("span");
-      name.textContent = st.name;
-      el.appendChild(dot);
-      el.appendChild(name);
-      progressLegendEl.appendChild(el);
-    });
 
     hintEl.style.display = state.items.length === 0 ? "block" : "none";
     updateSyncLabel();
