@@ -7,7 +7,7 @@ import { bumpRevision } from "./intake";
 import { confirmAction } from "./actions";
 import { planSchedule, reschedulePost } from "./publishing";
 import { getAutomation, planLink, validate as validateAutomation } from "./automations";
-import { addDays, AUTO_SWAP_HOURS, DEFAULT_TIME, guardVerdict, HORIZON_DAYS, hoursUntil, localNow, LOCK_HOURS, MIN_LEAD_MINUTES, normalizeRules, planLayout, wantsAutomation, type Movable, type Placed } from "./pure/autoplan";
+import { addDays, DEFAULT_TIME, guardVerdict, HORIZON_DAYS, hoursUntil, localNow, LOCK_HOURS, MIN_LEAD_MINUTES, normalizeRules, planLayout, wantsAutomation, type Movable, type Placed } from "./pure/autoplan";
 import { zonedToUtc } from "./pure/platforms";
 
 /**
@@ -17,8 +17,9 @@ import { zonedToUtc } from "./pure/platforms";
  *  2. מתזמן ב-Zernio כל סרטון מהתיקייה שיש לו יום — גם כזה שגיא גרר בעצמו —
  *     חוץ מפוסט שמבקש תגובות ועוד אין לו אוטומציה. אותו פוסט מסומן בכתום
  *     בגאנט, ומתוזמן בריצה שאחרי שגיא בוחר לו אוטומציה. 48 שעות לפני יש התראה
- *     (בגאנט, admin.js); 24 שעות לפני ועדיין אין — הוא חוזר לשורה ומשתבץ מחדש
- *     ליום רחוק יותר, ופוסט מוכן נכנס למשבצת שהתפנתה;
+ *     (בגאנט, admin.js); 24 שעות לפני ועדיין אין — הוא יוצא מהלוח לחלונית
+ *     "מחכים לאוטומציה", ופוסט מוכן נכנס למשבצת שהתפנתה. סרטון כזה שעוד לא
+ *     שובץ לא משתבץ בכלל עד שגיא משייך לו אוטומציה (22.11.2026);
  *  3. אחרי התזמון מקשר את האוטומציה שגיא בחר (לעולם לא בוחר אחת בעצמו).
  *
  * התזמון עובר באותו מסלול כמו "אשר ותזמן" (planSchedule → confirmAction), עם
@@ -86,9 +87,9 @@ export async function runAutoplan(alert: Alert, log: string[], deadline: number)
   const automated = (r: { id: string; data: any }) => Boolean(r.data.automationChoice) || links.has(r.id);
   const needsAuto = (r: { id: string; data: any }) => wantsAutomation(r.data) && !automated(r);
 
-  // ── 0. פוסט בלי אוטומציה, 24 שעות לפני: חוזר לשורה, והשיבוץ ימלא את המשבצת ──
-  const toMove = items.filter((r) => r.data.intake && r.data.date && !hasPost(r.id) && !cancelledByGuy(r) && needsAuto(r)
-    && hoursUntil(r.data.date, r.data.time, now) < AUTO_SWAP_HOURS);
+  // ── 0. פוסט בלי אוטומציה יוצא מהלוח מיד לחלונית "מחכים לאוטומציה" (גיא, 22.11.2026;
+  // קודם זה קרה רק 24 שעות לפני), והשיבוץ ימלא את המשבצת. הגאנט עושה אותו דבר כשהוא נפתח ──
+  const toMove = items.filter((r) => r.data.intake && r.data.date && !hasPost(r.id) && !cancelledByGuy(r) && needsAuto(r));
   if (toMove.length) {
     await bumpRevision();
     const t = nowIso();
@@ -100,7 +101,7 @@ export async function runAutoplan(alert: Alert, log: string[], deadline: number)
       if (!done.length) continue;
       r.data = data;
       report.moved.push({ id: r.id, title: data.title, from, at: Date.now() / 1000 });
-      alert("warn", `'${data.title}' הוזז מ-${from}: לא חוברה לו אוטומציה 24 שעות לפני.`, r.id);
+      alert("warn", `'${data.title}' הוצא מ-${from}: אין לו אוטומציה. הוא מחכה בחלונית "מחכים לאוטומציה".`, r.id);
     }
     log.push(`autoplan: moved ${toMove.length} without automation`);
   }
@@ -136,8 +137,10 @@ export async function runAutoplan(alert: Alert, log: string[], deadline: number)
     if (canMove(r)) movable.push({ id: r.id, date: d.date, time: d.time, topic: d.topic, createdAt: d.createdAt, auto, needsAuto: needsAuto(r) });
     else fixed.push({ id: r.id, date: d.date, time: d.time, topic: d.topic, auto });
   }
+  // סרטון שמבקש תגובות ועוד אין לו אוטומציה לא משתבץ בכלל (גיא, 22.11.2026): הוא
+  // מחכה בחלונית "מחכים לאוטומציה" שמעל הגאנט, ונכנס לכאן רק אחרי שגיא משייך לו אחת
   const pool = items
-    .filter((r) => r.data.intake && !r.data.date && media.has(r.id) && !hasPost(r.id))
+    .filter((r) => r.data.intake && !r.data.date && media.has(r.id) && !hasPost(r.id) && !needsAuto(r))
     .map((r) => ({ id: r.id, topic: r.data.topic, createdAt: r.data.createdAt,
       auto: automated(r) || wantsAutomation(r.data), needsAuto: needsAuto(r) }));
   const layout = planLayout(fixed, movable, pool, now, rules);
@@ -325,7 +328,7 @@ export async function guardAutomations(alert: Alert, log: string[]) {
 
 /**
  * מבטל את הפוסט ב-Zernio, מנתק קישורים שלא נוצרו, ומחזיר סרטון מהתיקייה
- * לשורה "מוכנים לתזמון" — בלי האוטומציה שנבחרה, כדי שלא ייכנס ללולאה של
+ * לחלונית "מחכים לאוטומציה" — בלי האוטומציה שנבחרה, כדי שלא ייכנס ללולאה של
  * תזמון-כישלון-ביטול. מעכשיו הוא "חסרה אוטומציה" עד שגיא בוחר שוב.
  */
 async function pullBack(itemId: string, reason: string, alert: Alert, log: string[], into?: AutoplanReport) {
@@ -357,7 +360,7 @@ async function pullBack(itemId: string, reason: string, alert: Alert, log: strin
     delete data.automationChoice;
     must(await contentDb().from("content_items").update({ data, date: null, updated_at: nowIso() }).eq("id", itemId), "pull back");
   }
-  alert("error", `'${title}' בוטל ב-Zernio ולא יעלה: ${reason}.${item?.data?.intake ? " הוא חזר לשורה \"מוכנים לתזמון\" — בחר לו אוטומציה, והוא ישובץ מחדש." : ""}`, itemId);
+  alert("error", `'${title}' בוטל ב-Zernio ולא יעלה: ${reason}.${item?.data?.intake ? " הוא חזר לחלונית \"מחכים לאוטומציה\" — שייך לו אוטומציה, והוא ישובץ מחדש." : ""}`, itemId);
   log.push(`guard: pulled back ${itemId.slice(0, 8)}`);
   // ההתראה של העובד מתחלפת כל דקה; הרשימה הזו נשמרת 24 שעות ומוצגת בגאנט
   const entry = { id: itemId, title, from: item?.data?.date ? `${item.data.date} ${item.data.time || ""}`.trim() : "", at: Date.now() / 1000, reason };

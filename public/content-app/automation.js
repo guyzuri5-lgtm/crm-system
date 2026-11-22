@@ -102,6 +102,101 @@
     }).catch(function (e) { box.innerHTML = ""; box.appendChild(el("p", "val-block is-error", "בנק האוטומציות לא נטען: " + e.message)); });
   }
 
+  // ---------- "מחכים לאוטומציה": החלונית מעל הגאנט (גיא, 22.11.2026) ----------
+  // סרטון מהתיקייה שמבקש תגובות ועוד אין לו אוטומציה לא נכנס ל"מוכנים לתזמון"
+  // ולא משתבץ בלוח (גם השרת לא משבץ אותו, autoplan.ts). כאן משייכים לו אוטומציה
+  // מהבנק, ורק אז הוא עובר לשורה ומשם לגאנט. המערכת אף פעם לא בוחרת לבד:
+  // ההתאמה למילה מהסרטון רק מסומנת מראש, והשיוך הוא הלחיצה של גיא.
+  var waitPick = {};
+  // גם סרטון שכבר יושב ביום (הכתומים) עולה לחלונית: היום שלו מתבטל, ואחרי
+  // השיוך התזמון האוטומטי משבץ אותו מחדש. רק מה שעוד לא נשלח ל-Zernio —
+  // פוסט מתוזמן נשאר, והשומר (autoplan.ts) מטפל בו. אותו כלל רץ גם בשרת.
+  function liftable(it) {
+    return !!(it.date && it.intake && X.needsAutomation(it) && !(it.pub && it.pub.zernioPostId && it.pub.status !== "cancelled"));
+  }
+  X.hooks.push(function (G) {
+    var lifted = G.state.items.filter(liftable);
+    if (!lifted.length) return;
+    lifted.forEach(function (it) { it.date = null; });
+    G.persist();
+    G.rerenderCalendar();
+    G.showToast(lifted.length === 1
+      ? "'" + lifted[0].title + "' הוצא מהגאנט לחלונית \"מחכים לאוטומציה\": אין לו אוטומציה."
+      : lifted.length + " סרטונים בלי אוטומציה הוצאו מהגאנט לחלונית \"מחכים לאוטומציה\".");
+  });
+  X.renderAutoWait = function (host) {
+    // הרינדור הראשון של הלוח קורה לפני X.boot, ולכן window.GANTT ולא רק X.G
+    var G = X.G || window.GANTT;
+    if (!host || !G || !X.needsAutomation) return;
+    var list = G.state.items.filter(function (it) { return !it.date && it.intake && X.needsAutomation(it); })
+      .sort(function (a, b) { return (a.createdAt || 0) - (b.createdAt || 0); });
+    host.innerHTML = "";
+    host.hidden = !list.length;
+    if (!list.length) return;
+    var head = el("div", "ready-tray-head");
+    var h = el("strong", null, "מחכים לאוטומציה");
+    h.appendChild(el("span", "ready-tray-count", "(" + list.length + ")"));
+    head.appendChild(h);
+    head.appendChild(el("span", "ready-tray-hint", "בסרטונים האלה יש קריאה לתגובה. הם לא ישובצו בגאנט עד שתשייך לכל אחד אוטומציה."));
+    host.appendChild(head);
+    var row = el("div", "ready-tray-cards");
+    host.appendChild(row);
+    list.forEach(function (it) {
+      var card = el("div", "ready-card auto-wait-card");
+      var thumb = el("span", "ready-thumb");
+      if (it.cover && it.cover.url) {
+        var img = el("img"); img.src = it.cover.url; img.alt = ""; img.loading = "lazy";
+        thumb.appendChild(img);
+      } else thumb.innerHTML = BOLT;
+      card.appendChild(thumb);
+      var body = el("span", "ready-body");
+      var num = /^(\d+)\s*-/.exec(it.intake.file || "");
+      body.appendChild(el("span", "ready-title", (num ? num[1] + "- " : "") + it.title));
+      var keyword = it.intake.keyword ? String(it.intake.keyword).trim() : "";
+      body.appendChild(el("span", "ready-meta", keyword ? "מילת המפתח: \"" + keyword + "\"" : "קריאה לתגובה בכיתוב"));
+      var pick = el("span", "auto-wait-pick");
+      pick.appendChild(el("span", "ready-meta", "טוען אוטומציות…"));
+      body.appendChild(pick);
+      card.appendChild(body);
+      card.title = it.title;
+      row.appendChild(card);
+
+      loadBank().then(function (bank) {
+        pick.innerHTML = "";
+        var usable = bank.filter(function (a) { return a.status !== "paused"; });
+        var suggested = keyword ? usable.filter(function (a) { return a.keyword && a.keyword.trim().toLowerCase() === keyword.toLowerCase(); })[0] : null;
+        var sel = el("select", "text-input auto-wait-select");
+        sel.setAttribute("aria-label", "אוטומציה לסרטון " + it.title);
+        var none = el("option", null, "בחר אוטומציה…"); none.value = ""; sel.appendChild(none);
+        usable.forEach(function (a) {
+          var o = el("option", null, (a.name || "אוטומציה") + " · " + (a.trigger_mode === "any" ? "כל תגובה" : "\"" + (a.keyword || "") + "\"") +
+            (suggested && a.id === suggested.id ? " (מתאים)" : ""));
+          o.value = a.id; sel.appendChild(o);
+        });
+        var cur = waitPick[it.id] !== undefined ? waitPick[it.id] : (suggested ? suggested.id : "");
+        if (cur && !usable.some(function (a) { return a.id === cur; })) cur = "";
+        sel.value = cur;
+        var go = X.btn("שייך", "btn-primary btn-small", function () {
+          if (!sel.value) return;
+          var item = G.findItem(it.id);
+          if (!item) return;
+          item.automationChoice = sel.value;
+          delete waitPick[it.id];
+          G.persist();
+          G.rerenderCalendar();
+          G.showToast("האוטומציה שויכה. '" + item.title + "' עבר ל\"מוכנים לתזמון\"" +
+            (X.autoplanOn ? " והתזמון האוטומטי ישבץ אותו בדקות הקרובות." : " — גרור אותו ליום בלוח."));
+        });
+        go.disabled = !sel.value;
+        sel.addEventListener("change", function () { waitPick[it.id] = sel.value; go.disabled = !sel.value; });
+        pick.appendChild(sel);
+        pick.appendChild(go);
+        if (!usable.length || (keyword && !suggested))
+          pick.appendChild(X.btn(keyword && !suggested ? "צור בבנק" : "לבנק", "btn-ghost btn-small", function () { openBank(); }));
+      }).catch(function (e) { pick.innerHTML = ""; pick.appendChild(el("span", "ready-meta", "הבנק לא נטען: " + e.message)); });
+    });
+  };
+
   X.renderAutomationSlot = function (host, ctx, draft) {
     host.innerHTML = "";
     var it = ctx.editing && X.G.findItem(ctx.editing.id);

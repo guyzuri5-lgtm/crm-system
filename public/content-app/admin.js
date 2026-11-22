@@ -275,8 +275,8 @@
     ((ap && ap.last && ap.last.moved) || []).forEach(function (m) {
       if (Date.now() / 1000 - m.at > 86400 || !X.G.findItem(m.id)) return;
       list.push(m.reason
-        ? { level: "error", itemId: m.id, text: "'" + m.title + "'" + (m.from ? " (" + m.from + ")" : "") + " בוטל ב-Zernio ולא יעלה: " + m.reason + ". בחר לו אוטומציה, והוא ישובץ מחדש." }
-        : { level: "warn", itemId: m.id, text: "'" + m.title + "' הוזז מ-" + m.from + " כי לא חוברה לו אוטומציה בזמן. הוא שובץ מחדש ליום אחר." });
+        ? { level: "error", itemId: m.id, text: "'" + m.title + "'" + (m.from ? " (" + m.from + ")" : "") + " בוטל ב-Zernio ולא יעלה: " + m.reason + ". הוא מחכה בחלונית \"מחכים לאוטומציה\" — שייך לו אוטומציה, והוא ישובץ מחדש." }
+        : { level: "warn", itemId: m.id, text: "'" + m.title + "' הוצא מ-" + m.from + " כי לא חוברה לו אוטומציה בזמן. הוא מחכה בחלונית \"מחכים לאוטומציה\", וישובץ מחדש אחרי שתשייך לו אחת." });
     });
     X.G.state.items.forEach(function (it) {
       if (!ap || !ap.on || !it.date || !X.needsAutomation || !X.needsAutomation(it)) return;
@@ -286,13 +286,19 @@
       var when = deadline.toLocaleDateString("he-IL", { weekday: "short", day: "numeric", month: "numeric" }) + " " +
         deadline.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
       list.push({ level: "error", itemId: it.id,
-        text: "'" + it.title + "' (" + fmtDay(it.date) + " " + (it.time || "") + ") מחכה לאוטומציה. אם לא תבחר עד " + when + ", הוא יוזז ליום אחר. לחץ ובחר אוטומציה בחלון הפריט." });
+        text: "'" + it.title + "' (" + fmtDay(it.date) + " " + (it.time || "") + ") מחכה לאוטומציה. אם לא תבחר עד " + when + ", הוא יוצא מהלוח לחלונית \"מחכים לאוטומציה\". לחץ ובחר אוטומציה בחלון הפריט." });
     });
     list.forEach(function (a) {
       var row = el("div", "gantt-alert is-" + (a.level || "warn"), a.text);
       if (a.itemId && X.G.findItem(a.itemId)) {
         row.classList.add("is-link");
-        row.addEventListener("click", function () { var it = X.G.findItem(a.itemId); X.G.openDayModal(it.date, it.id); });
+        row.addEventListener("click", function () {
+          var it = X.G.findItem(a.itemId);
+          if (it.date) { X.G.openDayModal(it.date, it.id); return; }
+          // בלי יום: הסרטון באחת השורות שמעל הלוח (מחכים לאוטומציה / מוכנים לתזמון)
+          var tray = document.getElementById(X.needsAutomation && X.needsAutomation(it) ? "autoWaitTray" : "readyTray");
+          if (tray) tray.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
       }
       host.appendChild(row);
     });

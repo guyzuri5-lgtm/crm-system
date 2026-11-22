@@ -565,6 +565,7 @@
   </header>
 
   <div class="calendar-wrap" id="calendarWrap">
+    <div class="auto-wait" id="autoWaitTray" hidden></div>
     <div class="ready-tray" id="readyTray"></div>
     <div class="weekday-row">
       <span>א</span><span>ב</span><span>ג</span><span>ד</span><span>ה</span><span>ו</span><span>ש</span>
@@ -3252,7 +3253,11 @@ window.__startGantt = function (BOOT) {
   }
   function renderReadyTray() {
     if (!readyTrayEl) return;
-    var ready = state.items.filter(function (it) { return !it.date && it.intake; })
+    // סרטון שמבקש תגובות ועוד אין לו אוטומציה לא נכנס לכאן: הוא מחכה בחלונית
+    // "מחכים לאוטומציה" שמעל (automation.js), ועובר לכאן רק אחרי שמשייכים לו אחת
+    var X0 = window.GanttExt;
+    if (X0 && X0.renderAutoWait) X0.renderAutoWait(document.getElementById("autoWaitTray"));
+    var ready = state.items.filter(function (it) { return !it.date && it.intake && !(X0 && X0.needsAutomation && X0.needsAutomation(it)); })
       .sort(function (a, b) { return (a.createdAt || 0) - (b.createdAt || 0); });
     if (trayPick && !ready.some(function (it) { return it.id === trayPick; })) trayPick = null;
     readyTrayEl.innerHTML = "";
