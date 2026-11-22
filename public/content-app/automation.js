@@ -143,59 +143,102 @@
     host.appendChild(row);
     list.forEach(function (it) {
       var card = el("div", "ready-card auto-wait-card");
-      var thumb = el("span", "ready-thumb");
+      // לחיצה על התמונה פותחת את הסרטון, כדי לראות על מה הוא לפני שמשייכים
+      var vid = waitVideo(it);
+      var thumb = el(vid ? "button" : "span", "ready-thumb" + (vid ? " auto-wait-play" : ""));
       if (it.cover && it.cover.url) {
         var img = el("img"); img.src = it.cover.url; img.alt = ""; img.loading = "lazy";
         thumb.appendChild(img);
-      } else thumb.innerHTML = BOLT;
+      } else thumb.innerHTML = vid ? PLAY : BOLT;
+      if (vid) {
+        thumb.type = "button";
+        thumb.setAttribute("aria-label", "צפייה בסרטון " + it.title);
+        thumb.title = "צפייה בסרטון";
+        if (it.cover && it.cover.url) { var ov = el("span", "auto-wait-play-ico"); ov.innerHTML = PLAY; thumb.appendChild(ov); }
+        thumb.addEventListener("click", function () { openWaitVideo(it, G); });
+      }
       card.appendChild(thumb);
       var body = el("span", "ready-body");
-      var num = /^(\d+)\s*-/.exec(it.intake.file || "");
-      body.appendChild(el("span", "ready-title", (num ? num[1] + "- " : "") + it.title));
-      var keyword = it.intake.keyword ? String(it.intake.keyword).trim() : "";
-      body.appendChild(el("span", "ready-meta", keyword ? "מילת המפתח: \"" + keyword + "\"" : "קריאה לתגובה בכיתוב"));
+      body.appendChild(el("span", "ready-title", waitTitle(it)));
+      body.appendChild(el("span", "ready-meta", waitKeywordText(it)));
       var pick = el("span", "auto-wait-pick");
-      pick.appendChild(el("span", "ready-meta", "טוען אוטומציות…"));
       body.appendChild(pick);
+      buildWaitPicker(pick, it, G);
+      if (vid) body.appendChild(X.btn("צפייה בסרטון", "btn-ghost btn-small auto-wait-watch", function () { openWaitVideo(it, G); }));
       card.appendChild(body);
       card.title = it.title;
       row.appendChild(card);
-
-      loadBank().then(function (bank) {
-        pick.innerHTML = "";
-        var usable = bank.filter(function (a) { return a.status !== "paused"; });
-        var suggested = keyword ? usable.filter(function (a) { return a.keyword && a.keyword.trim().toLowerCase() === keyword.toLowerCase(); })[0] : null;
-        var sel = el("select", "text-input auto-wait-select");
-        sel.setAttribute("aria-label", "אוטומציה לסרטון " + it.title);
-        var none = el("option", null, "בחר אוטומציה…"); none.value = ""; sel.appendChild(none);
-        usable.forEach(function (a) {
-          var o = el("option", null, (a.name || "אוטומציה") + " · " + (a.trigger_mode === "any" ? "כל תגובה" : "\"" + (a.keyword || "") + "\"") +
-            (suggested && a.id === suggested.id ? " (מתאים)" : ""));
-          o.value = a.id; sel.appendChild(o);
-        });
-        var cur = waitPick[it.id] !== undefined ? waitPick[it.id] : (suggested ? suggested.id : "");
-        if (cur && !usable.some(function (a) { return a.id === cur; })) cur = "";
-        sel.value = cur;
-        var go = X.btn("שייך", "btn-primary btn-small", function () {
-          if (!sel.value) return;
-          var item = G.findItem(it.id);
-          if (!item) return;
-          item.automationChoice = sel.value;
-          delete waitPick[it.id];
-          G.persist();
-          G.rerenderCalendar();
-          G.showToast("האוטומציה שויכה. '" + item.title + "' עבר ל\"מוכנים לתזמון\"" +
-            (X.autoplanOn ? " והתזמון האוטומטי ישבץ אותו בדקות הקרובות." : " — גרור אותו ליום בלוח."));
-        });
-        go.disabled = !sel.value;
-        sel.addEventListener("change", function () { waitPick[it.id] = sel.value; go.disabled = !sel.value; });
-        pick.appendChild(sel);
-        pick.appendChild(go);
-        if (!usable.length || (keyword && !suggested))
-          pick.appendChild(X.btn(keyword && !suggested ? "צור בבנק" : "לבנק", "btn-ghost btn-small", function () { openBank(); }));
-      }).catch(function (e) { pick.innerHTML = ""; pick.appendChild(el("span", "ready-meta", "הבנק לא נטען: " + e.message)); });
     });
   };
+
+  var PLAY = '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M7 5.2v9.6L15 10 7 5.2Z"/></svg>';
+  function waitVideo(it) { return (it.mediaFiles || []).filter(function (m) { return m.kind === "video" && m.url; })[0] || null; }
+  function waitKeyword(it) { return it.intake && it.intake.keyword ? String(it.intake.keyword).trim() : ""; }
+  function waitKeywordText(it) { var k = waitKeyword(it); return k ? "מילת המפתח: \"" + k + "\"" : "קריאה לתגובה בכיתוב"; }
+  function waitTitle(it) { var num = /^(\d+)\s*-/.exec(it.intake.file || ""); return (num ? num[1] + "- " : "") + it.title; }
+
+  // הבחירה והכפתור "שייך" — בכרטיס ובחלון הצפייה. onDone סוגר את החלון אחרי שיוך
+  function buildWaitPicker(pick, it, G, onDone) {
+    var keyword = waitKeyword(it);
+    pick.appendChild(el("span", "ready-meta", "טוען אוטומציות…"));
+    loadBank().then(function (bank) {
+      pick.innerHTML = "";
+      var usable = bank.filter(function (a) { return a.status !== "paused"; });
+      var suggested = keyword ? usable.filter(function (a) { return a.keyword && a.keyword.trim().toLowerCase() === keyword.toLowerCase(); })[0] : null;
+      var sel = el("select", "text-input auto-wait-select");
+      sel.setAttribute("aria-label", "אוטומציה לסרטון " + it.title);
+      var none = el("option", null, "בחר אוטומציה…"); none.value = ""; sel.appendChild(none);
+      usable.forEach(function (a) {
+        var o = el("option", null, (a.name || "אוטומציה") + " · " + (a.trigger_mode === "any" ? "כל תגובה" : "\"" + (a.keyword || "") + "\"") +
+          (suggested && a.id === suggested.id ? " (מתאים)" : ""));
+        o.value = a.id; sel.appendChild(o);
+      });
+      var cur = waitPick[it.id] !== undefined ? waitPick[it.id] : (suggested ? suggested.id : "");
+      if (cur && !usable.some(function (a) { return a.id === cur; })) cur = "";
+      sel.value = cur;
+      var go = X.btn("שייך", "btn-primary btn-small", function () {
+        if (!sel.value) return;
+        var item = G.findItem(it.id);
+        if (!item) return;
+        item.automationChoice = sel.value;
+        delete waitPick[it.id];
+        if (onDone) onDone();
+        G.persist();
+        G.rerenderCalendar();
+        G.showToast("האוטומציה שויכה. '" + item.title + "' עבר ל\"מוכנים לתזמון\"" +
+          (X.autoplanOn ? " והתזמון האוטומטי ישבץ אותו בדקות הקרובות." : " — גרור אותו ליום בלוח."));
+      });
+      go.disabled = !sel.value;
+      sel.addEventListener("change", function () { waitPick[it.id] = sel.value; go.disabled = !sel.value; });
+      pick.appendChild(sel);
+      pick.appendChild(go);
+      if (!usable.length || (keyword && !suggested))
+        pick.appendChild(X.btn(keyword && !suggested ? "צור בבנק" : "לבנק", "btn-ghost btn-small", function () { if (onDone) onDone(); openBank(); }));
+    }).catch(function (e) { pick.innerHTML = ""; pick.appendChild(el("span", "ready-meta", "הבנק לא נטען: " + e.message)); });
+  }
+
+  // חלון הצפייה: הסרטון, מילת המפתח והכיתוב, והשיוך עצמו
+  function openWaitVideo(it, G) {
+    var vid = waitVideo(it);
+    if (!vid) return;
+    var m = X.modal(waitTitle(it), {
+      wide: true,
+      onClose: function () { v.pause(); v.removeAttribute("src"); v.load(); },
+    });
+    var wrap = el("div", "auto-wait-viewer");
+    var v = el("video", "pending-video auto-wait-video");
+    v.src = vid.url; v.controls = true; v.playsInline = true; v.preload = "metadata"; v.autoplay = true;
+    if (it.cover && it.cover.url) v.poster = it.cover.url;
+    wrap.appendChild(v);
+    var side = el("div", "auto-wait-viewer-side");
+    side.appendChild(el("p", "auto-wait-kw", waitKeywordText(it)));
+    if (it.caption) side.appendChild(el("p", "auto-wait-caption", it.caption));
+    var pick = el("div", "auto-wait-pick");
+    side.appendChild(pick);
+    buildWaitPicker(pick, it, G, function () { m.close(); });
+    wrap.appendChild(side);
+    m.body.appendChild(wrap);
+  }
 
   X.renderAutomationSlot = function (host, ctx, draft) {
     host.innerHTML = "";
