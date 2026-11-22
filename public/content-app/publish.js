@@ -119,6 +119,13 @@
     return !!(item && pendingApproval(item) && wantsAutomation(item) && !item.automationChoice && !item.automation);
   };
 
+  function repostLine(item) {
+    var r = item.repost || {};
+    var pub = r.publishedAt ? String(r.publishedAt).slice(0, 10).split("-").reverse().map(Number) : null;
+    return "העלאה חוזרת" + (pub ? " · המקור עלה ב-" + pub[0] + "." + pub[1] : "") +
+      (r.views ? " והגיע ל-" + Number(r.views).toLocaleString("he-IL") + " צפיות" : "");
+  }
+
   X.decorateChip = function (chip, item) {
     // הצבע הסגול מגיע מהסטטוס הנגזר בלוח; כאן רק ההסבר במעבר עכבר
     if (pendingApproval(item)) chip.title = "ממתין לאישור — הגיע מהתיקייה 'מוכן לפרסום'" + (chip.title ? " · " + chip.title : "");
@@ -129,6 +136,12 @@
     } else if (item.platforms && item.platforms.length && !item.pub) {
       // planned but not sent yet: hollow, neutral
       item.platforms.forEach(function (p) { if (NET[p]) { var b = netBadge(p, null); b.classList.add("is-planned"); b.title = NET[p].name + ": מתוכנן, עוד לא נשלח ל-Zernio"; w().appendChild(b); } });
+    }
+    // העלאה חוזרת (src/lib/content/reposts.ts): תגית "חוזר" אחרי הכותרת
+    if (item.repost) {
+      var rp = el("span", "repost-tag", "חוזר");
+      chip.insertBefore(rp, wrap);
+      chip.title = repostLine(item) + (chip.title ? " · " + chip.title : "");
     }
     if (X.decorateAutomation) X.decorateAutomation(w, item);
     if (X.needsAutomation(item)) {
@@ -310,12 +323,18 @@
     function renderPending() {
       pendingHost.innerHTML = "";
       var it = editing && X.G.findItem(editing.id);
+      if (it && it.repost && !pendingApproval(it)) {
+        var note = el("div", "repost-note");
+        note.appendChild(el("span", "repost-tag", "חוזר"));
+        note.appendChild(el("span", null, repostLine(it)));
+        pendingHost.appendChild(note);
+      }
       if (!pendingApproval(it)) return;
       var needs = X.needsAutomation(it);
       var box = el("div", "pending-box" + (needs ? " is-needs-auto" : ""));
       box.appendChild(el("strong", "pending-title", needs ? "חסרה אוטומציה" : "ממתין לאישור"));
       var origin = it.repost
-        ? "העלאה חוזרת: הסרטון עבר " + Number(it.repost.views || 0).toLocaleString("he-IL") + " צפיות באינסטגרם, ועולה שוב חודשיים אחרי" +
+        ? "העלאה חוזרת: הסרטון עבר " + Number(it.repost.views || 0).toLocaleString("he-IL") + " צפיות באינסטגרם, ועולה שוב" +
           (it.repost.publishedAt ? " (במקור עלה ב-" + String(it.repost.publishedAt).slice(0, 10).split("-").reverse().join(".") + ")" : "")
         : "הסרטון הגיע מהתיקייה \"מוכן לפרסום\"" + (it.intake.file ? " (" + it.intake.file + ")" : "");
       box.appendChild(el("p", null, origin +

@@ -82,6 +82,38 @@ export function repostSlot(published: string, now: { date: string; time: string 
   return { date, time };
 }
 
+/**
+ * מרווח בין העלאות חוזרות (גיא, 22.11.2026): שני ימים ריקים לפחות ביניהן — אם אחת עולה
+ * ב-10, הבאה לא לפני ה-13. כך לא נוצר שבוע שכולו העלאות חוזרות.
+ */
+export const REPOST_GAP_DAYS = 3;
+
+const dayNo = (date: string) => Math.round(Date.parse(`${date}T12:00:00Z`) / 86_400_000);
+
+/** היום הראשון מ-`date` והלאה (לעולם לא אחורה) שרחוק `gap` ימים לפחות מכל אחד מ-`taken` */
+export function freeRepostDay(date: string, taken: string[], gap = REPOST_GAP_DAYS) {
+  let d = date;
+  while (taken.some((t) => Math.abs(dayNo(d) - dayNo(t)) < gap)) d = shiftDays(d, 1);
+  return d;
+}
+
+/**
+ * פריסה של העלאות חוזרות שהמערכת שיבצה. `fixed` — כאלה שלא זזות (עלו, גיא הזיז אותן,
+ * או קרובות מדי לזמן העלייה); `movable` — כל השאר. כל אחת שקרובה מדי לקודמת לה זזה קדימה
+ * ליום הפנוי הראשון, באותה שעה. מחזיר רק את מה שזז.
+ */
+export function spaceReposts(fixed: { date: string }[], movable: { id: string; date: string; time?: string | null }[], gap = REPOST_GAP_DAYS) {
+  const taken = fixed.map((f) => f.date);
+  const out: { id: string; from: string; to: string }[] = [];
+  const order = [...movable].sort((a, b) => `${a.date} ${a.time || ""} ${a.id}`.localeCompare(`${b.date} ${b.time || ""} ${b.id}`));
+  for (const m of order) {
+    const to = freeRepostDay(m.date, taken, gap);
+    taken.push(to);
+    if (to !== m.date) out.push({ id: m.id, from: m.date, to });
+  }
+  return out;
+}
+
 /** השדות של הפריט המקורי שלא עוברים להעלאה החוזרת: מצב של הפוסט הקודם, לא תוכן */
 const NOT_COPIED = ["id", "date", "time", "autoplan", "intake", "repost", "statusFlags", "scheduled", "ig", "source", "pieceNo", "createdAt"];
 
@@ -105,6 +137,8 @@ export function repostData(src: Record<string, unknown>, o: {
     repost: {
       from: o.fromId, root: o.rootId, generation: o.generation, views: o.views,
       publishedAt: o.publishedAt, cover: o.cover,
+      // היום והשעה שהמערכת קבעה. גרירה של גיא משנה אותם, ומאז הפריסה לא מזיזה אותו
+      slot: `${o.date} ${o.time}`,
     },
   };
 }

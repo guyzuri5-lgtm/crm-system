@@ -73,3 +73,32 @@ test("saved rules are always sane", () => {
   assert.equal(R.normalizeRepostRules({ after: 40, unit: "months" }).after, 12);
   assert.equal(R.normalizeRepostRules({ threshold: 3000, repeatThreshold: 2000 }).repeatThreshold, 3000);
 });
+
+test("reposts keep two empty days between them: after the 10th, the next is the 13th at the earliest", () => {
+  assert.equal(R.freeRepostDay("2026-12-11", ["2026-12-10"]), "2026-12-13");
+  assert.equal(R.freeRepostDay("2026-12-13", ["2026-12-10"]), "2026-12-13");
+  // never backwards, also when the close one is after it
+  assert.equal(R.freeRepostDay("2026-12-09", ["2026-12-10"]), "2026-12-13");
+  assert.equal(R.freeRepostDay("2026-12-31", ["2027-01-01"]), "2027-01-04");
+});
+
+test("a cluster of reposts spreads forward, in date order, around ones that can't move", () => {
+  const moves = R.spaceReposts([{ date: "2026-12-16" }], [
+    { id: "b", date: "2026-12-11", time: "18:00" },
+    { id: "a", date: "2026-12-10", time: "18:00" },
+    { id: "c", date: "2026-12-12", time: "18:00" },
+    { id: "d", date: "2026-12-30", time: "18:00" },
+  ]);
+  // a stays on the 10th; b → 13th; the 16th is fixed, so c → 19th; d is far enough
+  assert.deepEqual(moves, [
+    { id: "b", from: "2026-12-11", to: "2026-12-13" },
+    { id: "c", from: "2026-12-12", to: "2026-12-19" },
+  ]);
+  assert.deepEqual(R.spaceReposts([], [{ id: "x", date: "2026-12-10" }, { id: "y", date: "2026-12-14" }]), []);
+});
+
+test("a repost remembers the slot the system gave it", () => {
+  const d = R.repostData({ title: "t" }, { id: "n", date: "2026-12-13", time: "18:00", at: "2026-11-22T10:00:00Z", file: "f.mp4", views: 1300,
+    generation: 1, rootId: "o", fromId: "o", publishedAt: "2026-10-13T18:00", cover: null, automationChoice: null });
+  assert.equal(d.repost.slot, "2026-12-13 18:00");
+});

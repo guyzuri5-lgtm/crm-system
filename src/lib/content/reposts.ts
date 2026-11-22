@@ -5,9 +5,11 @@ import { randomUUID } from "node:crypto";
 import { contentDb, getSettings, must, nowIso, setMeta } from "./db";
 import { bumpRevision } from "./intake";
 import { readIg } from "./ig/refresh";
-import { localNow } from "./pure/autoplan";
+import { hoursUntil, localNow, LOCK_HOURS } from "./pure/autoplan";
 import { normPermalink } from "./pure/pieces";
-import { normalizeRepostRules, qualifies, repostData, repostSlot } from "./pure/reposts";
+import { freeRepostDay, normalizeRepostRules, qualifies, repostData, repostSlot, spaceReposts } from "./pure/reposts";
+import { reschedulePost } from "./publishing";
+import { writesEnabled } from "./zernio";
 
 /**
  * העלאה חוזרת של סרטון שהצליח (הכללים ב-pure/reposts.ts). רץ אחרי כל שליפה של
@@ -28,6 +30,8 @@ const DONE = ["published", "partial"];
 export interface RepostReport {
   at: number;
   created: { id: string; from: string; title: string; date: string; time: string; views: number }[];
+  /** העלאות חוזרות שזזו קדימה כי היו קרובות מדי לאחרת (REPOST_GAP_DAYS) */
+  spaced: { id: string; title: string; from: string; to: string }[];
   skipped: { from: string; title: string; reason: string }[];
 }
 
@@ -65,7 +69,7 @@ async function allItems() {
 }
 
 export async function runReposts(log: (m: string) => void = () => {}, opts: { dry?: boolean } = {}): Promise<RepostReport> {
-  const report: RepostReport = { at: Date.now() / 1000, created: [], skipped: [] };
+  const report: RepostReport = { at: Date.now() / 1000, created: [], spaced: [], skipped: [] };
   const { posts } = await readIg();
   if (!posts.length) return report;
   const viewsOf = viewsLookup(posts);
@@ -75,6 +79,7 @@ export async function runReposts(log: (m: string) => void = () => {}, opts: { dr
   const now = localNow(timezone);
 
   const items = await allItems();
+  const taken = await spaceOut(items, now, report, log, opts);
   // כל העלאה מולידה לכל היותר העלאה חוזרת אחת. גם פריט שנמחק נספר: אם גיא מחק
   // העלאה חוזרת מהגאנט, היא לא נוצרת שוב.
   const hasChild = new Set(items.map((r) => r.data?.repost?.from).filter(Boolean));
@@ -98,8 +103,10 @@ export async function runReposts(log: (m: string) => void = () => {}, opts: { dr
     const skip = (reason: string) => { report.skipped.push({ from: r.id, title, reason }); log(`repost skip ${r.id.slice(0, 8)}: ${reason}`); };
 
     const published = String(pub.scheduled_for || (r.data.date ? `${r.data.date}T${r.data.time || "18:00"}` : ""));
-    const slot = repostSlot(published, now, rules);
-    if (!slot) { skip("אין תאריך העלאה למקור"); continue; }
+    const natural = repostSlot(published, now, rules);
+    if (!natural) { skip("אין תאריך העלאה למקור"); continue; }
+    // לא צמוד להעלאה חוזרת אחרת: היום הפנוי הראשון מהיום שלו והלאה
+    const slot = { ...natural, date: freeRepostDay(natural.date, taken) };
 
     // המדיה הקבועה מהפוסט המקורי ב-Zernio
     const remote: any[] = (pub.raw?.mediaItems || pub.raw?.post?.mediaItems || []).filter((m: any) => m?.url);
@@ -134,6 +141,7 @@ export async function runReposts(log: (m: string) => void = () => {}, opts: { dr
     const twin = must(await contentDb().from("content_items").select("id").eq("data->repost->>from", r.id).limit(1), "repost twin") as any[];
     if (twin.length) continue;
 
+    taken.push(slot.date);
     if (opts.dry) {
       report.created.push({ id, from: r.id, title, date: slot.date, time: slot.time, views: Number(post.views) });
       continue;
@@ -154,6 +162,59 @@ export async function runReposts(log: (m: string) => void = () => {}, opts: { dr
     log(`repost: '${title}' (${post.views} views) → ${slot.date} ${slot.time}`);
   }
 
-  if (!opts.dry && (report.created.length || report.skipped.length)) await setMeta("reposts_last", report);
+  if (!opts.dry && (report.created.length || report.spaced.length || report.skipped.length)) await setMeta("reposts_last", report);
   return report;
+}
+
+/**
+ * מרווח בין ההעלאות החוזרות שכבר בגאנט (pure/reposts.ts, spaceReposts). זזה רק העלאה
+ * שהמערכת שיבצה ואף אחד לא הזיז מאז, שעוד לא עלתה, ושנותרו לה 24 שעות לפחות. אם היא כבר
+ * מתוזמנת ב-Zernio, היא זזה גם שם — ואם זה נכשל, היא חוזרת ליום שלה בגאנט.
+ * מחזיר את ימי כל ההעלאות החוזרות אחרי הפריסה, כדי שהחדשות ישתבצו ביניהן.
+ */
+async function spaceOut(items: { id: string; data: any; deleted_at: string | null }[], now: { date: string; time: string },
+  report: RepostReport, log: (m: string) => void, opts: { dry?: boolean }) {
+  const reposts = items.filter((r) => !r.deleted_at && r.data?.repost && r.data.date);
+  if (!reposts.length) return [];
+  const status = new Map((must(await contentDb().from("content_publications").select("item_id, status, zernio_post_id")
+    .in("item_id", reposts.map((r) => r.id)), "repost pubs") as any[]).map((p) => [p.item_id, p]));
+  const writesOn = await writesEnabled();
+  // בלי slot = נוצרה לפני 22.11.2026, ועד אז אף אחת לא הוזזה ידנית
+  const ours = (d: any) => !d.repost.slot || d.repost.slot === `${d.date} ${d.time}`;
+  const canMove = (r: { id: string; data: any }) => {
+    const p = status.get(r.id);
+    if (p && !(p.status === "scheduled" && p.zernio_post_id && writesOn)) return false;
+    return ours(r.data) && hoursUntil(r.data.date, r.data.time, now) >= LOCK_HOURS;
+  };
+  const fixed = reposts.filter((r) => !canMove(r)).map((r) => ({ date: r.data.date }));
+  const movable = reposts.filter(canMove).map((r) => ({ id: r.id, date: r.data.date, time: r.data.time }));
+  const moves = spaceReposts(fixed, movable);
+  const dateOf = new Map(reposts.map((r) => [r.id, r.data.date as string]));
+
+  if (moves.length && !opts.dry) await bumpRevision();
+  for (const m of moves) {
+    const r = reposts.find((x) => x.id === m.id)!;
+    const before = r.data;
+    const title = String(before.title || "");
+    if (opts.dry) { report.spaced.push({ id: m.id, title, from: m.from, to: m.to }); dateOf.set(m.id, m.to); continue; }
+    const data = { ...before, date: m.to, repost: { ...before.repost, slot: `${m.to} ${before.time}` } };
+    // רק אם הוא עדיין ביום שלו — אם גיא גרר אותו בינתיים, ההחלטה שלו קובעת
+    const done = must(await contentDb().from("content_items").update({ data, date: m.to, updated_at: nowIso() })
+      .eq("id", m.id).eq("date", m.from).is("deleted_at", null).select("id"), "repost space") as any[];
+    if (!done.length) continue;
+    if (status.get(m.id)) {
+      const error = await reschedulePost(m.id);
+      if (error) {
+        must(await contentDb().from("content_items").update({ data: before, date: before.date, updated_at: nowIso() }).eq("id", m.id), "repost space back");
+        log(`repost space ${m.id.slice(0, 8)} failed: ${error}`);
+        report.skipped.push({ from: m.id, title, reason: `לא הוזז מ-${m.from} ל-${m.to}: ${error}` });
+        continue;
+      }
+    }
+    r.data = data;
+    dateOf.set(m.id, m.to);
+    report.spaced.push({ id: m.id, title, from: m.from, to: m.to });
+    log(`repost spaced: '${title}' ${m.from} → ${m.to}`);
+  }
+  return [...dateOf.values()];
 }
