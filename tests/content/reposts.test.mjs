@@ -34,7 +34,7 @@ test("the copy keeps the content and drops the old post's state", () => {
   const src = {
     id: "old", date: "2026-10-22", time: "18:00", title: "כובע", caption: "כיתוב", format: "reel", topic: "צ'אקרות",
     platforms: ["instagram", "youtube"], platformOptions: { youtube: { title: "יוטיוב" } }, note: "",
-    autoplan: { at: "x" }, statusFlags: { scheduled: true }, scheduled: true, ig: { id: 1 }, source: "ig", pieceNo: 26,
+    autoplan: { at: "x" }, scheduled: true, ig: { id: 1 }, source: "ig", pieceNo: 26,
     intake: { source: "folder", sourceKey: "dir:26- כובע", file: "26.mp4", keyword: "כובע" }, createdAt: 1,
   };
   const d = R.repostData(src, {
@@ -48,9 +48,7 @@ test("the copy keeps the content and drops the old post's state", () => {
   assert.deepEqual(d.platforms, ["instagram", "youtube"]);
   assert.equal(d.platformOptions.youtube.title, "יוטיוב");
   assert.equal(d.automationChoice, "auto1");
-  assert.equal(d.scheduled, false);
-  assert.equal(d.statusFlags.scheduled, false);
-  for (const k of ["autoplan", "ig", "source", "pieceNo"]) assert.equal(k in d, false, k);
+  for (const k of ["autoplan", "ig", "source", "pieceNo", "scheduled"]) assert.equal(k in d, false, k);
   assert.deepEqual(d.intake, { source: "repost", sourceKey: "repost:old", file: "26.mp4", at: "2026-11-14T08:00:00.000Z", keyword: "כובע" });
   assert.equal(d.repost.generation, 1);
   assert.equal(d.repost.views, 10231);

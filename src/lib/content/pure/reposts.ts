@@ -115,7 +115,7 @@ export function spaceReposts(fixed: { date: string }[], movable: { id: string; d
 }
 
 /** השדות של הפריט המקורי שלא עוברים להעלאה החוזרת: מצב של הפוסט הקודם, לא תוכן */
-const NOT_COPIED = ["id", "date", "time", "autoplan", "intake", "repost", "statusFlags", "scheduled", "ig", "source", "pieceNo", "createdAt"];
+const NOT_COPIED = ["id", "date", "time", "autoplan", "intake", "repost", "scheduled", "ig", "source", "pieceNo", "createdAt"];
 
 export function repostData(src: Record<string, unknown>, o: {
   id: string; date: string; time: string; at: string; file: string; views: number;
@@ -127,8 +127,6 @@ export function repostData(src: Record<string, unknown>, o: {
   return {
     ...data,
     id: o.id, date: o.date, time: o.time,
-    filmed: true, edited: true, scheduled: false,
-    statusFlags: { filmed: true, edited: true, scheduled: false },
     createdAt: Date.parse(o.at),
     ...(o.automationChoice ? { automationChoice: o.automationChoice } : {}),
     // intake: כדי שהשיבוץ האוטומטי יתזמן אותו כמו סרטון מהתיקייה. sourceKey שונה מהמקור,

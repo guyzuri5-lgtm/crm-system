@@ -15,9 +15,22 @@ import { contentDb, must, nowIso } from "./db";
 /** שדות שהשרת מחזיק ומציג, ושמירה מהדפדפן לעולם לא דורסת */
 export const SERVER_KEYS = ["pub", "targets", "automation", "mediaFiles", "cover"];
 
-/** שדות שהוסרו מהלוח (סוגי תוכן, ימי העלאה, מקור הצבעים): לא נשמרים, ונמחקים מנתונים ישנים בשמירה הבאה */
-const DROPPED_ITEM_KEYS = ["typeId"];
-const DROPPED_BOARD_KEYS = ["types", "activeWeekdays", "colorSources"];
+/**
+ * שדות שהוסרו מהלוח (סוגי תוכן, ימי העלאה, מקור הצבעים, הסטטוסים הידניים): לא נשמרים,
+ * ונמחקים מנתונים ישנים בשמירה הבאה. מהסטטוסים הידניים נשאר רק scheduled: true,
+ * כדי שפוסט שסומן "תוזמן" לפני Zernio יישאר ירוק בגאנט.
+ */
+const DROPPED_ITEM_KEYS = ["typeId", "statusFlags", "filmed", "edited", "ready", "done"];
+const DROPPED_BOARD_KEYS = ["types", "activeWeekdays", "colorSources", "statuses", "statusNone"];
+
+function dropLegacy(it: Record<string, any>) {
+  const o = { ...it };
+  const scheduled = o.scheduled === true || o.statusFlags?.scheduled === true;
+  for (const k of DROPPED_ITEM_KEYS) delete o[k];
+  delete o.scheduled;
+  if (scheduled) o.scheduled = true;
+  return o;
+}
 
 export class Conflict extends Error {
   constructor(public revision: number) {
@@ -30,7 +43,7 @@ type Board = Record<string, any>;
 
 function cleanItem(it: Record<string, any>) {
   const o: Record<string, any> = {};
-  for (const [k, v] of Object.entries(it)) if (!SERVER_KEYS.includes(k) && !DROPPED_ITEM_KEYS.includes(k)) o[k] = v;
+  for (const [k, v] of Object.entries(dropLegacy(it))) if (!SERVER_KEYS.includes(k)) o[k] = v;
   return o;
 }
 
@@ -55,11 +68,7 @@ async function liveItems(): Promise<Record<string, any>[]> {
 export async function loadBoard(): Promise<Board> {
   const row = await boardRow();
   const data = (row.data || {}) as Board;
-  const items = (await liveItems()).map((r) => {
-    const it = { ...(r.data || {}) };
-    for (const k of DROPPED_ITEM_KEYS) delete it[k];
-    return it;
-  });
+  const items = (await liveItems()).map((r) => dropLegacy(r.data || {}));
   const extra = { ...(data.extra || {}) };
   for (const k of DROPPED_BOARD_KEYS) delete extra[k];
   const state: Board = {

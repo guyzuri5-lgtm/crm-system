@@ -138,9 +138,7 @@
   .chip:hover { box-shadow: inset 0 0 0 999px rgba(0, 0, 0, 0.1); }
   .chip .fmt-icon { width: 11px; height: 11px; flex: none; color: var(--ink-500); }
   .chip .fmt-icon svg { width: 100%; height: 100%; }
-  .chip .progress-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.85); }
   .chip-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
-  .chip.is-scheduled .chip-title { text-decoration: line-through; opacity: 0.72; }
   .chip-draggable { cursor: grab; touch-action: none; }
   .chip-draggable.is-dragging-source { opacity: 0.35; }
   .day-cell.drop-target { background: var(--accent-soft) !important; box-shadow: inset 0 0 0 2px var(--accent); }
@@ -213,7 +211,6 @@
   .seg-btn.is-active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 
 
-  .color-input { width: 34px; height: 34px; padding: 2px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); flex: none; }
 
   .checkbox-row { display: flex; align-items: center; gap: 8px; margin-top: 16px; font-size: 0.88rem; color: var(--ink-600); }
   .checkbox-row input { width: 16px; height: 16px; accent-color: var(--accent); }
@@ -244,7 +241,6 @@
   .day-item-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 0.88rem; }
   .day-item-go { width: 14px; height: 14px; flex: none; color: var(--ink-400); }
   .day-item-go svg { width: 100%; height: 100%; }
-  .day-item-row.is-scheduled .day-item-title { text-decoration: line-through; color: var(--ink-400); }
   .day-empty { color: var(--ink-500); font-size: 0.85rem; text-align: center; padding: 22px 0; }
 
   .row-thumb { width: 34px; height: 34px; border-radius: 8px; overflow: hidden; flex: none; background: var(--line); }
@@ -266,14 +262,7 @@
   .ig-watch-note { font-size: 0.76rem; color: var(--ink-500); margin: 0 0 12px; }
 
   .settings-intro { font-size: 0.78rem; color: var(--ink-500); line-height: 1.5; margin: 0 0 12px; }
-  .settings-list-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; padding: 0 4px; }
-  .settings-list-head-name { flex: 1; font-size: 0.68rem; font-weight: 700; color: var(--ink-400); }
-  .settings-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
-  .settings-row { display: flex; align-items: center; gap: 8px; }
-  .settings-row .text-input { flex: 1; }
   .settings-section-divider { border: 0; border-top: 1px solid var(--line); margin: 22px 0 16px; }
-  .settings-row-spacer { flex: none; width: 97px; }
-  .settings-row-base-tag { flex: none; font-size: 0.68rem; font-weight: 700; color: var(--ink-400); }
   .icon-btn.has-dot { position: relative; }
   .sync-dot { position: absolute; top: 3px; inset-inline-end: 3px; width: 7px; height: 7px; border-radius: 50%; background: var(--ink-400); box-shadow: 0 0 0 1.5px var(--paper); }
   .sync-dot.is-synced { background: #0ca30c; }
@@ -290,7 +279,6 @@
   .backup-actions .btn { flex: 1; min-width: 150px; }
   .import-preview { margin-top: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
   .import-preview-text { font-size: 0.8rem; color: var(--ink-600); margin: 0 0 10px; line-height: 1.5; }
-  .status-toggle-btn.is-active { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08); }
 
   [hidden] { display: none !important; }
 
@@ -493,9 +481,6 @@
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><path d="M6 15.5a3.5 3.5 0 0 1-.4-6.98 4.5 4.5 0 0 1 8.68-1.4A3.3 3.3 0 0 1 14.8 15.5H6Z"/></svg>
         <span class="sync-dot" id="syncDot" aria-hidden="true"></span>
       </button>
-      <button type="button" id="openSettingsBtn" class="icon-btn" aria-label="הגדרות הלוח" title="הגדרות הלוח">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><path d="M11 3H4v7l8.5 8.5a1.5 1.5 0 0 0 2.12 0l4.38-4.38a1.5 1.5 0 0 0 0-2.12L11 3Z"/><circle cx="7.3" cy="7.3" r="1.1" fill="currentColor" stroke="none"/></svg>
-      </button>
       </div>
     </div>
 
@@ -526,7 +511,7 @@
       <div class="stat-tile"><span class="stat-value" id="statTotal">0</span><span class="stat-label">מתוכננים החודש</span></div>
       <div class="stat-tile"><span class="stat-value" id="statPosts">0</span><span class="stat-label">פוסטים</span></div>
       <div class="stat-tile"><span class="stat-value" id="statStories">0</span><span class="stat-label">סטוריז</span></div>
-      <div class="stat-tile"><span class="stat-value" id="statDone">0/0</span><span class="stat-label" id="statDoneLabel">תוזמנו</span></div>
+      <div class="stat-tile"><span class="stat-value" id="statDone">0/0</span><span class="stat-label">תוזמנו</span></div>
     </div>
 
     <p class="hint" id="hintText">טיפ: לחצו על כל יום בלוח כדי לשבץ בו תוכן חדש.</p>
@@ -644,28 +629,7 @@
     </div>
   </div>
 
-  <div class="modal-overlay" id="settingsModalOverlay">
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
-      <div class="modal-header">
-        <h2 id="settingsModalTitle">הגדרות הלוח</h2>
-        <button type="button" class="icon-btn" id="settingsModalCloseBtn" aria-label="סגירה">
-          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="5" y1="5" x2="15" y2="15"/><line x1="15" y1="5" x2="5" y2="15"/></svg>
-        </button>
-      </div>
-      <label class="field-label">סטטוסי התקדמות</label>
-      <p class="settings-intro">אלו שלבי ההתקדמות של כל פיסת תוכן. אפשר לשנות שם וצבע, להוסיף שלב או למחוק. הסדר קובע — הצבע שמוצג הוא של השלב האחרון שסומן.</p>
-      <div class="settings-list-head">
-        <span class="settings-list-head-name">שלב</span>
-      </div>
-      <div class="settings-list" id="statusList"></div>
-      <button type="button" class="btn btn-add-dashed" id="addStatusBtn">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="10" y1="4" x2="10" y2="16"/><line x1="4" y1="10" x2="16" y2="10"/></svg>
-        <span>הוספת סטטוס</span>
-      </button>
-    </div>
-  </div>
 </div>
-
 
 <script>
 window.__startGantt = function (BOOT) {
@@ -710,17 +674,6 @@ window.__startGantt = function (BOOT) {
   var MONTH_NAMES = ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"];
   var WEEKDAY_FULL = ["יום ראשון", "יום שני", "יום שלישי", "יום רביעי", "יום חמישי", "יום שישי", "יום שבת"];
 
-  var STATUS_PALETTE = ["#d03b3b", "#fab219", "#0ca30c", "#2a78d6", "#8b5cf6", "#e87ba4", "#0f9b8e", "#a8642a"];
-
-  // שלושת הסטטוסים ההיסטוריים שמורים גם בשדות הישנים (filmed/edited/scheduled) כדי שמידע קיים לא ילך לאיבוד
-  var LEGACY_STATUS_FIELDS = { filmed: true, edited: true, scheduled: true };
-  var DEFAULT_STATUSES = [
-    { id: "filmed", name: "צולם", color: "#fab219" },
-    { id: "edited", name: "נערך", color: "#fab219" },
-    { id: "scheduled", name: "תוזמן", color: "#0ca30c" }
-  ];
-  var DEFAULT_STATUS_NONE = { name: "טרם צולם", color: "#d03b3b" };
-
   var ICONS = {
     post: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="12" height="12" rx="2.5"/></svg>',
     story: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="10" cy="10" r="6"/></svg>',
@@ -729,10 +682,6 @@ window.__startGantt = function (BOOT) {
     plus: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="10" y1="4" x2="10" y2="16"/><line x1="4" y1="10" x2="16" y2="10"/></svg>',
     trash: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6h11M8 6V4.5h4V6M6 6l.6 10a1 1 0 0 0 1 .95h4.8a1 1 0 0 0 1-.95L14 6"/></svg>',
     go: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="12.5,4 6.5,10 12.5,16"/></svg>',
-    filmed: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 6.5 8.2 4.6h3.6L13 6.5"/><rect x="3" y="6.5" width="14" height="9.5" rx="2"/><circle cx="10" cy="11.2" r="2.8"/></svg>',
-    edited: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13.3 3.7l3 3L6 16.5H3v-3L13.3 3.7Z"/></svg>',
-    scheduled: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><polyline points="10,6.3 10,10 12.8,11.6"/></svg>',
-    check: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="4.5,10.5 8.5,14.5 15.5,5.5"/></svg>',
     moveUp: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="5.5,12 10,7.5 14.5,12"/></svg>',
     moveDown: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="5.5,8 10,12.5 14.5,8"/></svg>',
     external: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5H5v10h10v-3"/><path d="M11 4h5v5"/><path d="M9.3 10.7 16 4"/></svg>'
@@ -839,17 +788,15 @@ window.__startGantt = function (BOOT) {
       if (it.intake && !it.date) { it.date = null; return true; }
       return typeof it.date === "string" && DATE_KEY_RE.test(it.date);
     });
-    if (!Array.isArray(state.statuses) || !state.statuses.length) {
-      state.statuses = DEFAULT_STATUSES.map(function (st) { return { id: st.id, name: st.name, color: st.color }; });
-    }
-    state.statuses = state.statuses
-      .filter(function (st) { return st && st.id; })
-      .map(function (st) {
-        return { id: st.id, name: (st.name || "סטטוס").slice(0, 24), color: isHexColor(st.color) ? st.color : STATUS_PALETTE[1] };
-      });
-    if (!state.statusNone || typeof state.statusNone !== "object") state.statusNone = {};
-    if (!state.statusNone.name) state.statusNone.name = DEFAULT_STATUS_NONE.name;
-    if (!isHexColor(state.statusNone.color)) state.statusNone.color = DEFAULT_STATUS_NONE.color;
+    // הסטטוסים נגזרים לבד (תוזמן / סרטון חוזר). מהסימונים הידניים הישנים נשאר רק
+    // "תוזמן", כדי שפוסטים שעלו לפני Zernio יישארו ירוקים; השאר נמחקים מהפריט.
+    state.items.forEach(function (it) {
+      var wasScheduled = it.scheduled === true || !!(it.statusFlags && it.statusFlags.scheduled);
+      ["statusFlags", "filmed", "edited", "ready", "done", "scheduled"].forEach(function (k) { delete it[k]; });
+      if (wasScheduled) it.scheduled = true;
+    });
+    delete state.statuses;
+    delete state.statusNone;
     normalizeIgSettings();
   }
 
@@ -865,17 +812,6 @@ window.__startGantt = function (BOOT) {
     if (!known) state.igSettings.sort = DEFAULT_IG_SETTINGS.sort;
   }
   normalizeState();
-
-  // ריל שכבר פורסם באינסטגרם — כל שלבי ההתקדמות מסומנים כהושלמו
-  function markAllStatuses(item) {
-    if (!item.statusFlags || typeof item.statusFlags !== "object") item.statusFlags = {};
-    state.statuses.forEach(function (st) { item.statusFlags[st.id] = true; });
-  }
-
-  function allStatusesMarked(item) {
-    if (!item.statusFlags || typeof item.statusFlags !== "object") return false;
-    return state.statuses.every(function (st) { return item.statusFlags[st.id] === true; });
-  }
 
   function mergeIgImport(importData) {
     if (!importData || !Array.isArray(importData.posts)) return false;
@@ -911,17 +847,12 @@ window.__startGantt = function (BOOT) {
       if (existing) {
         // רק הפרש אמיתי נחשב שינוי. קודם כל סנכרון רילז "שינה" הכול, וזה גרר
         // שמירה מקומית + דחיפה של כל הלוח לענן + בנייה מחדש של הלוח בכל פעם.
-        var same = existing.date === post.date &&
-          existing.filmed === true && existing.edited === true && existing.scheduled === true &&
-          allStatusesMarked(existing) &&
+        var same = existing.date === post.date && existing.scheduled === true &&
           JSON.stringify(existing.ig || null) === JSON.stringify(igFields);
         if (!same) {
           existing.ig = igFields;
           existing.date = post.date;
-          existing.filmed = true;
-          existing.edited = true;
           existing.scheduled = true;
-          markAllStatuses(existing);
           changed = true;
         }
       } else {
@@ -933,14 +864,11 @@ window.__startGantt = function (BOOT) {
           title: title,
           format: "post",
           note: "",
-          filmed: true,
-          edited: true,
           scheduled: true,
           createdAt: new Date(post.date).getTime(),
           source: "instagram",
           ig: igFields
         });
-        markAllStatuses(state.items[state.items.length - 1]);
         changed = true;
       }
     });
@@ -949,38 +877,6 @@ window.__startGantt = function (BOOT) {
 
   // הנתונים המוטמעים בקובץ הם מקור זמני בלבד — אחרי ההעברה ל-Supabase הבלוק יוסר
   if (window.IG_IMPORT_DATA && mergeIgImport(window.IG_IMPORT_DATA)) persist();
-
-  // one-time migration: מוכן להעלאה/מתוזמן/הועלה בפועל -> צולם/נערך/תוזמן
-  (function migrateStatusFields() {
-    var migrated = false;
-    state.items.forEach(function (item) {
-      if (item.source === "instagram") return;
-      if (item.filmed !== undefined || item.edited !== undefined) return;
-      var oldReady = !!item.ready;
-      var oldScheduled = !!item.scheduled;
-      var oldDone = !!item.done;
-      item.filmed = oldReady;
-      item.edited = oldScheduled;
-      item.scheduled = oldDone;
-      migrated = true;
-    });
-    if (migrated) persist();
-  })();
-
-  // מיגרציה תוספתי: העברת הסימונים הקיימים למפת statusFlags, בלי למחוק את השדות הישנים
-  (function migrateStatusFlags() {
-    var migrated = false;
-    state.items.forEach(function (item) {
-      if (item.statusFlags && typeof item.statusFlags === "object") return;
-      var flags = {};
-      if (item.filmed) flags.filmed = true;
-      if (item.edited) flags.edited = true;
-      if (item.scheduled) flags.scheduled = true;
-      item.statusFlags = flags;
-      migrated = true;
-    });
-    if (migrated) persist();
-  })();
 
   var today = new Date();
   var view = { year: today.getFullYear(), month: today.getMonth() };
@@ -1133,65 +1029,41 @@ window.__startGantt = function (BOOT) {
     return luma >= 150 ? "#20201c" : "#ffffff";
   }
 
-  // ---------- statuses: reading, writing and the colors they drive ----------
-  function findStatus(id) {
-    for (var i = 0; i < state.statuses.length; i++) if (state.statuses[i].id === id) return state.statuses[i];
-    return null;
-  }
-
-  function itemHasStatus(item, statusId) {
-    if (statusId === "scheduled" && item.pub && ["scheduled", "publishing", "published", "partial"].indexOf(item.pub.status) !== -1) return true;
-    if (item.statusFlags && Object.prototype.hasOwnProperty.call(item.statusFlags, statusId)) return !!item.statusFlags[statusId];
-    return !!item[statusId];
-  }
-
-  function setItemStatus(item, statusId, value) {
-    if (!item.statusFlags || typeof item.statusFlags !== "object") item.statusFlags = {};
-    item.statusFlags[statusId] = !!value;
-    if (LEGACY_STATUS_FIELDS[statusId]) item[statusId] = !!value;
-  }
-
-  // שני סטטוסים שלא מסמנים ידנית — הם נגזרים ממה שקרה לפריט:
-  // סרטון שנכנס מהתיקייה "מוכן לפרסום" ועוד לא תוזמן, ופוסט שנכשל ב-Zernio.
+  // ---------- statuses: derived from what happened to the item, and they color its chip ----------
+  // אין סימון ידני: תוזמן = נשלח ל-Zernio (או עלה), סרטון חוזר = העלאה חוזרת (reposts.ts).
+  // ועוד שלושה שמסמנים שצריך לטפל: ממתין לאישור, חסרה אוטומציה, שגיאה.
+  var SCHEDULED = { id: "scheduled", name: "תוזמן", color: "#2f9e44" };
+  var REPOST = { id: "repost", name: "סרטון חוזר", color: "#f59f00" };
   var PENDING_APPROVAL = { id: "pending-approval", name: "ממתין לאישור", color: "#8b5cf6" };
   var PUB_ERROR = { id: "pub-error", name: "שגיאה", color: "#d03b3b" };
   // פוסט שמבקש תגובות ועוד אין לו אוטומציה: השיבוץ האוטומטי לא יתזמן אותו עד שבוחרים אחת
   var NEEDS_AUTOMATION = { id: "needs-automation", name: "חסרה אוטומציה", color: "#e8590c" };
-  function derivedStatus(item) {
+
+  function isScheduled(item) {
+    var p = item.pub;
+    if (p && ["scheduled", "publishing", "published", "partial"].indexOf(p.status) !== -1) return true;
+    return item.scheduled === true;
+  }
+
+  function currentStatus(item) {
     var p = item.pub;
     if (p && (p.status === "failed" || p.status === "unknown")) return PUB_ERROR;
     if (window.GanttExt && window.GanttExt.needsAutomation && window.GanttExt.needsAutomation(item)) return NEEDS_AUTOMATION;
-    if (item.intake && !(p && ["scheduled", "publishing", "published", "partial"].indexOf(p.status) !== -1)) return PENDING_APPROVAL;
-    return null;
-  }
-
-  // הסטטוס האחרון בסדר שסומן הוא זה שקובע את הצבע
-  function currentStatus(item) {
-    var derived = derivedStatus(item);
-    if (derived) return derived;
-    for (var i = state.statuses.length - 1; i >= 0; i--) {
-      if (itemHasStatus(item, state.statuses[i].id)) return state.statuses[i];
-    }
+    if (item.repost) return REPOST;
+    if (item.intake && !isScheduled(item)) return PENDING_APPROVAL;
+    if (isScheduled(item)) return SCHEDULED;
     return null;
   }
 
   function statusColorFor(item) {
     var st = currentStatus(item);
-    return st ? st.color : state.statusNone.color;
+    return st ? st.color : null;
   }
 
   function statusLabelFor(item) {
     var st = currentStatus(item);
-    return st ? st.name : state.statusNone.name;
+    return st ? st.name : "עוד לא תוזמן";
   }
-
-  // "הושלם" = השלב האחרון ברשימה סומן
-  function isItemComplete(item) {
-    var last = state.statuses[state.statuses.length - 1];
-    return last ? itemHasStatus(item, last.id) : false;
-  }
-
-  function statusIconFor(statusId) { return ICONS[statusId] || ICONS.check; }
 
   // ---------- drag & drop: reschedule a chip by dragging it to another day ----------
   var chipDrag = null;
@@ -1303,8 +1175,6 @@ window.__startGantt = function (BOOT) {
   function mergeStates(preferred, other) {
     var merged = {
       items: (preferred.items || []).slice(),
-      statuses: (preferred.statuses || []).slice(),
-      statusNone: preferred.statusNone,
       igSettings: preferred.igSettings || other.igSettings
     };
     function addMissing(targetList, sourceList) {
@@ -1313,7 +1183,6 @@ window.__startGantt = function (BOOT) {
       (sourceList || []).forEach(function (x) { if (x && x.id && !seen[x.id]) { seen[x.id] = true; targetList.push(x); } });
     }
     addMissing(merged.items, other.items);
-    addMissing(merged.statuses, other.statuses);
     return merged;
   }
 
@@ -1325,8 +1194,6 @@ window.__startGantt = function (BOOT) {
 
   function applyState(next) {
     state.items = Array.isArray(next.items) ? next.items : [];
-    state.statuses = Array.isArray(next.statuses) ? next.statuses : null;
-    state.statusNone = next.statusNone;
     state.igSettings = next.igSettings;
     normalizeState();
   }
@@ -1340,9 +1207,6 @@ window.__startGantt = function (BOOT) {
     renderCalendar();
     if (typeof renderAnalytics === "function") renderAnalytics();
     if (dayModalOverlay.classList.contains("is-open")) renderDayModal();
-    if (settingsModalOverlay.classList.contains("is-open")) {
-      renderStatusList();
-    }
   }
 
   // ---------- backup to a file ----------
@@ -1751,7 +1615,6 @@ window.__startGantt = function (BOOT) {
   var statPostsEl = document.getElementById("statPosts");
   var statStoriesEl = document.getElementById("statStories");
   var statDoneEl = document.getElementById("statDone");
-  var statDoneLabelEl = document.getElementById("statDoneLabel");
   var hintEl = document.getElementById("hintText");
   var bootGateEl = document.getElementById("bootGate");
   var syncLabelEl = document.getElementById("syncLabel");
@@ -1761,15 +1624,12 @@ window.__startGantt = function (BOOT) {
   var prevMonthBtn = document.getElementById("prevMonthBtn");
   var nextMonthBtn = document.getElementById("nextMonthBtn");
   var todayBtn = document.getElementById("todayBtn");
-  var openSettingsBtn = document.getElementById("openSettingsBtn");
 
   var dayModalOverlay = document.getElementById("dayModalOverlay");
   var dayModalTitleEl = document.getElementById("dayModalTitle");
   var dayModalBodyEl = document.getElementById("dayModalBody");
   var dayModalCloseBtn = document.getElementById("dayModalCloseBtn");
 
-  var settingsModalOverlay = document.getElementById("settingsModalOverlay");
-  var settingsModalCloseBtn = document.getElementById("settingsModalCloseBtn");
   var openSyncBtn = document.getElementById("openSyncBtn");
   var syncDotEl = document.getElementById("syncDot");
   var syncModalOverlay = document.getElementById("syncModalOverlay");
@@ -1779,15 +1639,13 @@ window.__startGantt = function (BOOT) {
   var importBackupBtn = document.getElementById("importBackupBtn");
   var importFileInput = document.getElementById("importFileInput");
   var importPreviewEl = document.getElementById("importPreview");
-  var statusListEl = document.getElementById("statusList");
-  var addStatusBtn = document.getElementById("addStatusBtn");
 
   // ---------- modal state ----------
   var dayModal = { dateKey: null, mode: "list", editingId: null };
 
   function lockScroll() { document.documentElement.style.overflow = "hidden"; }
   function unlockScrollIfClear() {
-    if (!dayModalOverlay.classList.contains("is-open") && !settingsModalOverlay.classList.contains("is-open") && !syncModalOverlay.classList.contains("is-open")) {
+    if (!dayModalOverlay.classList.contains("is-open") && !syncModalOverlay.classList.contains("is-open")) {
       document.documentElement.style.overflow = "";
     }
   }
@@ -1805,16 +1663,6 @@ window.__startGantt = function (BOOT) {
     dayModalOverlay.classList.remove("is-open");
     unlockScrollIfClear();
   }
-  function openSettingsModal() {
-    settingsModalOverlay.classList.add("is-open");
-    lockScroll();
-    renderStatusList();
-  }
-  function closeSettingsModal() {
-    settingsModalOverlay.classList.remove("is-open");
-    unlockScrollIfClear();
-  }
-
   function renderDayModal() {
     if (dayModal.mode === "list") renderDayList(); else renderItemForm();
   }
@@ -1848,28 +1696,6 @@ window.__startGantt = function (BOOT) {
       renderDayModal();
     });
     dayModalBodyEl.appendChild(addBtn);
-  }
-
-  function buildStatusToggle(item, status, onChange) {
-    var btn = document.createElement("button");
-    btn.type = "button";
-    var on = itemHasStatus(item, status.id);
-    btn.className = "icon-btn small status-toggle-btn" + (on ? " is-active" : "");
-    var label = on ? "בטל סימון " + status.name : "סמן כ" + status.name;
-    btn.setAttribute("aria-label", label);
-    btn.title = label;
-    btn.innerHTML = statusIconFor(status.id);
-    if (on) {
-      btn.style.background = status.color;
-      btn.style.color = textColorForBg(status.color);
-    }
-    btn.addEventListener("click", function (e) {
-      e.stopPropagation();
-      setItemStatus(item, status.id, !itemHasStatus(item, status.id));
-      persist();
-      onChange();
-    });
-    return btn;
   }
 
   function buildIgDayItemRow(item) {
@@ -1931,7 +1757,7 @@ window.__startGantt = function (BOOT) {
   function buildDayItemRow(item) {
     if (item.source === "instagram") return buildIgDayItemRow(item);
     var row = document.createElement("div");
-    row.className = "day-item-row" + (isItemComplete(item) ? " is-scheduled" : "");
+    row.className = "day-item-row";
 
     var main = document.createElement("button");
     main.type = "button";
@@ -1940,7 +1766,7 @@ window.__startGantt = function (BOOT) {
 
     var dot = document.createElement("span");
     dot.className = "dot";
-    dot.style.background = statusColorFor(item);
+    dot.style.background = statusColorFor(item) || "var(--ink-400)";
     dot.title = statusLabelFor(item);
 
     var icon = document.createElement("span");
@@ -1966,15 +1792,7 @@ window.__startGantt = function (BOOT) {
       renderDayModal();
     });
 
-    function refreshAfterToggle() {
-      renderDayList();
-      renderHeader();
-      renderCalendar();
-    }
     row.appendChild(main);
-    state.statuses.forEach(function (st) {
-      row.appendChild(buildStatusToggle(item, st, refreshAfterToggle));
-    });
     return row;
   }
 
@@ -2222,36 +2040,6 @@ window.__startGantt = function (BOOT) {
     captionInput.addEventListener("input", refreshCaptionHint);
     refreshCaptionHint();
 
-    var statusLabel = document.createElement("label");
-    statusLabel.className = "field-label";
-    statusLabel.textContent = "סטטוס";
-
-    var statusRowsWrap = document.createElement("div");
-    var statusInputs = [];
-    state.statuses.forEach(function (st) {
-      var row = document.createElement("label");
-      row.className = "checkbox-row";
-      var input = document.createElement("input");
-      input.type = "checkbox";
-      input.checked = editing ? itemHasStatus(editing, st.id) : false;
-      var dot = document.createElement("span");
-      dot.className = "dot";
-      dot.style.background = st.color;
-      var text = document.createElement("span");
-      text.textContent = st.name;
-      row.appendChild(input);
-      row.appendChild(dot);
-      row.appendChild(text);
-      statusRowsWrap.appendChild(row);
-      statusInputs.push({ status: st, input: input });
-    });
-    if (!state.statuses.length) {
-      var emptyStatuses = document.createElement("p");
-      emptyStatuses.className = "field-hint";
-      emptyStatuses.textContent = "לא הוגדרו סטטוסים — אפשר להוסיף אותם בהגדרות הלוח.";
-      statusRowsWrap.appendChild(emptyStatuses);
-    }
-
     var scheduleHelper = document.createElement("div");
     scheduleHelper.className = "schedule-helper";
     var scheduleTitle = document.createElement("div");
@@ -2374,14 +2162,12 @@ window.__startGantt = function (BOOT) {
           format: currentFormat,
           note: noteInput.value.trim(),
           caption: captionInput.value.trim(),
-          statusFlags: {},
           createdAt: Date.now()
         };
         state.items.push(target);
         editing = target;
         dayModal.editingId = target.id;
       }
-      statusInputs.forEach(function (si) { setItemStatus(target, si.status.id, si.input.checked); });
       if (ext && ext.collect) ext.collect(target);
       persist();
       dayModal.dateKey = newDate;
@@ -2419,8 +2205,6 @@ window.__startGantt = function (BOOT) {
     form.appendChild(captionHint);
     form.appendChild(formatLabel);
     form.appendChild(formatWrap);
-    form.appendChild(statusLabel);
-    form.appendChild(statusRowsWrap);
     ext = window.GanttExt && window.GanttExt.buildPublishSection ? window.GanttExt.buildPublishSection({
       itemId: formItemId,
       editing: editing,
@@ -2436,134 +2220,6 @@ window.__startGantt = function (BOOT) {
     titleInput.focus();
   }
 
-  // refresh everything that can be tinted by a status color change
-  function refreshColors() {
-    renderHeader();
-    renderCalendar();
-    if (dayModalOverlay.classList.contains("is-open") && dayModal.mode === "list") renderDayList();
-  }
-
-  function renderStatusList() {
-    statusListEl.innerHTML = "";
-
-    // the "nothing marked yet" baseline — a color and a name, but never deletable
-    var baseRow = document.createElement("div");
-    baseRow.className = "settings-row";
-    var baseColor = document.createElement("input");
-    baseColor.type = "color";
-    baseColor.className = "color-input";
-    baseColor.value = state.statusNone.color;
-    baseColor.setAttribute("aria-label", "צבע לפני שסומן שלב כלשהו");
-    baseColor.addEventListener("input", function () {
-      state.statusNone.color = baseColor.value;
-      persist();
-      refreshColors();
-    });
-    var baseName = document.createElement("input");
-    baseName.type = "text";
-    baseName.className = "text-input";
-    baseName.maxLength = 24;
-    baseName.value = state.statusNone.name;
-    baseName.addEventListener("change", function () {
-      state.statusNone.name = baseName.value.trim() || state.statusNone.name;
-      baseName.value = state.statusNone.name;
-      persist();
-      refreshColors();
-    });
-    var baseTag = document.createElement("span");
-    baseTag.className = "settings-row-spacer settings-row-base-tag";
-    baseTag.textContent = "מצב התחלה";
-    baseRow.appendChild(baseColor);
-    baseRow.appendChild(baseName);
-    baseRow.appendChild(baseTag);
-    statusListEl.appendChild(baseRow);
-
-    state.statuses.forEach(function (st, idx) {
-      var row = document.createElement("div");
-      row.className = "settings-row";
-
-      var colorInput = document.createElement("input");
-      colorInput.type = "color";
-      colorInput.className = "color-input";
-      colorInput.value = st.color;
-      colorInput.setAttribute("aria-label", "צבע עבור " + st.name);
-      colorInput.addEventListener("input", function () {
-        st.color = colorInput.value;
-        persist();
-        refreshColors();
-      });
-
-      var nameInput = document.createElement("input");
-      nameInput.type = "text";
-      nameInput.className = "text-input";
-      nameInput.maxLength = 24;
-      nameInput.value = st.name;
-      nameInput.setAttribute("data-status-name", st.id);
-      nameInput.addEventListener("change", function () {
-        st.name = nameInput.value.trim() || st.name;
-        nameInput.value = st.name;
-        persist();
-        refreshColors();
-      });
-
-      function moveStatus(delta) {
-        var target = idx + delta;
-        if (target < 0 || target >= state.statuses.length) return;
-        var moved = state.statuses.splice(idx, 1)[0];
-        state.statuses.splice(target, 0, moved);
-        persist();
-        renderStatusList();
-        refreshColors();
-      }
-
-      var upBtn = document.createElement("button");
-      upBtn.type = "button";
-      upBtn.className = "icon-btn small";
-      upBtn.innerHTML = ICONS.moveUp;
-      upBtn.title = "העברה שלב אחד אחורה";
-      upBtn.setAttribute("aria-label", "העברת " + st.name + " שלב אחד אחורה");
-      upBtn.disabled = idx === 0;
-      upBtn.style.opacity = idx === 0 ? "0.35" : "";
-      upBtn.addEventListener("click", function () { moveStatus(-1); });
-
-      var downBtn = document.createElement("button");
-      downBtn.type = "button";
-      downBtn.className = "icon-btn small";
-      downBtn.innerHTML = ICONS.moveDown;
-      downBtn.title = "העברה שלב אחד קדימה";
-      downBtn.setAttribute("aria-label", "העברת " + st.name + " שלב אחד קדימה");
-      downBtn.disabled = idx === state.statuses.length - 1;
-      downBtn.style.opacity = idx === state.statuses.length - 1 ? "0.35" : "";
-      downBtn.addEventListener("click", function () { moveStatus(1); });
-
-      var delBtn = document.createElement("button");
-      delBtn.type = "button";
-      delBtn.className = "icon-btn small danger";
-      delBtn.innerHTML = ICONS.trash;
-      delBtn.setAttribute("aria-label", "מחיקת הסטטוס " + st.name);
-      delBtn.title = "מחיקת סטטוס";
-      delBtn.addEventListener("click", function () {
-        if (delBtn.classList.contains("confirm")) {
-          // הסימונים נשארים על הפריטים עצמם — רק השלב יורד מהתצוגה
-          state.statuses = state.statuses.filter(function (x) { return x.id !== st.id; });
-          persist();
-          renderStatusList();
-          refreshColors();
-        } else {
-          delBtn.classList.add("confirm");
-          setTimeout(function () { delBtn.classList.remove("confirm"); }, 3000);
-        }
-      });
-
-      row.appendChild(colorInput);
-      row.appendChild(nameInput);
-      row.appendChild(upBtn);
-      row.appendChild(downBtn);
-      row.appendChild(delBtn);
-      statusListEl.appendChild(row);
-    });
-  }
-
   function renderHeader() {
     monthLabelEl.textContent = MONTH_NAMES[view.month] + " " + view.year;
 
@@ -2574,14 +2230,12 @@ window.__startGantt = function (BOOT) {
     });
     var posts = monthItems.filter(function (it) { return it.format !== "story"; }).length;
     var stories = monthItems.filter(function (it) { return it.format === "story"; }).length;
-    var done = monthItems.filter(isItemComplete).length;
+    var done = monthItems.filter(isScheduled).length;
 
     statTotalEl.textContent = monthItems.length;
     statPostsEl.textContent = posts;
     statStoriesEl.textContent = stories;
     statDoneEl.textContent = done + "/" + monthItems.length;
-    var lastStatus = state.statuses[state.statuses.length - 1];
-    statDoneLabelEl.textContent = lastStatus ? lastStatus.name : "הושלמו";
 
     hintEl.style.display = state.items.length === 0 ? "block" : "none";
     updateSyncLabel();
@@ -2620,22 +2274,26 @@ window.__startGantt = function (BOOT) {
     if (item.source === "instagram") return buildIgChip(item);
     var chip = document.createElement("button");
     chip.type = "button";
-    chip.className = "chip chip-draggable" + (isItemComplete(item) ? " is-scheduled" : "");
-    var pdot = document.createElement("span");
-    pdot.className = "progress-dot";
-    pdot.style.background = statusColorFor(item);
+    chip.className = "chip chip-draggable";
+    // הסטטוס צובע את המלבן כולו; בלי סטטוס הוא נשאר ניטרלי
+    var bg = statusColorFor(item);
+    var textColor = bg ? textColorForBg(bg) : null;
+    if (bg) {
+      chip.style.background = bg;
+      chip.style.borderColor = "transparent";
+      chip.style.color = textColor;
+    }
     var icon = document.createElement("span");
     icon.className = "fmt-icon";
     icon.innerHTML = ICONS[item.format] || ICONS.post;
+    if (textColor) icon.style.color = textColor;
     var title = document.createElement("span");
     title.className = "chip-title";
     title.textContent = item.title;
-    chip.appendChild(pdot);
     chip.appendChild(icon);
     chip.appendChild(title);
     if (window.GanttExt && window.GanttExt.decorateChip) window.GanttExt.decorateChip(chip, item);
-    var statusBits = state.statuses.filter(function (st) { return itemHasStatus(item, st.id); }).map(function (st) { return st.name; });
-    chip.title = (FORMAT_LABELS[item.format] || "פוסט") + " · " + (statusBits.length ? statusBits.join(" · ") : state.statusNone.name);
+    chip.title = (FORMAT_LABELS[item.format] || "פוסט") + " · " + statusLabelFor(item);
     chip.addEventListener("click", function (e) {
       if (suppressNextChipClick) { suppressNextChipClick = false; return; }
       e.stopPropagation();
@@ -2816,25 +2474,13 @@ window.__startGantt = function (BOOT) {
     var t = new Date(); view.year = t.getFullYear(); view.month = t.getMonth();
     renderHeader(); renderCalendar();
   });
-  openSettingsBtn.addEventListener("click", openSettingsModal);
-  addStatusBtn.addEventListener("click", function () {
-    var st = { id: uid(), name: "סטטוס חדש", color: STATUS_PALETTE[state.statuses.length % STATUS_PALETTE.length] };
-    state.statuses.push(st);
-    persist();
-    renderStatusList();
-    refreshColors();
-    var field = statusListEl.querySelector('[data-status-name="' + st.id + '"]');
-    if (field) { field.focus(); field.select(); }
-  });
   dayModalCloseBtn.addEventListener("click", closeDayModal);
-  settingsModalCloseBtn.addEventListener("click", closeSettingsModal);
   syncModalCloseBtn.addEventListener("click", closeSyncModal);
   openSyncBtn.addEventListener("click", openSyncModal);
   dayModalOverlay.addEventListener("click", function (e) { if (e.target === dayModalOverlay) closeDayModal(); });
-  settingsModalOverlay.addEventListener("click", function (e) { if (e.target === settingsModalOverlay) closeSettingsModal(); });
   syncModalOverlay.addEventListener("click", function (e) { if (e.target === syncModalOverlay) closeSyncModal(); });
   document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape") { closeDayModal(); closeSettingsModal(); closeSyncModal(); }
+    if (e.key === "Escape") { closeDayModal(); closeSyncModal(); }
   });
 
   exportBackupBtn.addEventListener("click", downloadBackup);

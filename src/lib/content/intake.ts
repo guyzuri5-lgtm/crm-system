@@ -164,8 +164,6 @@ export async function createIntakeItem(b: Record<string, any>) {
       id, date: null, time: /^\d{2}:\d{2}$/.test(String(b.time)) ? b.time : "18:00",
       title, caption: str(b.caption, 2200), format: "reel", ...(topic ? { topic } : {}),
       note: str(b.note, 4000),
-      filmed: true, edited: true, scheduled: false,
-      statusFlags: { filmed: true, edited: true, scheduled: false },
       platforms,
       platformOptions: {
         youtube: { title: ytTitle, visibility: "public", categoryId: "22", ...(ytTags ? { tags: ytTags } : {}) },
