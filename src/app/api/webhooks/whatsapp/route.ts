@@ -9,6 +9,7 @@ import {
   type ParsedStatus,
   type WhatsAppWebhook,
 } from "@/lib/whatsapp-cloud";
+import { verifyMetaSignature } from "@/lib/meta-webhook";
 import { phoneVariants } from "@/lib/contact-import";
 import { recordReceipts, type RecordReceiptInput } from "@/lib/receipts";
 
@@ -47,7 +48,19 @@ export async function POST(request: NextRequest) {
   // JSON.stringify של אובייקט מפורסר מייצר מחרוזת אחרת, והאימות לעולם לא היה עובר.
   const rawBody = await request.text();
 
-  if (!verifyWebhookSignature(rawBody, request.headers.get("x-hub-signature-256"))) {
+  // שני שולחים לגיטימיים, כל אחד עם הסוד שלו: מטא (App Secret) והגשר הלא
+  // רשמי (WHATSAPP_BRIDGE_SECRET, ר' src/lib/whatsapp-bridge.ts). המבנה זהה,
+  // ולכן מכאן והלאה אין הבדל ביניהם.
+  const fromMeta = verifyWebhookSignature(rawBody, request.headers.get("x-hub-signature-256"));
+  const fromBridge =
+    !fromMeta &&
+    verifyMetaSignature(
+      rawBody,
+      request.headers.get("x-bridge-signature-256"),
+      process.env.WHATSAPP_BRIDGE_SECRET
+    );
+
+  if (!fromMeta && !fromBridge) {
     return NextResponse.json({ error: "invalid signature" }, { status: 401 });
   }
 

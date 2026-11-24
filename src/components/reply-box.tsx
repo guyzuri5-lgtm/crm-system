@@ -26,6 +26,7 @@ export function ReplyBox({
   canSend,
   openWindow,
   hoursLeft,
+  unlimited = false,
   templates,
   onSend,
 }: {
@@ -33,6 +34,8 @@ export function ReplyBox({
   canSend: boolean;
   openWindow: boolean;
   hoursLeft: number;
+  /** שליחה דרך גשר הוואטסאפ — בלי חלון ובלי תבניות מאושרות. ר' WindowMeter. */
+  unlimited?: boolean;
   templates: ReplyTemplate[];
   onSend: (formData: FormData) => Promise<ReplyResult>;
 }) {
@@ -124,10 +127,12 @@ export function ReplyBox({
       {/* המד אומר כמה נשאר, המשפט אומר מה זה אומר. קודם היה רק המשפט, וכדי
           לדעת אם נשאר זמן צריך היה לקרוא אותו עד הסוף. */}
       <p className="flex flex-wrap items-center gap-2 text-xs text-[var(--subtle)]">
-        <WindowMeter openWindow={openWindow} hoursLeft={hoursLeft} />
-        {openWindow
-          ? "טקסט חופשי מותר, ללא עלות."
-          : "מותר לשלוח רק תבנית שאושרה ב-Meta, והיא מחויבת."}
+        <WindowMeter openWindow={openWindow} hoursLeft={hoursLeft} unlimited={unlimited} />
+        {unlimited
+          ? "נשלח מהמספר העסקי דרך הגשר. בלי חלון זמן ובלי תבניות."
+          : openWindow
+            ? "טקסט חופשי מותר, ללא עלות."
+            : "מותר לשלוח רק תבנית שאושרה ב-Meta, והיא מחויבת."}
       </p>
 
       {error && (

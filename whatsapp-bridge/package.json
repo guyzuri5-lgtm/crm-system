@@ -1,0 +1,14 @@
+{
+  "name": "whatsapp-bridge",
+  "private": true,
+  "type": "module",
+  "description": "גשר וואטסאפ לא רשמי (Baileys) בין מספר וואטסאפ ביזנס ל-CRM",
+  "scripts": {
+    "start": "node bridge.mjs"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "baileys": "7.0.0-rc14",
+    "pino": "^9.6.0"
+  }
+}

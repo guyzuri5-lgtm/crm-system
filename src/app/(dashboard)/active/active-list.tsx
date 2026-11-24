@@ -4,6 +4,7 @@ import { statusMap } from "@/lib/statuses";
 import { statusColorClasses, statusLabel } from "@/lib/status-colors";
 import { formatDate } from "@/lib/dates";
 import { isWithin24HourWindow, windowRemainingMs } from "@/lib/whatsapp-cloud";
+import { isBridgeConfigured } from "@/lib/whatsapp-bridge";
 import type { Contact, InteractionType } from "@/lib/supabase/database.types";
 import { ContactRow, type ActiveRowData } from "./contact-row";
 import { sendReplyAction } from "../contacts/[id]/actions";
@@ -126,6 +127,8 @@ export async function ActiveList({ mode }: { mode: ActiveMode }) {
   const contacts = new Map((contactsRaw ?? []).map((c) => [c.id, c as Contact]));
   const templates = (templatesRaw ?? []).map((t) => ({ id: t.id as string, name: t.name as string }));
 
+  const unlimited = isBridgeConfigured();
+
   // סדר השורות נקבע בשאילתה; המפה משמשת רק לשליפה, ולכן עוברים על activity.
   const rows: ActiveRowData[] = activity.flatMap((a) => {
     const contact = contacts.get(a.contact_id);
@@ -147,7 +150,8 @@ export async function ActiveList({ mode }: { mode: ActiveMode }) {
         activityType: type,
         timeLabel: relativeTime(at),
         preview: a.last_inbound_text,
-        openWindow: isWithin24HourWindow(contact.last_incoming_message_at),
+        openWindow: unlimited || isWithin24HourWindow(contact.last_incoming_message_at),
+        unlimited,
         hoursLeft: Math.floor(windowRemainingMs(contact.last_incoming_message_at) / 3_600_000),
         // הדבר האחרון שקרה הגיע מהלקוח, כלומר איש לא ענה מאז. בלשונית
         // "נשלח אליהם" אין פנייה של לקוח בכלל, ולכן הסימון לא חל שם.

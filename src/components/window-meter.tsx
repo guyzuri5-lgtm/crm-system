@@ -22,13 +22,21 @@ const LOW_HOURS = 3;
 export function WindowMeter({
   openWindow,
   hoursLeft,
+  unlimited = false,
   className = "",
 }: {
   openWindow: boolean;
   /** שעות שלמות שנותרו בחלון. נקרא רק כשהחלון פתוח. */
   hoursLeft: number;
+  /**
+   * השליחה עוברת דרך גשר הוואטסאפ (src/lib/whatsapp-bridge.ts), שאינו כפוף
+   * לחלון בכלל. מד שמראה "חלון סגור" היה אומר משהו שאינו נכון — אין מה להציג.
+   */
+  unlimited?: boolean;
   className?: string;
 }) {
+  if (unlimited) return null;
+
   const low = openWindow && hoursLeft <= LOW_HOURS;
 
   const tone = !openWindow

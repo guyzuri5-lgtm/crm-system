@@ -42,6 +42,8 @@ export interface ActiveRowData {
   preview: string | null;
   openWindow: boolean;
   hoursLeft: number;
+  /** שליחה דרך גשר הוואטסאפ — אין חלון 24 שעות. */
+  unlimited: boolean;
   /** הדבר האחרון שקרה הגיע מהלקוח — כלומר טרם נענה. */
   unanswered: boolean;
   inboundCount: number;
@@ -232,7 +234,7 @@ export function ContactRow({
           <span className="data text-[11px] whitespace-nowrap text-[var(--subtle)]">
             {row.timeLabel}
           </span>
-          <WindowMeter openWindow={row.openWindow} hoursLeft={row.hoursLeft} />
+          <WindowMeter openWindow={row.openWindow} hoursLeft={row.hoursLeft} unlimited={row.unlimited} />
         </span>
 
         <svg
@@ -284,6 +286,7 @@ export function ContactRow({
                 canSend={row.canSend}
                 openWindow={row.openWindow}
                 hoursLeft={row.hoursLeft}
+                unlimited={row.unlimited}
                 templates={templates}
                 onSend={onSend}
               />

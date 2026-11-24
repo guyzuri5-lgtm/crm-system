@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // גשר הוואטסאפ: פרויקט Node נפרד שרץ על שרת משלו, לא חלק מ-Next.
+    "whatsapp-bridge/**",
   ]),
 ]);
 

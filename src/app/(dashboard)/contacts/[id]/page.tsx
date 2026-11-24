@@ -6,6 +6,7 @@ import type { CSSProperties } from "react";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { verifyTeamMember } from "@/lib/dal";
 import { isWithin24HourWindow, windowRemainingMs } from "@/lib/whatsapp-cloud";
+import { isBridgeConfigured } from "@/lib/whatsapp-bridge";
 import { listStatuses, statusMap } from "@/lib/statuses";
 import { editableFields, readFieldValue } from "@/lib/fields";
 import { statusLabel } from "@/lib/status-colors";
@@ -122,7 +123,9 @@ export default async function ContactDetailPage(props: PageProps<"/contacts/[id]
 
   // הכלל היחיד שקובע מה מותר לשלוח. מחוץ לחלון Meta מקבלת *רק* תבנית שאושרה
   // מראש, ולכן רק תבניות עם meta_template_name שמישות שם.
-  const openWindow = isWithin24HourWindow(contact.last_incoming_message_at);
+  // דרך הגשר אין חלון בכלל — כל הודעה היא טקסט חופשי (src/lib/whatsapp-bridge.ts).
+  const unlimited = isBridgeConfigured();
+  const openWindow = unlimited || isWithin24HourWindow(contact.last_incoming_message_at);
   const hoursLeft = Math.floor(windowRemainingMs(contact.last_incoming_message_at) / 3_600_000);
   const approvedTemplates = (whatsappTemplates ?? []).filter((t) => t.meta_template_name);
 
@@ -149,7 +152,7 @@ export default async function ContactDetailPage(props: PageProps<"/contacts/[id]
                 status={contact.status}
                 color={statusesByName.get(contact.status)?.color}
               />
-              <WindowMeter openWindow={openWindow} hoursLeft={hoursLeft} />
+              <WindowMeter openWindow={openWindow} hoursLeft={hoursLeft} unlimited={unlimited} />
             </div>
             {contactLine && (
               <p className="data mt-1 truncate text-[12px] text-[var(--subtle)]" dir="ltr">
@@ -186,6 +189,7 @@ export default async function ContactDetailPage(props: PageProps<"/contacts/[id]
               canSend={canSendWhatsApp}
               openWindow={openWindow}
               hoursLeft={hoursLeft}
+              unlimited={unlimited}
               templates={approvedTemplates.map((t) => ({ id: t.id, name: t.name }))}
               onSend={sendReplyAction}
             />

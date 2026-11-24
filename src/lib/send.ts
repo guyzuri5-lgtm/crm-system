@@ -7,6 +7,7 @@ import {
   sendText,
   waIdFromPhone,
 } from "./whatsapp-cloud";
+import { bridgeSendText, isBridgeConfigured } from "./whatsapp-bridge";
 import { renderTemplate, unresolvedPlaceholders } from "./templates";
 import {
   looksLikeHtml,
@@ -168,12 +169,18 @@ export async function sendMessageToContact(input: SendMessageInput): Promise<Sen
       );
     }
 
-    const openWindow = isWithin24HourWindow(input.contact.last_incoming_message_at);
+    // הגשר (מספר וואטסאפ ביזנס כמכשיר מקושר) אינו כפוף לכללי מטא: אין חלון
+    // ואין תבניות מאושרות. תבנית יוצאת כטקסט המרונדר שלה, שכבר נמצא ב-body.
+    const viaBridge = isBridgeConfigured();
+    const openWindow = viaBridge || isWithin24HourWindow(input.contact.last_incoming_message_at);
 
     let messageId: string | null;
     let logged: string;
 
-    if (openWindow) {
+    if (viaBridge) {
+      messageId = await bridgeSendText(waId, input.body);
+      logged = input.body;
+    } else if (openWindow) {
       // בתוך החלון הכול מותר, וזה גם חינם.
       messageId = await sendText(waId, input.body);
       logged = input.body;
