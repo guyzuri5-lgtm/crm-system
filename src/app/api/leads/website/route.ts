@@ -45,8 +45,10 @@ const payloadSchema = z.object({
 // (האתר החדש, functions/api/guide-lead.js). אחרי שהוורדפרס יורד אפשר להשאיר רק אחד.
 function secretMatches(given: string | null): boolean {
   if (!given) return false;
-  const a = Buffer.from(given);
-  return [process.env.WEBSITE_LEAD_SECRET, process.env.WEBSITE_LEAD_SECRET_CF].some((expected) => {
+  const a = Buffer.from(given.trim());
+  return [process.env.WEBSITE_LEAD_SECRET, process.env.WEBSITE_LEAD_SECRET_CF].some((raw) => {
+    // trim: סוד שהודבק מ-pbcopy מגיע עם ירידת שורה בסוף
+    const expected = raw?.trim();
     if (!expected) return false;
     const b = Buffer.from(expected);
     return a.length === b.length && timingSafeEqual(a, b);
