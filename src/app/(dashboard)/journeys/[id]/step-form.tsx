@@ -119,7 +119,7 @@ export function StepForm({
       </label>
 
       {/*
-        התבניות הן כרטיסי בחירה, לא בורר נפתח: השם, הערוץ ומצב האישור ב-Meta
+        התבניות הן כרטיסי בחירה, לא בורר נפתח: השם והערוץ
         גלויים עוד לפני הבחירה, והכרטיס הנבחר נפתח ומציג את ההודעה במלואה.
         אין שדה ערוץ — הוא נגזר מהתבנית בשרת, ואי-התאמה בלתי אפשרית.
       */}
@@ -158,7 +158,6 @@ export function StepForm({
                 >
                   {t.channel === "email" ? "מייל" : "וואטסאפ"}
                 </span>
-                {t.channel === "whatsapp" && <MetaBadge template={t} />}
               </div>
 
               {active && (
@@ -170,18 +169,6 @@ export function StepForm({
                   >
                     {t.body}
                   </p>
-                  {t.metaTemplateName && (
-                    <p className="mt-1.5 text-xs text-[var(--subtle)]" dir="ltr">
-                      Meta: {t.metaTemplateName}
-                      {t.metaStatus ? ` (${t.metaStatus})` : ""}
-                    </p>
-                  )}
-                  {t.channel === "whatsapp" && !t.metaTemplateName && (
-                    <p className="mt-1.5 text-xs text-[var(--danger)]">
-                      אין לתבנית הזו אישור ב-Meta — ללקוח שלא כתב לכם ב-24 השעות
-                      האחרונות השליחה תיכשל.
-                    </p>
-                  )}
                 </div>
               )}
             </div>
@@ -320,29 +307,6 @@ export function StepForm({
         {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
       </div>
     </form>
-  );
-}
-
-/** מצב האישור של תבנית וואטסאפ ב-Meta, כתג צבעוני שרואים לפני הבחירה. */
-function MetaBadge({ template }: { template: CanvasTemplate }) {
-  if (!template.metaTemplateName) {
-    return (
-      <span className="rounded-full bg-[var(--danger-soft)] px-2 py-0.5 text-[11px] text-[var(--danger)]">
-        בלי אישור ב-Meta
-      </span>
-    );
-  }
-  if (template.metaStatus && template.metaStatus.toUpperCase() !== "APPROVED") {
-    return (
-      <span className="rounded-full bg-[var(--warn-soft)] px-2 py-0.5 text-[11px] text-[var(--warn)]">
-        ממתינה לאישור ב-Meta
-      </span>
-    );
-  }
-  return (
-    <span className="rounded-full bg-[var(--ok-soft)] px-2 py-0.5 text-[11px] text-[var(--ok)]">
-      מאושרת ב-Meta
-    </span>
   );
 }
 

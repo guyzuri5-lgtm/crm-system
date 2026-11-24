@@ -10,6 +10,8 @@ import {
   type WhatsAppWebhook,
 } from "@/lib/whatsapp-cloud";
 import { verifyMetaSignature } from "@/lib/meta-webhook";
+import { isOptOutMessage } from "@/lib/message-variants";
+import { bridgeSendText, isBridgeConfigured } from "@/lib/whatsapp-bridge";
 import { phoneVariants } from "@/lib/contact-import";
 import { recordReceipts, type RecordReceiptInput } from "@/lib/receipts";
 
@@ -152,7 +154,46 @@ async function handleInbound(message: ParsedInboundMessage): Promise<string | nu
     .eq("id", contact.id);
   if (error) throw error;
 
+  if (isOptOutMessage(message.text) && !contact.whatsapp_opted_out_at) {
+    await recordOptOut(contact.id, message.waId);
+  }
+
   return contact.id;
+}
+
+/**
+ * "הסר" — מאותו רגע לא יוצא אליו וואטסאפ אוטומטי (src/lib/send.ts).
+ *
+ * בערוץ לא רשמי זו ההגנה החשובה ביותר: מי שביקש להפסיק ועדיין מקבל הודעות
+ * לוחץ "דווח על ספאם", ודיווחים הם מה שחוסם מספר. אישור קצר נשלח לו מיד,
+ * כדי שלא יחשוב שהבקשה נבלעה ויחסום בכל זאת.
+ *
+ * אף שלב כאן לא מפיל את ה-webhook: ההודעה עצמה כבר נרשמה, וזה מה שחשוב.
+ */
+async function recordOptOut(contactId: string, waId: string): Promise<void> {
+  const db = supabaseAdmin();
+  const { error } = await db
+    .from("contacts")
+    .update({ whatsapp_opted_out_at: new Date().toISOString() })
+    .eq("id", contactId);
+  if (error) {
+    // 42703 / PGRST204 = 0059 לא הודבקה. ההודעה נרשמה, ההסרה לא — ולכן לוג.
+    console.error("[whatsapp] רישום הסרה נכשל:", error.message);
+    return;
+  }
+
+  await db.from("interactions").insert({
+    contact_id: contactId,
+    type: "manual_note",
+    content: "[הסרה] הלקוח ביקש להסיר — לא יקבל יותר וואטסאפ אוטומטי. שליחה ידנית מהכרטיס עדיין אפשרית.",
+  });
+
+  if (isBridgeConfigured()) {
+    await bridgeSendText(
+      waId,
+      "קיבלתי, הסרתי אותך. לא תקבל ממני יותר הודעות אוטומטיות. אם תרצה לכתוב לי — אני כאן."
+    ).catch((err) => console.error("[whatsapp] אישור הסרה לא נשלח:", err));
+  }
 }
 
 /**

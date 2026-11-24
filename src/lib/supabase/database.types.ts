@@ -368,6 +368,8 @@ export type Database = {
           /** wa_id של Meta — המספר בפורמט בינלאומי בלי +, "972501234567" */
           whatsapp_id: string | null;
           last_incoming_message_at: string | null;
+          /** 0059 — כתב "הסר". מאז לא יוצא אליו וואטסאפ אוטומטי (src/lib/send.ts). */
+          whatsapp_opted_out_at: string | null;
           /** נוסף ב-0022 — ביקש לצאת מרשימת התפוצה. חוסם ניוזלטרים ומסעות שיווקיים (0039). */
           unsubscribed_at: string | null;
           notes: string | null;
@@ -597,6 +599,13 @@ export type Database = {
           /** 0058 — שבוע חימום: התקרה עולה מ-15 עד daily_limit (src/lib/whatsapp-warmup.ts). */
           warmup_enabled: boolean;
           warmup_started_at: string | null;
+          /** 0059 — שעות שקטות לוואטסאפ האוטומטי (src/lib/whatsapp-warmup.ts). */
+          quiet_hours_enabled: boolean;
+          quiet_start_hour: number;
+          quiet_end_hour: number;
+          quiet_shabbat: boolean;
+          /** 0059 — המייל האחרון על ניתוק הגשר, כדי לא לשלוח אחד בכל ריצה. */
+          bridge_alert_sent_at: string | null;
           updated_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["whatsapp_settings"]["Row"]>;

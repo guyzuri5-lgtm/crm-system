@@ -3,7 +3,7 @@ import "server-only";
 import { supabaseAdmin } from "./supabase/admin";
 import { zonedTimeToUtc, utcToZonedParts } from "./booking/timezone";
 import type { MessageChannel, WhatsAppSettings } from "./supabase/database.types";
-import { warmupState } from "./whatsapp-warmup";
+import { isQuietTime, warmupState } from "./whatsapp-warmup";
 
 /**
  * בלמים על השליחה האוטומטית בוואטסאפ.
@@ -36,6 +36,11 @@ const FALLBACK_SETTINGS: WhatsAppSettings = {
   // בלי לדעת מתי החימום התחיל, הוא לא חל. ברירת המחדל של daily_limit כבר שמרנית.
   warmup_enabled: false,
   warmup_started_at: null,
+  quiet_hours_enabled: true,
+  quiet_start_hour: 21,
+  quiet_end_hour: 8,
+  quiet_shabbat: true,
+  bridge_alert_sent_at: null,
   updated_at: new Date().toISOString(),
 };
 
@@ -224,7 +229,12 @@ export async function countWhatsAppSentToday(now: Date = new Date()): Promise<nu
   return count ?? 0;
 }
 
-export type SendStopReason = "paused" | "whatsapp_paused" | "daily_limit" | "time_budget";
+export type SendStopReason =
+  | "paused"
+  | "whatsapp_paused"
+  | "quiet_hours"
+  | "daily_limit"
+  | "time_budget";
 
 /**
  * הבקר שמלווה ריצה אחת של הקרון.
@@ -300,6 +310,18 @@ export class SendBudget {
     // המתג של דף הוואטסאפ: עוצר וואטסאפ בלבד, ומייל ממשיך לצאת.
     if (channel === "whatsapp" && this.settings.whatsapp_paused) {
       return { ok: false, reason: "whatsapp_paused" };
+    }
+    // לילה ושבת: הודעת וואטסאפ אוטומטית מחכה לבוקר. מייל לא כפוף.
+    if (
+      channel === "whatsapp" &&
+      isQuietTime({
+        enabled: this.settings.quiet_hours_enabled,
+        startHour: this.settings.quiet_start_hour,
+        endHour: this.settings.quiet_end_hour,
+        shabbat: this.settings.quiet_shabbat,
+      })
+    ) {
+      return { ok: false, reason: "quiet_hours" };
     }
     if (channel === "whatsapp" && this.remainingToday <= 0) {
       return { ok: false, reason: "daily_limit" };

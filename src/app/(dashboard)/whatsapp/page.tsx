@@ -337,6 +337,10 @@ export default async function WhatsAppPage() {
                 minGap: settings.min_gap_seconds,
                 maxGap: settings.max_gap_seconds,
                 warmupEnabled: settings.warmup_enabled,
+                quietEnabled: settings.quiet_hours_enabled,
+                quietStart: settings.quiet_start_hour,
+                quietEnd: settings.quiet_end_hour,
+                quietShabbat: settings.quiet_shabbat,
               }}
               warmupDay={warmup.day}
               warmupLimit={warmup.effectiveLimit}

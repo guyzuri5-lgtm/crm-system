@@ -8,6 +8,7 @@ import {
   waIdFromPhone,
 } from "./whatsapp-cloud";
 import { bridgeSendText, isBridgeConfigured } from "./whatsapp-bridge";
+import { pickVariant } from "./message-variants";
 import { renderTemplate, unresolvedPlaceholders } from "./templates";
 import {
   looksLikeHtml,
@@ -93,7 +94,17 @@ export interface SendMessageInput {
  * אופציונלי, כי לא כל מסלול מחזיר מזהה: מייל בלי MessageID בתשובה עדיין נשלח,
  * וזו הודעה שיצאה ולא תימדד — לא כישלון שליחה.
  */
-export type SendResult = { ok: true; messageId?: string | null } | { ok: false; error: string };
+export type SendResult =
+  | {
+      ok: true;
+      messageId?: string | null;
+      /**
+       * לא נשלח בכוונה, והקורא צריך להתייחס לזה כאל "טופל": איש הקשר כתב "הסר"
+       * ולכן וואטסאפ אוטומטי לא יוצא אליו. מסע ממשיך הלאה במקום לנסות שוב.
+       */
+      skipped?: "opted_out";
+    }
+  | { ok: false; error: string };
 
 /**
  * הודעה שנשארו בה מציינים לא פתורים לא יוצאת.
@@ -169,6 +180,24 @@ export async function sendMessageToContact(input: SendMessageInput): Promise<Sen
       return { ok: true, messageId: messageId || null };
     }
 
+    // ── הסרה ──
+    // queueGap = שליחה אוטומטית (מסע, כלל, תזכורת). מי שכתב "הסר" לא מקבל
+    // אותה; שליחה ידנית מהכרטיס כן, כי אדם בחר לכתוב לו.
+    if (input.queueGap && input.contact.whatsapp_opted_out_at) {
+      await db.from("interactions").insert({
+        contact_id: input.contact.id,
+        type: "manual_note",
+        content: `${label}[לא נשלח: הלקוח ביקש הסרה מוואטסאפ אוטומטי]`,
+      });
+      return { ok: true, messageId: null, skipped: "opted_out" };
+    }
+
+    // ── גרסאות ──
+    // תבנית יכולה להכיל כמה נוסחים מופרדים ב"---". נבחר אחד באקראי, כדי שלא
+    // ייצאו עשרות הודעות זהות (src/lib/message-variants.ts). מה שנרשם ביומן הוא
+    // הנוסח שנשלח בפועל.
+    const body = pickVariant(input.body);
+
     // ה-wa_id השמור קודם, ורק אז גזירה מהטלפון: מה שהתקבל בפועל מ-Meta אמין
     // יותר מהמרה של מספר שמישהו הקליד.
     const waId = input.contact.whatsapp_id ?? waIdFromPhone(input.contact.phone);
@@ -187,12 +216,12 @@ export async function sendMessageToContact(input: SendMessageInput): Promise<Sen
     let logged: string;
 
     if (viaBridge) {
-      messageId = await bridgeSendText(waId, input.body, input.queueGap);
-      logged = input.body;
+      messageId = await bridgeSendText(waId, body, input.queueGap);
+      logged = body;
     } else if (openWindow) {
       // בתוך החלון הכול מותר, וזה גם חינם.
-      messageId = await sendText(waId, input.body);
-      logged = input.body;
+      messageId = await sendText(waId, body);
+      logged = body;
     } else {
       const template = input.template;
       if (!template?.meta_template_name) {
@@ -224,7 +253,7 @@ export async function sendMessageToContact(input: SendMessageInput): Promise<Sen
 
       // נרשם הטקסט המרונדר ולא שם התבנית: מי שקורא את היומן רוצה לדעת מה
       // הלקוח קיבל, לא איזו ישות ב-Meta שלחה את זה.
-      logged = input.body;
+      logged = body;
     }
 
     const { error } = await db.from("interactions").insert({

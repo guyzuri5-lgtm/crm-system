@@ -1,4 +1,4 @@
-import { formatDateTime } from "@/lib/dates";
+import { formatDate, formatDateTime } from "@/lib/dates";
 import { ActionForm } from "@/components/action-form";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -127,7 +127,10 @@ export default async function ContactDetailPage(props: PageProps<"/contacts/[id]
   const unlimited = isBridgeConfigured();
   const openWindow = unlimited || isWithin24HourWindow(contact.last_incoming_message_at);
   const hoursLeft = Math.floor(windowRemainingMs(contact.last_incoming_message_at) / 3_600_000);
-  const approvedTemplates = (whatsappTemplates ?? []).filter((t) => t.meta_template_name);
+  // דרך הגשר כל תבנית וואטסאפ שמישה. בערוץ הרשמי — רק מה שמטא אישרה.
+  const approvedTemplates = (whatsappTemplates ?? []).filter(
+    (t) => unlimited || t.meta_template_name
+  );
 
   const name = contact.full_name ?? "איש קשר ללא שם";
   const messageCount = interactions?.length ?? 0;
@@ -184,6 +187,15 @@ export default async function ContactDetailPage(props: PageProps<"/contacts/[id]
               <Conversation messages={interactions ?? []} />
             </ScrollToBottom>
 
+            {contact.whatsapp_opted_out_at && (
+              <p
+                className="rounded-xl px-3 py-2 text-xs leading-relaxed"
+                style={{ backgroundColor: "var(--warn-soft)", color: "var(--warn)" }}
+              >
+                <strong>ביקש הסרה ב-{formatDate(contact.whatsapp_opted_out_at)}.</strong> לא יקבל
+                וואטסאפ אוטומטי ממסעות, כללים ותזכורות. הודעה ידנית מכאן עדיין יוצאת.
+              </p>
+            )}
             <ReplyBox
               contactId={contact.id}
               canSend={canSendWhatsApp}

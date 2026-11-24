@@ -89,7 +89,10 @@ export async function runStatusChangeRules(
 
   // מתג הוואטסאפ של דף הוואטסאפ חל גם כאן: כלל ששולח בעקבות שינוי סטטוס הוא
   // שליחה אוטומטית, גם אם אדם הוא שלחץ על הסטטוס.
-  const { whatsapp_paused: whatsappPaused } = await getWhatsAppSettings();
+  const settings = await getWhatsAppSettings();
+  const whatsappPaused = settings.whatsapp_paused;
+  // דרך התור של הגשר: זו שליחה אוטומטית, ולכן גם מי שכתב "הסר" לא יקבל אותה.
+  const gap = { min: settings.min_gap_seconds, max: settings.max_gap_seconds };
 
   const results: DispatchResult[] = [];
   for (const rule of rules) {
@@ -97,7 +100,7 @@ export async function runStatusChangeRules(
     const matches = !triggerValue.from_status || triggerValue.from_status === fromStatus;
     if (!matches || !rule.message_templates) continue;
     if (rule.action_channel === "whatsapp" && whatsappPaused) continue;
-    results.push(await dispatchRuleToContact(rule, rule.message_templates, contact));
+    results.push(await dispatchRuleToContact(rule, rule.message_templates, contact, gap));
   }
   return results;
 }

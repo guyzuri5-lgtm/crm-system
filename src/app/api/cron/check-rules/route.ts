@@ -6,6 +6,7 @@ import { runEventReminders } from "@/lib/event-engine";
 import { runWordPressSync } from "@/lib/wordpress";
 import { syncSiteEvents } from "@/lib/site-events";
 import { recordCronStart, recordCronFinish, recordCronError } from "@/lib/cron-health";
+import { checkBridgeAndAlert } from "@/lib/whatsapp-bridge-alert";
 
 // GET /api/cron/check-rules — per spec section 4, runs once a day (see vercel.json).
 // Vercel Cron always calls with GET, and automatically sends
@@ -123,6 +124,11 @@ export async function GET(request: NextRequest) {
   const wordpress = await runWordPressSync(new Date(), Math.max(0, Math.min(remaining(), 40_000)));
   // האתר החדש: בכל ריצה. משנה משהו רק אם הקובץ השתנה (אירוע חדש, נגמר, התמלא מקום).
   const siteEvents = await syncSiteEvents(new Date());
+  // לא מפיל את הריצה: זו התראה, לא שליחה ללקוח.
+  const bridgeAlert = await checkBridgeAndAlert(new Date()).catch((err) => {
+    console.error("[cron] בדיקת הגשר נפלה:", err);
+    return "failed" as const;
+  });
 
   const failed = summary.results.filter((r) => !r.ok);
 
@@ -160,6 +166,7 @@ export async function GET(request: NextRequest) {
     },
     wordpress,
     site_events: siteEvents,
+    bridge_alert: bridgeAlert,
     // מה שלא נשלח בריצה הזו ייתפס בריצה הבאה — automation_rule_runs מבטיח
     // שמי שכן קיבל לא יקבל שוב.
     skipped: summary.skipped,

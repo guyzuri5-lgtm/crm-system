@@ -26,6 +26,10 @@ const brakesSchema = z
     min_gap_seconds: z.coerce.number().int().min(0).max(600),
     max_gap_seconds: z.coerce.number().int().min(0).max(600),
     warmup_enabled: z.boolean(),
+    quiet_hours_enabled: z.boolean(),
+    quiet_start_hour: z.coerce.number().int().min(0).max(23),
+    quiet_end_hour: z.coerce.number().int().min(0).max(23),
+    quiet_shabbat: z.boolean(),
   })
   .refine((v) => v.max_gap_seconds >= v.min_gap_seconds, {
     message: "הרווח המקסימלי חייב להיות גדול או שווה לרווח המינימלי",
@@ -40,6 +44,10 @@ export async function saveWhatsAppBrakesAction(formData: FormData): Promise<Acti
     min_gap_seconds: formData.get("min_gap_seconds"),
     max_gap_seconds: formData.get("max_gap_seconds"),
     warmup_enabled: formData.get("warmup_enabled") === "on",
+    quiet_hours_enabled: formData.get("quiet_hours_enabled") === "on",
+    quiet_start_hour: formData.get("quiet_start_hour") ?? 21,
+    quiet_end_hour: formData.get("quiet_end_hour") ?? 8,
+    quiet_shabbat: formData.get("quiet_shabbat") === "on",
   });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues.map((i) => i.message).join(", ") };
@@ -69,7 +77,7 @@ export async function saveWhatsAppBrakesAction(formData: FormData): Promise<Acti
       return {
         ok: false,
         error:
-          "חסרות עמודות במסד. יש להדביק את supabase/migrations/0058_whatsapp_bridge_brakes.sql ב-SQL Editor של Supabase.",
+          "חסרות עמודות במסד. יש להדביק את supabase/migrations/0058_whatsapp_bridge_brakes.sql ואת 0059_whatsapp_optout_quiet_alert.sql ב-SQL Editor של Supabase.",
       };
     }
     return { ok: false, error: error.message };

@@ -3,6 +3,9 @@
 import { useState, useTransition } from "react";
 import type { ActionResult } from "./actions";
 
+const HOURS = Array.from({ length: 24 }, (_, h) => h);
+const pad = (h: number) => String(h).padStart(2, "0");
+
 /**
  * בלמי הוואטסאפ — עריכה במקום, בדף הוואטסאפ עצמו.
  *
@@ -21,6 +24,10 @@ export function BrakesForm({
     minGap: number;
     maxGap: number;
     warmupEnabled: boolean;
+    quietEnabled: boolean;
+    quietStart: number;
+    quietEnd: number;
+    quietShabbat: boolean;
   };
   /** היום בשבוע החימום (1–7), או null כשאין חימום פעיל. */
   warmupDay: number | null;
@@ -138,6 +145,37 @@ export function BrakesForm({
         <input type="checkbox" name="warmup_enabled" defaultChecked={initial.warmupEnabled} className="cbx" />
         שבוע חימום למספר חדש (התקרה עולה בהדרגה מ-15)
       </label>
+
+      <fieldset className="flex flex-col gap-2 rounded-xl border border-[var(--border)] p-3">
+        <legend className="px-1 text-[12px] font-medium text-[var(--muted)]">שעות שקטות</legend>
+        <label className="flex flex-wrap items-center gap-2 text-[12.5px]">
+          <input type="checkbox" name="quiet_hours_enabled" defaultChecked={initial.quietEnabled} className="cbx" />
+          בלי וואטסאפ אוטומטי בין
+          <select name="quiet_start_hour" defaultValue={initial.quietStart} className="input w-auto py-1" aria-label="תחילת השעות השקטות">
+            {HOURS.map((h) => (
+              <option key={h} value={h}>
+                {pad(h)}:00
+              </option>
+            ))}
+          </select>
+          ל-
+          <select name="quiet_end_hour" defaultValue={initial.quietEnd} className="input w-auto py-1" aria-label="סוף השעות השקטות">
+            {HOURS.map((h) => (
+              <option key={h} value={h}>
+                {pad(h)}:00
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-[12.5px]">
+          <input type="checkbox" name="quiet_shabbat" defaultChecked={initial.quietShabbat} className="cbx" />
+          וגם בשבת (שישי 14:00 עד מוצאי שבת 20:00)
+        </label>
+        <p className="text-[11.5px] leading-relaxed text-[var(--subtle)]">
+          הודעות ממסעות וכללים שמגיעות לזמן כזה מחכות ויוצאות כשהוא נגמר. תזכורות אירוע יוצאות
+          בזמן שנקבע להן.
+        </p>
+      </fieldset>
 
       <div className="flex flex-wrap items-center gap-3">
         <button type="submit" disabled={pending} className="btn-primary">

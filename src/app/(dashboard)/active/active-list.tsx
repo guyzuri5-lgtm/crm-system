@@ -96,9 +96,8 @@ export async function ActiveList({ mode }: { mode: ActiveMode }) {
   const statusesPromise = statusMap();
   const templatesPromise = db
     .from("message_templates")
-    .select("id, name")
+    .select("id, name, meta_template_name")
     .eq("channel", "whatsapp")
-    .not("meta_template_name", "is", null)
     .order("name");
 
   const { data: activityRaw, error: activityError } = await activityPromise;
@@ -125,7 +124,10 @@ export async function ActiveList({ mode }: { mode: ActiveMode }) {
   ]);
 
   const contacts = new Map((contactsRaw ?? []).map((c) => [c.id, c as Contact]));
-  const templates = (templatesRaw ?? []).map((t) => ({ id: t.id as string, name: t.name as string }));
+  // דרך הגשר כל תבנית וואטסאפ שמישה. בערוץ הרשמי — רק מה שמטא אישרה.
+  const templates = (templatesRaw ?? [])
+    .filter((t) => isBridgeConfigured() || (t as { meta_template_name?: string | null }).meta_template_name)
+    .map((t) => ({ id: t.id as string, name: t.name as string }));
 
   const unlimited = isBridgeConfigured();
 

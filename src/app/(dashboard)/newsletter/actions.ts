@@ -136,6 +136,7 @@ function previewContact(email: string): Contact {
     tags: [],
     whatsapp_id: null,
     last_incoming_message_at: null,
+    whatsapp_opted_out_at: null,
     unsubscribed_at: null,
     notes: null,
     custom: {},

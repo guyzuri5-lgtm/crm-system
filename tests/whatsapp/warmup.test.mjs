@@ -33,3 +33,27 @@ test("random gap stays inside the range, both ends included", () => {
   assert.equal(randomGapSeconds(20, 60, () => 0.9999), 60);
   assert.equal(randomGapSeconds(60, 20, () => 0), 20);
 });
+
+import { isQuietTime } from "../../src/lib/whatsapp-warmup.ts";
+
+const quiet = { enabled: true, startHour: 21, endHour: 8, shabbat: true };
+// Israel is UTC+2 in winter: 2026-11-24 is a Tuesday.
+const il = (iso) => new Date(iso + "+02:00");
+
+test("quiet hours wrap past midnight", () => {
+  assert.equal(isQuietTime(quiet, il("2026-11-24T20:59:00")), false);
+  assert.equal(isQuietTime(quiet, il("2026-11-24T21:00:00")), true);
+  assert.equal(isQuietTime(quiet, il("2026-11-25T03:00:00")), true);
+  assert.equal(isQuietTime(quiet, il("2026-11-25T08:00:00")), false);
+});
+
+test("shabbat: from Friday 14:00 to Saturday 20:00", () => {
+  assert.equal(isQuietTime(quiet, il("2026-11-27T13:59:00")), false); // Friday
+  assert.equal(isQuietTime(quiet, il("2026-11-27T14:00:00")), true);
+  assert.equal(isQuietTime(quiet, il("2026-11-28T12:00:00")), true); // Saturday noon
+  assert.equal(isQuietTime(quiet, il("2026-11-28T20:00:00")), false);
+});
+
+test("disabled means never quiet", () => {
+  assert.equal(isQuietTime({ ...quiet, enabled: false }, il("2026-11-25T03:00:00")), false);
+});

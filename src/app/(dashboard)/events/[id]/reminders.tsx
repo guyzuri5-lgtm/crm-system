@@ -18,15 +18,14 @@ import {
  * ניהול התזכורות של אירוע.
  *
  * ── למה בוחרים תבנית ולא כותבים טקסט ──
- * מחוץ לחלון 24 השעות מטא שולחת אך ורק תבנית שהיא אישרה, עם הטקסט שאושר.
- * שדה טקסט חופשי כאן היה שקר: בעל העסק היה עורך אותו, שומר, והלקוח
- * היה מקבל משהו אחר לגמרי. לכן מה שנבחר כאן הוא *איזו* תבנית ו*מתי* —
- * שני הדברים שבאמת בשליטת המערכת.
+ * אותו נוסח משמש כמה אירועים, ונערך במקום אחד — במסך תבניות הודעה. כאן
+ * בוחרים *איזו* תבנית ו*מתי*.
+ *
+ * עד 24.11.2026 הוצעו כאן רק תבניות שמטא אישרה. הוואטסאפ עבר לגשר, שאין בו
+ * אישור, ולכן כל תבנית וואטסאפ שמישה.
  */
-
-/** רק תבניות שמטא אישרה יכולות לצאת מחוץ לחלון, ולכן רק הן מוצעות. */
 function isSendable(template: MessageTemplate): boolean {
-  return Boolean(template.meta_template_name) && template.meta_status === "APPROVED";
+  return template.channel === "whatsapp";
 }
 
 export function EventReminders({
@@ -43,14 +42,14 @@ export function EventReminders({
     null
   );
 
-  const approved = templates.filter(isSendable);
+  const sendable = templates.filter(isSendable);
 
   return (
     <div className="card flex flex-col gap-4">
       <div>
         <h2 className="card-title">תזכורות בוואטסאפ</h2>
         <p className="mt-1 text-sm text-[var(--muted)]">
-          יוצאות רק למי ששילם. הטקסט הוא של התבנית המאושרת — כאן בוחרים איזו, ומתי.
+          יוצאות רק למי ששילם. הטקסט הוא של התבנית — כאן בוחרים איזו, ומתי.
         </p>
       </div>
 
@@ -93,14 +92,13 @@ export function EventReminders({
         </ul>
       )}
 
-      {approved.length === 0 ? (
+      {sendable.length === 0 ? (
         // המצב הזה הוא הרוב כרגע, ולכן הוא מסביר ולא רק מודיע.
         <div className="rounded-xl bg-[var(--nav-amber-soft)] px-4 py-3 text-sm">
-          <p className="font-semibold text-[var(--nav-amber)]">אין עדיין תבנית מאושרת</p>
+          <p className="font-semibold text-[var(--nav-amber)]">אין עדיין תבנית וואטסאפ</p>
           <p className="mt-1 text-[var(--muted)]">
-            מטא מרשה לשלוח למי שלא כתבה לך ב-24 השעות האחרונות רק תבנית שהיא אישרה מראש.
-            צור תבנית במסך <span className="font-medium">תבניות הודעה</span>, שלח אותה לאישור,
-            וכשהיא תאושר היא תופיע כאן. בתוך הטקסט אפשר להשתמש ב-
+            צור תבנית וואטסאפ במסך <span className="font-medium">תבניות הודעה</span>, והיא תופיע
+            כאן מיד. בתוך הטקסט אפשר להשתמש ב-
             <span dir="ltr" className="font-medium">{" {{event_name}} "}</span>,
             <span dir="ltr" className="font-medium">{" {{event_datetime}} "}</span> ו-
             <span dir="ltr" className="font-medium">{" {{event_location}} "}</span>.
@@ -116,7 +114,7 @@ export function EventReminders({
               <option value="" disabled>
                 בחרי תבנית…
               </option>
-              {approved.map((template) => (
+              {sendable.map((template) => (
                 <option key={template.id} value={template.id}>
                   {template.name}
                 </option>

@@ -14,6 +14,57 @@ import { WindowMeter } from "@/components/window-meter";
  * ולשלוח ב-Enter. שני הדברים דורשים מצב בדפדפן.
  */
 
+/**
+ * שליחת תבנית בלחיצה, בנפרד מתיבת הטקסט: טופס משלו, כדי שהטקסט החופשי
+ * (שהוא required) לא יחסום אותה.
+ */
+function TemplateQuickSend({
+  templates,
+  pending,
+  onSubmit,
+  contactId,
+}: {
+  templates: ReplyTemplate[];
+  pending: boolean;
+  onSubmit: (formData: FormData) => void;
+  contactId: string;
+}) {
+  const [selected, setSelected] = useState("");
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--subtle)]">
+      <span>או תבנית:</span>
+      <select
+        aria-label="תבנית לשליחה"
+        className="input max-w-56 py-1 text-xs"
+        value={selected}
+        disabled={pending}
+        onChange={(event) => setSelected(event.target.value)}
+      >
+        <option value="">בחר תבנית...</option>
+        {templates.map((template) => (
+          <option key={template.id} value={template.id}>
+            {template.name}
+          </option>
+        ))}
+      </select>
+      <button
+        type="button"
+        className="btn-secondary py-1 text-xs"
+        disabled={pending || !selected}
+        onClick={() => {
+          const formData = new FormData();
+          formData.set("contact_id", contactId);
+          formData.set("template_id", selected);
+          onSubmit(formData);
+          setSelected("");
+        }}
+      >
+        שלח תבנית
+      </button>
+    </div>
+  );
+}
+
 export type ReplyResult = { ok: true } | { ok: false; error: string };
 
 export interface ReplyTemplate {
@@ -85,6 +136,7 @@ export function ReplyBox({
       <input type="hidden" name="contact_id" value={contactId} />
 
       {openWindow ? (
+        <>
         <div className="flex items-end gap-2">
           <textarea
             name="body"
@@ -106,6 +158,11 @@ export function ReplyBox({
             {pending ? "שולח..." : "שלח"}
           </button>
         </div>
+        {/* דרך הגשר אין חלון, ולכן גם תבנית זמינה תמיד — לצד הטקסט החופשי. */}
+        {unlimited && templates.length > 0 && (
+          <TemplateQuickSend templates={templates} pending={pending} onSubmit={submit} contactId={contactId} />
+        )}
+        </>
       ) : (
         <div className="flex flex-wrap items-end gap-2">
           <label className="field-label min-w-48 flex-1">
