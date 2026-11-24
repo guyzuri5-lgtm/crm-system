@@ -9,7 +9,8 @@ import {
   recentDeliveryFailures,
   type DeliveryState,
 } from "@/lib/whatsapp-throttle";
-import { isWhatsAppConfigured, getPhoneNumberStatus } from "@/lib/whatsapp-cloud";
+import { isWhatsAppConfigured, getPhoneNumberStatus, phoneFromWaId } from "@/lib/whatsapp-cloud";
+import { getBridgeStatus, isBridgeConfigured } from "@/lib/whatsapp-bridge";
 import { readCronHealth, type CronState } from "@/lib/cron-health";
 
 /**
@@ -227,15 +228,19 @@ function whatsappHealth(
  * נכשלת בנפרד ולא מפילה דבר.
  */
 export const channelHealth = cache(async () => {
-  const configured = isWhatsAppConfigured();
+  // כשהגשר מוגדר הוא הערוץ, ומטא לא נשאלת בכלל (src/lib/whatsapp-bridge.ts).
+  const viaBridge = isBridgeConfigured();
+  const configured = viaBridge || isWhatsAppConfigured();
 
   const [settings, phoneStatus, failures, lastOut] = await Promise.all([
     getWhatsAppSettings(),
-    configured
-      ? getPhoneNumberStatus().catch((error: unknown) => ({
-          error: error instanceof Error ? error.message : String(error),
-        }))
-      : Promise.resolve(null),
+    viaBridge
+      ? readBridgeAsPhone()
+      : configured
+        ? getPhoneNumberStatus().catch((error: unknown) => ({
+            error: error instanceof Error ? error.message : String(error),
+          }))
+        : Promise.resolve(null),
     recentDeliveryFailures(),
     supabaseAdmin()
       .from("interactions")
@@ -250,7 +255,7 @@ export const channelHealth = cache(async () => {
   const phone = phoneStatus && !("error" in phoneStatus) ? phoneStatus : null;
   const health = whatsappHealth(
     configured,
-    settings.paused,
+    settings.paused || settings.whatsapp_paused,
     statusError,
     phone?.qualityRating ?? null,
     failures.count,
@@ -264,6 +269,22 @@ export const channelHealth = cache(async () => {
     ...toneColors(health.tone),
   };
 });
+
+/**
+ * מצב הגשר באותה צורה שבה מגיע מצב המספר ממטא, כדי שהכרטיס לא יצטרך לדעת
+ * מאיזה ערוץ הוא בא. לגשר אין דירוג איכות.
+ */
+async function readBridgeAsPhone(): Promise<
+  { displayPhoneNumber: string | null; qualityRating: string | null } | { error: string }
+> {
+  try {
+    const status = await getBridgeStatus();
+    if (status.connection !== "open") return { error: "הגשר מנותק מוואטסאפ" };
+    return { displayPhoneNumber: status.me ? phoneFromWaId(status.me) : null, qualityRating: null };
+  } catch {
+    return { error: "שרת הגשר לא עונה" };
+  }
+}
 
 /** האירוע הקרוב, וכמה שילמו אליו. משמש את הכרטיס הרביעי במדדים. */
 export const nextEventWithPaid = cache(async () => {

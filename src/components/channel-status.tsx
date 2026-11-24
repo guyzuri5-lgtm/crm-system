@@ -1,6 +1,7 @@
 import "server-only";
 
 import { isWhatsAppConfigured } from "@/lib/whatsapp-cloud";
+import { isBridgeConfigured } from "@/lib/whatsapp-bridge";
 import { getWhatsAppSettings, recentDeliveryFailures } from "@/lib/whatsapp-throttle";
 import { ChannelBadge, type ChannelState } from "@/components/dashboard-shell";
 
@@ -24,7 +25,7 @@ import { ChannelBadge, type ChannelState } from "@/components/dashboard-shell";
  * בלי שאף מסך יצעק — הקרון פשוט לא שולח כלום, בשקט.
  */
 async function readChannel(): Promise<ChannelState> {
-  if (!isWhatsAppConfigured()) {
+  if (!isWhatsAppConfigured() && !isBridgeConfigured()) {
     return { tone: "bad", label: "הערוץ לא מוגדר", hint: "אין חיבור ל‑Meta" };
   }
 
@@ -35,6 +36,9 @@ async function readChannel(): Promise<ChannelState> {
 
   if (settings.paused) {
     return { tone: "bad", label: "השליחה מושהית", hint: "הקרון אינו שולח דבר" };
+  }
+  if (settings.whatsapp_paused) {
+    return { tone: "bad", label: "הוואטסאפ מושהה", hint: "מסעות וכללים לא שולחים וואטסאפ" };
   }
 
   // כשלי מסירה קודמים ל"פעיל". דירוג האיכות של מטא יכול להיות ירוק בזמן
@@ -47,7 +51,7 @@ async function readChannel(): Promise<ChannelState> {
         failures.count === 1
           ? "ההודעה האחרונה לא נמסרה"
           : `${failures.count} הודעות ברצף לא נמסרו`,
-      hint: failures.lastReason ?? "מטא דחתה את השליחה",
+      hint: failures.lastReason ?? "השליחה נדחתה",
     };
   }
 

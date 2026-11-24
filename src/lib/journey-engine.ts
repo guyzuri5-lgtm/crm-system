@@ -2,7 +2,7 @@ import { supabaseAdmin } from "./supabase/admin";
 import { sendMessageToContact } from "./send";
 import { renderTemplate } from "./templates";
 import { unsubscribeUrl } from "./newsletter";
-import { SendBudget } from "./whatsapp-throttle";
+import { SendBudget, type SendStopReason } from "./whatsapp-throttle";
 import type {
   Contact,
   MessageTemplate,
@@ -92,7 +92,7 @@ export interface JourneyRunSummary {
   stoppedUnsubscribed: number;
   completed: number;
   /** למה הריצה נעצרה לפני שסיימה את כל מי שהיה מועמד */
-  stopped: "paused" | "daily_limit" | "time_budget" | null;
+  stopped: SendStopReason | null;
   skipped: number;
 }
 
@@ -782,6 +782,7 @@ export async function runJourneys(
       template,
       booking,
       logPrefix: `[${template.name}]`,
+      queueGap: step.channel === "whatsapp" ? budget.gap : undefined,
       // דיוור שיווקי מקבל ערוץ נפרד ב-Postmark וקישור הסרה; הודעה תפעולית
       // לא מקבלת אף אחד מהם. ההבחנה היא ברמת המסע ולא ברמת ההודעה, כי היא
       // תכונה של מה שהמסע *עושה* — למכור או ליידע.

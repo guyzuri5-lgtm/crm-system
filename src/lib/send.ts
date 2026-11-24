@@ -72,6 +72,15 @@ export interface SendMessageInput {
    * השעות הייתה מגיעה עם המציין הגולמי במקום עם המועד.
    */
   event?: EventRow | null;
+  /**
+   * וואטסאפ דרך הגשר בלבד: שליחה אוטומטית שנכנסת לתור של הגשר ויוצאת ממנו
+   * ברווח אקראי בטווח הזה (בשניות). בלי הערך הזה ההודעה יוצאת מיד — וזה
+   * הנכון לשליחה ידנית, שאדם מחכה לה מול המסך.
+   *
+   * הרווח לא יכול לקרות כאן: פונקציה בוורסל נקטעת אחרי 60 שניות, ותור של
+   * עשר הודעות עם 20–60 שניות ביניהן לוקח דקות. הגשר רץ כל הזמן, ושם התור.
+   */
+  queueGap?: { min: number; max: number };
 }
 
 /**
@@ -178,7 +187,7 @@ export async function sendMessageToContact(input: SendMessageInput): Promise<Sen
     let logged: string;
 
     if (viaBridge) {
-      messageId = await bridgeSendText(waId, input.body);
+      messageId = await bridgeSendText(waId, input.body, input.queueGap);
       logged = input.body;
     } else if (openWindow) {
       // בתוך החלון הכול מותר, וזה גם חינם.

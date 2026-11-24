@@ -3,7 +3,7 @@ import "server-only";
 import { supabaseAdmin } from "./supabase/admin";
 import { renderTemplate } from "./templates";
 import { sendMessageToContact } from "./send";
-import { SendBudget } from "./whatsapp-throttle";
+import { SendBudget, getWhatsAppSettings, type SendStopReason } from "./whatsapp-throttle";
 import type {
   AutomationRule,
   Contact,
@@ -36,7 +36,8 @@ type RuleWithTemplate = AutomationRule & { message_templates: MessageTemplate | 
 async function dispatchRuleToContact(
   rule: AutomationRule,
   template: MessageTemplate,
-  contact: Contact
+  contact: Contact,
+  queueGap?: { min: number; max: number }
 ): Promise<DispatchResult> {
   const body = renderTemplate(template.body, contact);
   const subject =
@@ -54,6 +55,7 @@ async function dispatchRuleToContact(
     // הנכון: עדיף כישלון מפורש מאשר הודעה שלא יוצאת בשקט.
     template,
     logPrefix: `[${template.name}]`,
+    queueGap: rule.action_channel === "whatsapp" ? queueGap : undefined,
   });
 
   return { ruleId: rule.id, contactId: contact.id, ...result };
@@ -85,11 +87,16 @@ export async function runStatusChangeRules(
   if (error) throw error;
   if (!rules?.length) return [];
 
+  // מתג הוואטסאפ של דף הוואטסאפ חל גם כאן: כלל ששולח בעקבות שינוי סטטוס הוא
+  // שליחה אוטומטית, גם אם אדם הוא שלחץ על הסטטוס.
+  const { whatsapp_paused: whatsappPaused } = await getWhatsAppSettings();
+
   const results: DispatchResult[] = [];
   for (const rule of rules) {
     const triggerValue = (rule.trigger_value ?? {}) as StatusChangeTriggerValue;
     const matches = !triggerValue.from_status || triggerValue.from_status === fromStatus;
     if (!matches || !rule.message_templates) continue;
+    if (rule.action_channel === "whatsapp" && whatsappPaused) continue;
     results.push(await dispatchRuleToContact(rule, rule.message_templates, contact));
   }
   return results;
@@ -130,7 +137,7 @@ export async function updateContactStatus(contactId: string, newStatus: ContactS
 export interface RuleRunSummary {
   results: DispatchResult[];
   /** למה הריצה נעצרה, אם היא לא סיימה את כל מי שהיה מועמד */
-  stopped: "paused" | "daily_limit" | "time_budget" | null;
+  stopped: SendStopReason | null;
   /** כמה אנשי קשר נשארו מחוץ לריצה הזו ויטופלו בריצה הבאה */
   skipped: number;
   /** כמה עוד מותר לשלוח היום לפי התקרה */
@@ -232,7 +239,7 @@ export async function runTimeSinceNoReplyRules(
         continue;
       }
 
-      const result = await dispatchRuleToContact(rule, rule.message_templates, contact);
+      const result = await dispatchRuleToContact(rule, rule.message_templates, contact, budget.gap);
       results.push(result);
 
       if (result.ok) {

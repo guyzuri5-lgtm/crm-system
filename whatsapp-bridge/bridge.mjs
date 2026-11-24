@@ -18,12 +18,13 @@
 
 import { createServer } from "node:http";
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { rmSync } from "node:fs";
+import { readFileSync, rmSync, writeFileSync, renameSync } from "node:fs";
 import pino from "pino";
 import makeWASocket, {
   Browsers,
   DisconnectReason,
   fetchLatestBaileysVersion,
+  generateMessageIDV2,
   isLidUser,
   isPnUser,
   jidNormalizedUser,
@@ -34,6 +35,9 @@ const SECRET = process.env.BRIDGE_SECRET;
 const WEBHOOK_URL = process.env.CRM_WEBHOOK_URL;
 const PORT = Number(process.env.PORT || 3100);
 const AUTH_DIR = process.env.AUTH_DIR || new URL("./auth", import.meta.url).pathname;
+// מחוץ לתיקיית החיבור בכוונה: ניתוק מהטלפון מוחק את AUTH_DIR, והתור צריך
+// לשרוד את זה — ההודעות בו יישלחו אחרי שהמספר יחובר מחדש.
+const QUEUE_FILE = process.env.QUEUE_FILE || `${AUTH_DIR.replace(/\/+$/, "")}-queue.json`;
 
 if (!SECRET || SECRET.length < 24) {
   console.error("BRIDGE_SECRET חסר או קצר מדי (לפחות 24 תווים)");
@@ -50,6 +54,10 @@ let connection = "connecting"; // connecting · open · close · logged_out
 let lastQr = null;
 let me = null;
 let reconnectDelay = 2000;
+/** מתי החיבור הנוכחי נפתח (ISO). מוצג בדף הוואטסאפ: "מחובר מאז". */
+let connectedSince = null;
+/** מתי הגיעה ההודעה הנכנסת האחרונה (ISO). */
+let lastInboundAt = null;
 
 async function connect() {
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
@@ -59,7 +67,14 @@ async function connect() {
     version,
     auth: state,
     logger,
-    browser: Browsers.macOS("Desktop"),
+    // Chrome ולא "Desktop": חיבור עם קוד (ולא סריקת QR) נדחה בטלפון כשהמכשיר
+    // המקושר מציג את עצמו כאפליקציית דסקטופ. נמצא ב-24.11.2026, שלושה קודים
+    // שלא עבדו.
+    browser: Browsers.macOS("Chrome"),
+    // כל עוד המספר לא מחובר, וואטסאפ מחליפה QR כל 20 שניות וסוגרת את החיבור
+    // כשהם נגמרים — וקוד חיבור שהופק על החיבור הקודם מת איתו. שלוש דקות
+    // לכל QR נותנות זמן להגיע למסך בטלפון ולהקליד.
+    qrTimeout: 180_000,
     // לא להופיע "מחובר" בכל פעם שהגשר עולה — אחרת הטלפון מפסיק לקבל
     // התראות על הודעות, כי וואטסאפ חושבת שהמשתמש יושב מול המחשב.
     markOnlineOnConnect: false,
@@ -79,7 +94,9 @@ async function connect() {
       lastQr = null;
       reconnectDelay = 2000;
       me = sock.user?.id ? jidNormalizedUser(sock.user.id) : null;
+      connectedSince = new Date().toISOString();
       console.log(`[bridge] מחובר כ-${me}`);
+      drainQueue();
     }
 
     if (update.connection === "close") {
@@ -96,6 +113,7 @@ async function connect() {
         return;
       }
       connection = "close";
+      connectedSince = null;
       console.warn(`[bridge] החיבור נסגר (${code ?? "?"}) — מנסה שוב בעוד ${reconnectDelay / 1000} שניות`);
       setTimeout(connect, reconnectDelay);
       reconnectDelay = Math.min(reconnectDelay * 2, 60_000);
@@ -215,6 +233,7 @@ async function handleIncoming(message) {
   }
 
   const timestamp = Number(message.messageTimestamp ?? Math.floor(Date.now() / 1000));
+  lastInboundAt = new Date(timestamp * 1000).toISOString();
 
   await postToCrm({
     contacts: [{ wa_id: from, profile: { name: message.pushName ?? undefined } }],
@@ -262,6 +281,76 @@ async function postToCrm(value) {
   console.error("[bridge] ויתרתי על שליחה ל-CRM אחרי 5 ניסיונות");
 }
 
+// ── תור השליחה האוטומטית ──────────────────────────────────────────────
+//
+// הודעות ממסעות, מכללים ומתזכורות לא יוצאות בבת אחת אלא מכאן, אחת אחת,
+// עם רווח אקראי בטווח שה-CRM שולח (בלמי שליחה בדף הוואטסאפ). רצף הודעות
+// במרווחים זהים או צפופים הוא בדיוק מה שוואטסאפ מזהה כאוטומציה.
+//
+// התור נשמר לקובץ אחרי כל שינוי, כדי שהפעלה מחדש של השרת לא תעלים הודעות
+// שה-CRM כבר רשם ביומן כ"נשלחו".
+
+/** @type {{id: string, jid: string, text: string, min: number, max: number}[]} */
+let queue = [];
+try {
+  queue = JSON.parse(readFileSync(QUEUE_FILE, "utf8"));
+  if (!Array.isArray(queue)) queue = [];
+} catch {
+  queue = [];
+}
+
+function saveQueue() {
+  const tmp = `${QUEUE_FILE}.tmp`;
+  writeFileSync(tmp, JSON.stringify(queue));
+  renameSync(tmp, QUEUE_FILE);
+}
+
+function randomGapMs(min, max) {
+  const low = Math.max(0, Math.min(min, max));
+  const high = Math.max(low, max);
+  return (low + Math.floor(Math.random() * (high - low + 1))) * 1000;
+}
+
+let draining = false;
+/** לא לפני הרגע הזה תצא ההודעה הבאה מהתור — גם אם היא הגיעה לתור ריק. */
+let nextAllowedAt = 0;
+
+async function drainQueue() {
+  if (draining) return;
+  draining = true;
+  try {
+    while (queue.length && connection === "open") {
+      const item = queue[0];
+      const wait = nextAllowedAt - Date.now();
+      if (wait > 0) {
+        await new Promise((resolve) => setTimeout(resolve, wait));
+        if (connection !== "open") break;
+      }
+      try {
+        await sock.sendMessage(item.jid, { text: item.text }, { messageId: item.id });
+      } catch (error) {
+        console.error(`[bridge] שליחה מהתור נכשלה (${item.id}):`, error?.message ?? error);
+        postToCrm({
+          statuses: [
+            {
+              id: item.id,
+              status: "failed",
+              timestamp: String(Math.floor(Date.now() / 1000)),
+              recipient_id: phoneDigits(item.jid),
+              errors: [{ message: `הגשר לא הצליח לשלוח: ${error?.message ?? error}` }],
+            },
+          ],
+        }).catch(() => {});
+      }
+      queue.shift();
+      saveQueue();
+      nextAllowedAt = Date.now() + randomGapMs(item.min, item.max);
+    }
+  } finally {
+    draining = false;
+  }
+}
+
 // ── שרת HTTP ───────────────────────────────────────────────────────────
 
 function authorized(request) {
@@ -299,6 +388,9 @@ const server = createServer(async (request, response) => {
         connection,
         me: phoneDigits(me),
         registered: Boolean(sock?.authState?.creds?.registered),
+        since: connectedSince,
+        lastInboundAt,
+        queued: queue.length,
         qr: lastQr,
       });
     }
@@ -316,13 +408,26 @@ const server = createServer(async (request, response) => {
 
     if (request.method === "POST" && url.pathname === "/send") {
       if (connection !== "open") return reply(response, 503, { error: `הגשר לא מחובר לוואטסאפ (${connection})` });
-      const { to, text } = await readJson(request);
-      const digits = String(to ?? "").replace(/\D/g, "");
+      const { to, text, queue: gap } = await readJson(request);
+      // "me" = המספר המחובר עצמו: הודעת בדיקה מדף הוואטסאפ ("שלח לעצמי").
+      const digits = to === "me" ? phoneDigits(me) : String(to ?? "").replace(/\D/g, "");
       if (!digits || !text) return reply(response, 400, { error: "חסר to או text" });
 
       // בדיקה שהמספר בכלל בוואטסאפ — אחרת השליחה "מצליחה" ואף אחד לא מקבל.
       const [check] = (await sock.onWhatsApp(digits)) ?? [];
       if (!check?.exists) return reply(response, 422, { error: "המספר הזה לא רשום בוואטסאפ" });
+
+      // אוטומטי: למזהה מראש ולתור. ה-CRM רושם את המזהה ביומן מיד, ודיווחי
+      // המסירה שיגיעו אחר כך יתחברו אליו.
+      if (gap && typeof gap === "object") {
+        const id = generateMessageIDV2(sock.user?.id);
+        const min = Math.max(0, Number(gap.min) || 0);
+        const max = Math.max(min, Number(gap.max) || min);
+        queue.push({ id, jid: check.jid, text, min, max });
+        saveQueue();
+        drainQueue();
+        return reply(response, 200, { id, queued: queue.length });
+      }
 
       const sent = await sock.sendMessage(check.jid, { text });
       return reply(response, 200, { id: sent?.key?.id ?? null });

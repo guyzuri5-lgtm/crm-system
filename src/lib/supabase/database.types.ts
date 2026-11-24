@@ -587,7 +587,16 @@ export type Database = {
           id: boolean;
           /** תקרת תבניות יומית. בלם *עלות*: כל תבנית שנמסרת מחויבת על ידי Meta. */
           daily_limit: number;
+          /** המתג הכללי: עוצר כל שליחה אוטומטית, גם מייל. יושב בהגדרות ← בלמי שליחה. */
           paused: boolean;
+          /** 0058 — עוצר רק את הוואטסאפ האוטומטי. יושב בדף הוואטסאפ. */
+          whatsapp_paused: boolean;
+          /** 0058 — רווח אקראי בין הודעות אוטומטיות, בשניות. הגשר אוכף אותו בתור שלו. */
+          min_gap_seconds: number;
+          max_gap_seconds: number;
+          /** 0058 — שבוע חימום: התקרה עולה מ-15 עד daily_limit (src/lib/whatsapp-warmup.ts). */
+          warmup_enabled: boolean;
+          warmup_started_at: string | null;
           updated_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["whatsapp_settings"]["Row"]>;

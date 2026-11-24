@@ -5,8 +5,9 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { verifyTeamMember } from "@/lib/dal";
 
+// התקרה היומית עברה לדף הוואטסאפ (whatsapp/actions.ts). כאן רק המתג הכללי —
+// ולכן הסכמה לא נוגעת בה, כדי ששמירה כאן לא תדרוס את מה שנקבע שם.
 const settingsSchema = z.object({
-  daily_limit: z.coerce.number().int().min(1).max(5000),
   paused: z.coerce.boolean(),
 });
 
@@ -14,7 +15,6 @@ export async function saveWhatsAppSettingsAction(formData: FormData) {
   await verifyTeamMember();
 
   const parsed = settingsSchema.safeParse({
-    daily_limit: formData.get("daily_limit"),
     paused: formData.get("paused") === "on",
   });
   if (!parsed.success) {

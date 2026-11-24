@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { verifyTeamMember } from "@/lib/dal";
-import { readWhatsAppSettings, countWhatsAppSentToday } from "@/lib/whatsapp-throttle";
+import { readWhatsAppSettings } from "@/lib/whatsapp-throttle";
 import { readCronHealth } from "@/lib/cron-health";
 import { saveWhatsAppSettingsAction } from "./actions";
 
@@ -13,9 +13,6 @@ export default async function SendingSettingsPage() {
   // הערכים השמורים לבין ברירות מחדל שהוחזרו אחרי קריאה שנכשלה. הצגת פולבק
   // כאילו הוא האמת היא בדיוק איך שהמסך הראה "לא מושהה" בזמן שהשליחה עצורה.
   const { settings, degraded } = await readWhatsAppSettings();
-  // כישלון בספירה אינו סיבה להפיל את הדף — זה גם הדף שבו משהים שליחה כשמשהו
-  // משתבש, וחסימת הגישה אליו בדיוק אז היא התנהגות גרועה.
-  const sentToday = await countWhatsAppSentToday().catch(() => null);
   // readCronHealth לא זורקת לעולם — ר' ההערה עליה. המסך הזה הוא בין היתר
   // המסך שפותחים כשמשהו לא נשלח, וכישלון שלו דווקא אז הוא התנהגות גרועה.
   const cron = await readCronHealth();
@@ -36,39 +33,16 @@ export default async function SendingSettingsPage() {
           </p>
         )}
         <p className="mt-1 mb-4 text-sm leading-relaxed text-[var(--muted)]">
-          בניגוד לערוץ הלא רשמי, כאן אין סיכון שהמספר ייחסם — Cloud API הוא הערוץ המאושר
-          של Meta. התקרה כאן היא בלם <strong>עלות</strong>: כל תבנית שנמסרת מחויבת, ולולאה
-          שהשתבשה היא חשבונית.
-        </p>
-        <p className="mb-4 text-sm leading-relaxed text-[var(--muted)]">
-          ההגדרות חלות על הקרון היומי בלבד. שליחה ידנית מכרטיס לקוח לא נחסמת, אבל כן נספרת
-          בתקרה.
-          {sentToday !== null && (
-            <>
-              {" "}
-              נשלחו היום <strong>{sentToday}</strong> מתוך {settings.daily_limit}.
-            </>
-          )}
+          המתג הכללי: עוצר <strong>כל</strong> שליחה אוטומטית — וואטסאפ, מייל וניוזלטר. את
+          הבלמים של הוואטסאפ בלבד (תקרה יומית, רווח בין הודעות, שבוע חימום ומתג וואטסאפ) משנים
+          ב
+          <Link href="/whatsapp" className="underline">
+            דף הוואטסאפ
+          </Link>
+          .
         </p>
 
-        <form action={saveWhatsAppSettingsAction} className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <label className="field-label">
-            תקרת תבניות יומית
-            <input
-              name="daily_limit"
-              type="number"
-              min={1}
-              max={5000}
-              required
-              defaultValue={settings.daily_limit}
-              className="input"
-            />
-            <span className="text-xs font-normal text-[var(--subtle)]">
-              נספרות כל ההודעות היוצאות, כולל ידניות. הודעות בתוך חלון 24 השעות אינן עולות
-              כסף, אבל כן נספרות כאן.
-            </span>
-          </label>
-
+        <form action={saveWhatsAppSettingsAction} className="grid grid-cols-1 gap-4">
           <label className="flex items-start gap-2.5 self-start text-sm font-medium">
             <input
               type="checkbox"
@@ -77,26 +51,19 @@ export default async function SendingSettingsPage() {
               className="mt-0.5 size-4 accent-[var(--primary)]"
             />
             <span>
-              השהיית השליחה האוטומטית
+              השהיית כל השליחה האוטומטית
               <span className="mt-0.5 block text-xs font-normal text-[var(--subtle)]">
-                עוצר את הקרון היומי מיד, בלי deploy ובלי לגעת בכללי האוטומציה. שליחה ידנית
-                מכרטיס לקוח ממשיכה לעבוד.
+                עוצר מיד את המסעות, הכללים, התזכורות והניוזלטר, בכל הערוצים. שליחה ידנית מכרטיס
+                לקוח ממשיכה לעבוד.
               </span>
             </span>
           </label>
 
-          <button type="submit" className="btn-primary self-start md:col-span-2">
+          <button type="submit" className="btn-primary self-start">
             שמירת הגדרות
           </button>
         </form>
 
-        <p className="mt-4 text-sm text-[var(--muted)]">
-          את מצב המספר אצל Meta ואת דירוג האיכות שלו רואים בעמוד{" "}
-          <Link href="/whatsapp" className="underline">
-            וואטסאפ
-          </Link>
-          .
-        </p>
       </section>
     </>
   );

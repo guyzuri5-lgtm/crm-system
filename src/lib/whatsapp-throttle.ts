@@ -3,6 +3,7 @@ import "server-only";
 import { supabaseAdmin } from "./supabase/admin";
 import { zonedTimeToUtc, utcToZonedParts } from "./booking/timezone";
 import type { MessageChannel, WhatsAppSettings } from "./supabase/database.types";
+import { warmupState } from "./whatsapp-warmup";
 
 /**
  * בלמים על השליחה האוטומטית בוואטסאפ.
@@ -29,6 +30,12 @@ const FALLBACK_SETTINGS: WhatsAppSettings = {
   id: true,
   daily_limit: 40,
   paused: false,
+  whatsapp_paused: false,
+  min_gap_seconds: 20,
+  max_gap_seconds: 60,
+  // בלי לדעת מתי החימום התחיל, הוא לא חל. ברירת המחדל של daily_limit כבר שמרנית.
+  warmup_enabled: false,
+  warmup_started_at: null,
   updated_at: new Date().toISOString(),
 };
 
@@ -60,7 +67,9 @@ export async function readWhatsAppSettings(): Promise<WhatsAppSettingsRead> {
     if (error) console.error("[whatsapp] failed to read whatsapp_settings:", error.message);
     return { settings: FALLBACK_SETTINGS, degraded: true };
   }
-  return { settings: data, degraded: false };
+  // שורה שנקראה לפני 0058 חסרה את העמודות החדשות. ממלאים מברירות המחדל,
+  // כדי שהקוד יעבוד גם אם המיגרציה עוד לא הודבקה.
+  return { settings: { ...FALLBACK_SETTINGS, ...data }, degraded: false };
 }
 
 export async function getWhatsAppSettings(): Promise<WhatsAppSettings> {
@@ -215,6 +224,8 @@ export async function countWhatsAppSentToday(now: Date = new Date()): Promise<nu
   return count ?? 0;
 }
 
+export type SendStopReason = "paused" | "whatsapp_paused" | "daily_limit" | "time_budget";
+
 /**
  * הבקר שמלווה ריצה אחת של הקרון.
  *
@@ -241,9 +252,19 @@ export class SendBudget {
     return new SendBudget(settings, sentToday, budgetMs, now.getTime());
   }
 
-  /** כמה עוד מותר היום לפי התקרה. */
+  /** כמה עוד מותר היום לפי התקרה — אחרי שבוע החימום, אם הוא פעיל. */
   get remainingToday(): number {
-    return Math.max(0, this.settings.daily_limit - this.sentToday - this.sent);
+    const { effectiveLimit } = warmupState({
+      dailyLimit: this.settings.daily_limit,
+      warmupEnabled: this.settings.warmup_enabled,
+      warmupStartedAt: this.settings.warmup_started_at,
+    });
+    return Math.max(0, effectiveLimit - this.sentToday - this.sent);
+  }
+
+  /** הרווח האקראי שהגשר ישמור בין הודעות אוטומטיות. */
+  get gap(): { min: number; max: number } {
+    return { min: this.settings.min_gap_seconds, max: this.settings.max_gap_seconds };
   }
 
   get sentThisRun(): number {
@@ -274,8 +295,12 @@ export class SendBudget {
    */
   canSend(
     channel: MessageChannel = "whatsapp"
-  ): { ok: true } | { ok: false; reason: "paused" | "daily_limit" | "time_budget" } {
+  ): { ok: true } | { ok: false; reason: SendStopReason } {
     if (this.settings.paused) return { ok: false, reason: "paused" };
+    // המתג של דף הוואטסאפ: עוצר וואטסאפ בלבד, ומייל ממשיך לצאת.
+    if (channel === "whatsapp" && this.settings.whatsapp_paused) {
+      return { ok: false, reason: "whatsapp_paused" };
+    }
     if (channel === "whatsapp" && this.remainingToday <= 0) {
       return { ok: false, reason: "daily_limit" };
     }

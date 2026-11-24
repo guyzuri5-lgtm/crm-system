@@ -53,10 +53,17 @@ async function bridgeFetch<T>(path: string, init: RequestInit = {}): Promise<T> 
 }
 
 /** מחזיר את מזהה ההודעה — אותו תפקיד שיש ל-wamid במסלול הרשמי. */
-export async function bridgeSendText(waId: string, text: string): Promise<string | null> {
+export async function bridgeSendText(
+  waId: string,
+  text: string,
+  queueGap?: { min: number; max: number }
+): Promise<string | null> {
+  // עם queueGap הגשר בודק שהמספר בוואטסאפ, מחזיר מזהה מיד ושולח מהתור שלו
+  // ברווח אקראי. אם השליחה מהתור תיכשל, הוא מדווח failed ל-webhook, וההודעה
+  // מסומנת "[לא נמסר]" ביומן כמו כל כישלון אחר.
   const result = await bridgeFetch<{ id?: string | null }>("/send", {
     method: "POST",
-    body: JSON.stringify({ to: waId, text }),
+    body: JSON.stringify({ to: waId, text, ...(queueGap ? { queue: queueGap } : {}) }),
   });
   return result?.id ?? null;
 }
@@ -67,9 +74,40 @@ export interface BridgeStatus {
   /** המספר המחובר, בספרות בלבד (972...) */
   me: string | null;
   registered: boolean;
+  /** מתי החיבור הנוכחי נפתח (ISO), או null כשאינו פתוח. */
+  since: string | null;
+  /** ההודעה הנכנסת האחרונה מאז שהגשר עלה (ISO). */
+  lastInboundAt: string | null;
+  /** כמה הודעות אוטומטיות מחכות בתור של הגשר. */
+  queued: number;
 }
 
 export async function getBridgeStatus(): Promise<BridgeStatus> {
-  const status = await bridgeFetch<BridgeStatus & { qr?: string | null }>("/status");
-  return { connection: status.connection, me: status.me, registered: status.registered };
+  const status = await bridgeFetch<Partial<BridgeStatus> & { qr?: string | null }>("/status");
+  return {
+    connection: status.connection ?? "unknown",
+    me: status.me ?? null,
+    registered: Boolean(status.registered),
+    since: status.since ?? null,
+    lastInboundAt: status.lastInboundAt ?? null,
+    queued: status.queued ?? 0,
+  };
+}
+
+/**
+ * קוד חיבור בן 8 תווים. בטלפון: וואטסאפ ביזנס ← מכשירים מקושרים ← קישור
+ * מכשיר ← "קשר עם מספר טלפון במקום". תקף כדקה-שתיים.
+ */
+export async function requestPairingCode(waId: string): Promise<string> {
+  const result = await bridgeFetch<{ code?: string }>("/pair", {
+    method: "POST",
+    body: JSON.stringify({ phone: waId }),
+  });
+  if (!result?.code) throw new Error("הגשר לא החזיר קוד חיבור");
+  return result.code;
+}
+
+/** הודעת בדיקה מהמספר המחובר אל עצמו ("הודעה לעצמי" בוואטסאפ). */
+export async function sendBridgeTestToSelf(text: string): Promise<void> {
+  await bridgeFetch("/send", { method: "POST", body: JSON.stringify({ to: "me", text }) });
 }

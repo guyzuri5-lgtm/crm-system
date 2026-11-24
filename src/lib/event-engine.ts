@@ -1,5 +1,5 @@
 import "server-only";
-import { isSendingPaused } from "@/lib/whatsapp-throttle";
+import { getWhatsAppSettings } from "@/lib/whatsapp-throttle";
 
 import { supabaseAdmin } from "./supabase/admin";
 import { sendMessageToContact } from "./send";
@@ -70,10 +70,12 @@ export async function runEventReminders(
 
   // ההשהיה נבדקת ראשונה. תזכורת פגישה יוצאת בוואטסאפ או במייל לפי התבנית,
   // ובשני המקרים היא שליחה אוטומטית — כלומר בדיוק מה שהמתג אמור לעצור.
-  if (await isSendingPaused()) {
+  const settings = await getWhatsAppSettings();
+  if (settings.paused) {
     summary.stopped = "paused";
     return summary;
   }
+  const queueGap = { min: settings.min_gap_seconds, max: settings.max_gap_seconds };
 
   // כל ההגדרות הפעילות, עם האירוע והתבנית שלהן. שאילתה אחת ולא אחת לכל
   // אירוע: מספר ההגדרות קטן מטבעו, וזה חוסך סיבוב לכל אירוע פעיל.
@@ -109,6 +111,8 @@ export async function runEventReminders(
     // אירוע שכובה, או תבנית שנמחקה: מדלגים בשקט. ה-restrict על המפתח הזר
     // אמור למנוע את השני, וזו חגורה נוספת.
     if (!event || !template) continue;
+    // מתג הוואטסאפ של דף הוואטסאפ: תזכורת בוואטסאפ לא יוצאת, תזכורת במייל כן.
+    if (template.channel === "whatsapp" && settings.whatsapp_paused) continue;
 
     // רק מי ששילם. מתעניין שלא סגר לא אמור לקבל "נתראה מחר", ובבסיס
     // purchase ממילא אין לו paid_at לספור ממנו.
@@ -162,6 +166,7 @@ export async function runEventReminders(
         template,
         event,
         logPrefix: `[תזכורת: ${template.name}]`,
+        queueGap: template.channel === "whatsapp" ? queueGap : undefined,
       });
 
       if (result.ok) {
