@@ -41,16 +41,20 @@ const payloadSchema = z.object({
   page_url: z.string().trim().max(1000).optional().default(""),
 });
 
+// שני סודות בזמן המעבר לקלאודפלייר: WEBSITE_LEAD_SECRET (וורדפרס) ו-WEBSITE_LEAD_SECRET_CF
+// (האתר החדש, functions/api/guide-lead.js). אחרי שהוורדפרס יורד אפשר להשאיר רק אחד.
 function secretMatches(given: string | null): boolean {
-  const expected = process.env.WEBSITE_LEAD_SECRET;
-  if (!expected || !given) return false;
+  if (!given) return false;
   const a = Buffer.from(given);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
+  return [process.env.WEBSITE_LEAD_SECRET, process.env.WEBSITE_LEAD_SECRET_CF].some((expected) => {
+    if (!expected) return false;
+    const b = Buffer.from(expected);
+    return a.length === b.length && timingSafeEqual(a, b);
+  });
 }
 
 export async function POST(request: NextRequest) {
-  if (!process.env.WEBSITE_LEAD_SECRET) {
+  if (!process.env.WEBSITE_LEAD_SECRET && !process.env.WEBSITE_LEAD_SECRET_CF) {
     console.error("[website-lead] WEBSITE_LEAD_SECRET לא מוגדר — כל הבקשות נדחות");
   }
   if (!secretMatches(request.headers.get("x-site-secret"))) {
