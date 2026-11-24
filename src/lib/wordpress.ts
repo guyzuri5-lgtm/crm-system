@@ -6,6 +6,7 @@ import { countStages, EVENT_TIMEZONE } from "./events";
 import { appUrl } from "./booking/create";
 import { utcToZonedParts } from "./booking/timezone";
 import type { CourseRow, EventRow } from "./supabase/database.types";
+import { syncSiteEvents } from "./site-events";
 
 /**
  * סנכרון אירועים וקורסים לאתר הוורדפרס (spiritualguy.co.il), כיוון אחד:
@@ -49,6 +50,8 @@ export function wpSyncRequest(now: Date = new Date()) {
 /** מריץ את הסנכרון אחרי שהתשובה כבר יצאה למשתמש (או לגרואו). */
 export function scheduleWordPressSync(kind: WordPressKind, id: string): void {
   after(() => syncToWordPress(kind, id));
+  // האתר החדש (Cloudflare): קובץ האירועים נבנה מחדש מכל האירועים. ראה site-events.ts.
+  if (kind === "event") after(() => syncSiteEvents());
 }
 
 /**

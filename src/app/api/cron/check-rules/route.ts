@@ -4,6 +4,7 @@ import { runJourneys } from "@/lib/journey-engine";
 import { runNewsletters } from "@/lib/newsletter-engine";
 import { runEventReminders } from "@/lib/event-engine";
 import { runWordPressSync } from "@/lib/wordpress";
+import { syncSiteEvents } from "@/lib/site-events";
 import { recordCronStart, recordCronFinish, recordCronError } from "@/lib/cron-health";
 
 // GET /api/cron/check-rules — per spec section 4, runs once a day (see vercel.json).
@@ -120,6 +121,8 @@ export async function GET(request: NextRequest) {
   // עדכונים לאתר שנתקעו (ורדפרס לא ענה). מחוץ ל-try: הפונקציה לא זורקת,
   // וכישלון שלה נשאר רשום על השורה עצמה ומוצג במסך האירוע או הקורס.
   const wordpress = await runWordPressSync(new Date(), Math.max(0, Math.min(remaining(), 40_000)));
+  // האתר החדש: בכל ריצה. משנה משהו רק אם הקובץ השתנה (אירוע חדש, נגמר, התמלא מקום).
+  const siteEvents = await syncSiteEvents(new Date());
 
   const failed = summary.results.filter((r) => !r.ok);
 
@@ -156,6 +159,7 @@ export async function GET(request: NextRequest) {
       errors: eventReminders.errors,
     },
     wordpress,
+    site_events: siteEvents,
     // מה שלא נשלח בריצה הזו ייתפס בריצה הבאה — automation_rule_runs מבטיח
     // שמי שכן קיבל לא יקבל שוב.
     skipped: summary.skipped,
