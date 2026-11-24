@@ -9,7 +9,7 @@ import { createAction, dryRunView, executor, fingerprint } from "./actions";
 import { allCovers, coverFor } from "./covers";
 import {
   buildBody, isBlocked, mediaKind, PLATFORM_NAMES, POST_STATUS_HE, readPost, selected, validateLocal, opts, fmt,
-  whenLocal, TIKTOK_PRIVACY, YT_VISIBILITY, FORMAT_NAMES, hasAutomation, type Item, type MediaRow,
+  whenLocal, TIKTOK_PRIVACY, YT_VISIBILITY, FORMAT_NAMES, hasAutomation, zonedToUtc, type Item, type MediaRow,
 } from "./pure/platforms";
 import { wantsAutomation } from "./pure/autoplan";
 
@@ -173,12 +173,22 @@ export async function syncOne(itemId: string) {
   }
 }
 
-/** מרענן כל פוסט שעוד יכול להשתנות. רץ בעובד ובכניסה ללוח. */
-export async function syncActive(maxAgeMs = 50_000, deadline = Infinity) {
-  const rows = must(await contentDb().from("content_publications").select("item_id, last_synced_at, status")
+/**
+ * מרענן כל פוסט שעוד יכול להשתנות. רץ בעובד ובכניסה ללוח.
+ * nearTz: רק פוסטים שבחלון הפרסום (30 דקות לפני עד 20 אחרי), בשעון של אזור
+ * הזמן הזה, ופוסטים שבאמצע עלייה. העובד מעביר אותו בהשכמות שאינן השגרה של
+ * 15 הדקות, כדי לא לסנכרן את כל הלוח כל 5 דקות.
+ */
+export async function syncActive(maxAgeMs = 50_000, deadline = Infinity, nearTz?: string) {
+  const rows = must(await contentDb().from("content_publications").select("item_id, last_synced_at, status, scheduled_for")
     .not("zernio_post_id", "is", null).in("status", ["scheduled", "publishing", "partial", "failed"]), "active pubs") as any[];
   let n = 0;
   for (const r of rows) {
+    if (nearTz && r.status !== "publishing" && r.status !== "partial") {
+      const due = zonedToUtc(String(r.scheduled_for || "").slice(0, 16), nearTz);
+      // בלי מועד קריא — מסנכרנים, כמו שהבדיקה במסד מעירה במקרה כזה
+      if (due && (due.getTime() > Date.now() + 30 * 60_000 || due.getTime() < Date.now() - 20 * 60_000)) continue;
+    }
     const age = Date.now() - (r.last_synced_at ? Date.parse(r.last_synced_at) : 0);
     if (age < maxAgeMs || (r.status === "failed" && age < 3600_000)) continue;
     if (Date.now() > deadline) break;

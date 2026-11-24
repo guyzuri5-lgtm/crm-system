@@ -79,9 +79,16 @@ async function runLocked(
   // אף פוסט שמבקש אוטומציה לא עולה בלעדיה — כל דקה, גם כשהתזמון האוטומטי כבוי
   if (!opts.dry) await step("guard", () => guardAutomations(alert, log));
   pending = (await step("rescope", () => rescope(alert, log, opts.dry))) || 0;
-  // האיטיים בסוף, ורק כל עוד יש זמן: שום דבר מהם לא קריטי לכלל "לא ברמת החשבון"
-  if (Date.now() - started < budget - 25_000) await step("accounts", () => checkAccounts(alert));
-  if (Date.now() - started < budget - 20_000) await step("sync", () => syncActive(50_000, started + budget - 15_000));
+  // האיטיים בסוף, ורק כל עוד יש זמן: שום דבר מהם לא קריטי לכלל "לא ברמת החשבון".
+  // בדיקת החשבונות וסנכרון כל הלוח — פעם ב-15 דקות (המנעול פג לבד אחרי 14).
+  // בהשכמות של 5 הדקות (תזמון אוטומטי) ושל חלון הפרסום — רק הפוסטים שבחלון.
+  // זה חוסך Active CPU ב-Vercel, שמכסה של 4 שעות בחודש ב-Hobby (24.11.26).
+  const routine = opts.dry || (await tryLease("routine_tick", 840).catch(() => true));
+  if (routine && Date.now() - started < budget - 25_000) await step("accounts", () => checkAccounts(alert));
+  if (Date.now() - started < budget - 20_000) {
+    const tz = routine ? undefined : (await getSettings()).timezone;
+    await step("sync", () => syncActive(50_000, started + budget - 15_000, tz));
+  }
   // כל שנייה בין הפרסום להצמדה היא תגובה שהאוטומציה ברמת החשבון עונה עליה לבד
   while (pending && !opts.dry && Date.now() - started < budget - 15_000) {
     await new Promise((r) => setTimeout(r, 10_000));
@@ -92,10 +99,11 @@ async function runLocked(
     await step("autoplan", () => runAutoplan(alert, log, started + budget - 12_000));
   }
   if (Date.now() - started < budget - 10_000) await step("stats", () => stats(log));
-  // פיסות תוכן: פרומפטר → מספר, גאנט → פיסה, אינסטגרם → ביצועים. פעם ב-5 דקות —
-  // המנעול לא משתחרר בכוונה, והוא פג לבד אחרי 270 שניות. נטען רק כאן: pieces
-  // מושך את googleapis, ספרייה כבדה שאין סיבה לטעון בכל קריאה.
-  if (!opts.dry && process.env.GOOGLE_DRIVE_REFRESH_TOKEN && Date.now() - started < budget - 20_000 && (await tryLease("pieces_tick", 270))) {
+  // פיסות תוכן: פרומפטר → מספר, גאנט → פיסה, אינסטגרם → ביצועים. פעם בחצי שעה —
+  // המנעול לא משתחרר בכוונה, והוא פג לבד אחרי 29 דקות (ולא 30, כדי שהקריאה של
+  // הרבע שעה לא תדלג). עד 24.11.26 זה רץ כל 5 דקות, והיה הצרכן הגדול של Active CPU.
+  // נטען רק כאן: pieces מושך את googleapis, ספרייה כבדה שאין סיבה לטעון בכל קריאה.
+  if (!opts.dry && process.env.GOOGLE_DRIVE_REFRESH_TOKEN && Date.now() - started < budget - 20_000 && (await tryLease("pieces_tick", 1740))) {
     await step("pieces", async () => {
       const { DriveNotConfiguredError, runPieces } = await import("./pieces");
       try {
