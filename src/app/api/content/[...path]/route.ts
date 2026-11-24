@@ -55,8 +55,11 @@ const routes: [string, string, Handler][] = [
     }
   }],
   ["GET", "server-view", async () => {
-    // רענון הסטטוסים רץ אחרי התשובה, כדי שהלוח לא יחכה לו
-    after(() => Pub.syncActive(55_000).catch(() => {}));
+    // רענון הסטטוסים רץ אחרי התשובה, כדי שהלוח לא יחכה לו. רק פוסטים שבחלון
+    // הפרסום או באמצע עלייה: בלי nearTz כל ~40 הפוסטים המתוזמנים סונכרנו מחדש
+    // מול Zernio כל דקה כשהגאנט פתוח (קריאה+כתיבה לכל רשת). את כל הלוח מסנכרן
+    // העובד פעם ב-15 דקות.
+    after(async () => { await Pub.syncActive(55_000, Infinity, (await getSettings()).timezone).catch(() => {}); });
     const [items, links, worker, alerts, board, autoplan, settings] = await Promise.all([Pub.serverView(), Bank.linksView(), getMeta("worker_last"), getMeta("alerts"),
       contentDb().from("content_board").select("revision").eq("id", true).single(), getMeta("autoplan_last"), getSettings()]);
     for (const [id, l] of Object.entries(links)) (items[id] ||= {}).automation = l;

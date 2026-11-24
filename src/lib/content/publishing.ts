@@ -105,16 +105,22 @@ export async function orderMedia(itemId: string, ids: string[]) {
 
 // ── מצב מהשרת לכל פריט (לרענון הלוח בלי טעינה) ──
 
+// רק העמודות שהלוח מציג. select("*") משך גם את raw ואת sent_payload — כ-600KB
+// בכל רענון של הגאנט (כל 30 שניות כשהוא פתוח), וזה מה שפוצץ את מכסת ה-Egress
+// של סופה בייס בנובמבר 2026. מ-sent_payload צריך רק את _cover.
+const PUB_VIEW_COLS = "item_id, zernio_post_id, status, scheduled_for, timezone, last_synced_at, last_error, cover:sent_payload->_cover";
+const TARGET_VIEW_COLS = "item_id, platform, status, account_id, platform_post_id, permalink, error";
+
 export async function serverView() {
   const out: Record<string, any> = {};
-  const pubs = must(await contentDb().from("content_publications").select("*"), "pubs");
+  const pubs = must(await contentDb().from("content_publications").select(PUB_VIEW_COLS), "pubs");
   for (const r of pubs as any[]) {
     (out[r.item_id] ||= {}).pub = {
       zernioPostId: r.zernio_post_id, status: r.status, statusHe: POST_STATUS_HE[r.status] || r.status,
       scheduledFor: r.scheduled_for, timezone: r.timezone, lastSyncedAt: r.last_synced_at, error: r.last_error,
     };
   }
-  const tg = must(await contentDb().from("content_targets").select("*"), "targets");
+  const tg = must(await contentDb().from("content_targets").select(TARGET_VIEW_COLS), "targets");
   for (const r of tg as any[]) {
     ((out[r.item_id] ||= {}).targets ||= {})[r.platform] = {
       status: r.status, statusHe: POST_STATUS_HE[r.status] || r.status, accountId: r.account_id,
@@ -126,7 +132,7 @@ export async function serverView() {
   // קאבר שהסנכרון מהתיקייה העלה לסרטון שמחכה לאישור (covers.ts)
   for (const [id, c] of Object.entries(await allCovers())) (out[id] ||= {}).cover = { url: c.url, source: c.source, file: c.file, uploadedAt: c.uploadedAt };
   for (const r of pubs as any[]) {
-    const sent = r.sent_payload?._cover;
+    const sent = r.cover;
     if (sent && out[r.item_id]?.pub) out[r.item_id].pub.cover = sent;
   }
   return out;
