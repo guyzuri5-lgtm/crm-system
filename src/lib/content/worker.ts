@@ -8,13 +8,13 @@ import { syncActive, syncOne } from "./publishing";
 import { createCommentAutomation, getAutomation, refreshStats, runHealthSafe, sweepOrphans } from "./automations";
 import { PLATFORM_NAMES, zonedToUtc } from "./pure/platforms";
 import { META_NAMES, type MetaPlatform } from "./pure/automation";
-import { guardAutomations, runAutoplan } from "./autoplan";
+import { guardAutomations, runAutoplan, takeAutoplanDirty } from "./autoplan";
 
 /**
  * עובד הרקע. pg_cron בודק כל דקה בתוך המסד אם יש עבודה דחופה, וקורא לו רק
- * כשיש: פוסט שעולה בקרוב או עלה הרגע, או אוטומציה ברמת החשבון. חוץ מזה —
- * פעם ב-15 דקות, ופעם ב-5 כשהתזמון האוטומטי דלוק
- * (0051_content_worker_smart_wake.sql). לכן כל "כל X דקות" כאן הוא לכל הפחות,
+ * כשיש: פוסט שעולה בקרוב או עלה הרגע, אוטומציה ברמת החשבון, או שינוי בלוח
+ * שמחכה לשיבוץ. חוץ מזה — פעם בשעה (0056_content_worker_hourly.sql; קודם 0051
+ * ו-0055). כל השכמה עולה כ-2 שניות Active CPU ב-Vercel גם בלי עבודה. לכן כל "כל X דקות" כאן הוא לכל הפחות,
  * והמנעולים והספים קצרים מעט מהמחזור, כדי שקריאה שמקדימה בשנייה לא תדלג.
  *
  * הוא עושה רק מה שהבעלים כבר אישר במסך אישור:
@@ -25,15 +25,15 @@ import { guardAutomations, runAutoplan } from "./autoplan";
  *    אליו (rescope_on_publish.py).
  *    אם זה לא קורה תוך כמה דקות, או שהפוסט נכשל — משהה אותה ומתריע. אוטומציה
  *    אסור שתישאר ברמת החשבון;
- *  - כל 15 דקות: מספרים, ומיילים שנאספו → אנשי קשר.
- *  - כל 5 דקות, כשהמתג "תזמון אוטומטי" דלוק: שיבוץ ותזמון (autoplan.ts). זה
+ *  - כל שעה: מספרים, ומיילים שנאספו → אנשי קשר (גיא אישר עד שעה איחור, 24.11.26).
+ *  - כשהמתג "תזמון אוטומטי" דלוק: שיבוץ ותזמון (autoplan.ts) בתוך דקה משינוי בלוח, ופעם בשעה. זה
  *    המקום היחיד שבו העובד יוצר פוסט ב-Zernio בלי מסך אישור — גיא ביקש את זה.
  * יצירה חדשה מכבדת את המתג הראשי. השהיה והצמדה לפוסט רצות גם כשהוא כבוי.
  */
 
 const MAX_ACCOUNT_WIDE_MS = 12 * 60_000;
-// קצת פחות מ-15: הקריאות מגיעות כל 15 דקות בדיוק, ובלי מרווח כל שנייה ריצה הייתה מדלגת למחזור הבא
-const STATS_EVERY_MS = 14 * 60_000;
+// קצת פחות משעה: מאז 0056 השגרה מגיעה כל שעה בדיוק, ובלי מרווח כל שנייה ריצה הייתה מדלגת למחזור הבא
+const STATS_EVERY_MS = 55 * 60_000;
 
 interface Alert { level: "error" | "warn"; text: string; itemId?: string | null; at: number }
 
@@ -80,10 +80,10 @@ async function runLocked(
   if (!opts.dry) await step("guard", () => guardAutomations(alert, log));
   pending = (await step("rescope", () => rescope(alert, log, opts.dry))) || 0;
   // האיטיים בסוף, ורק כל עוד יש זמן: שום דבר מהם לא קריטי לכלל "לא ברמת החשבון".
-  // בדיקת החשבונות וסנכרון כל הלוח — פעם ב-15 דקות (המנעול פג לבד אחרי 14).
-  // בהשכמות של 5 הדקות (תזמון אוטומטי) ושל חלון הפרסום — רק הפוסטים שבחלון.
-  // זה חוסך Active CPU ב-Vercel, שמכסה של 4 שעות בחודש ב-Hobby (24.11.26).
-  const routine = opts.dry || (await tryLease("routine_tick", 840).catch(() => true));
+  // בדיקת החשבונות וסנכרון כל הלוח — פעם בשעה (0056; המנעול פג לבד אחרי 55 דקות).
+  // בהשכמות של חלון הפרסום ושל שינוי בלוח — רק הפוסטים שבחלון. הגאנט הפתוח
+  // מסנכרן בעצמו. זה חוסך Active CPU ב-Vercel: 4 שעות ל-30 יום ב-Hobby (24.11.26).
+  const routine = opts.dry || (await tryLease("routine_tick", 3300).catch(() => true));
   if (routine && Date.now() - started < budget - 25_000) await step("accounts", () => checkAccounts(alert));
   if (Date.now() - started < budget - 20_000) {
     const tz = routine ? undefined : (await getSettings()).timezone;
@@ -94,18 +94,19 @@ async function runLocked(
     await new Promise((r) => setTimeout(r, 10_000));
     pending = (await step("rescope", () => rescope(alert, log, opts.dry))) || 0;
   }
-  // שיבוץ ותזמון אוטומטי. מ-0055 (24.11.26) pg_cron מעיר בשבילו רק ברבע השעה, ולא כל 5
-  // דקות — כל השכמה עולה Active CPU. המנעול (270 שניות) נשאר, למקרה של השכמות צפופות
-  // סביב פוסט שעולה. כבוי — לא עושה כלום.
-  if (!opts.dry && Date.now() - started < budget - 25_000 && (await tryLease("autoplan_tick", 270))) {
-    await step("autoplan", () => runAutoplan(alert, log, started + budget - 12_000));
+  // שיבוץ ותזמון אוטומטי: מיד כשהלוח השתנה (הדגל של markAutoplanDirty, ש-0056 מעירה
+  // בשבילו בתוך דקה), ופעם בשעה כרשת ביטחון. בהשכמות הצפופות סביב פוסט שעולה הוא
+  // לא רץ שוב ושוב — כל השכמה עולה Active CPU. כבוי — לא עושה כלום.
+  if (!opts.dry && Date.now() - started < budget - 25_000) {
+    const dirty = await takeAutoplanDirty().catch(() => false);
+    if (dirty || (await tryLease("autoplan_tick", 3300))) await step("autoplan", () => runAutoplan(alert, log, started + budget - 12_000));
   }
   if (Date.now() - started < budget - 10_000) await step("stats", () => stats(log));
-  // פיסות תוכן: פרומפטר → מספר, גאנט → פיסה, אינסטגרם → ביצועים. פעם בחצי שעה —
-  // המנעול לא משתחרר בכוונה, והוא פג לבד אחרי 29 דקות (ולא 30, כדי שהקריאה של
-  // הרבע שעה לא תדלג). עד 24.11.26 זה רץ כל 5 דקות, והיה הצרכן הגדול של Active CPU.
+  // פיסות תוכן: פרומפטר → מספר, גאנט → פיסה, אינסטגרם → ביצועים. פעם בשלוש שעות —
+  // המנעול לא משתחרר בכוונה, והוא פג לבד אחרי 2:55 (ולא 3:00, כדי שהשגרה של השעה
+  // העגולה לא תדלג). עד 24.11.26 זה רץ כל 5 דקות, והיה צרכן גדול של Active CPU.
   // נטען רק כאן: pieces מושך את googleapis, ספרייה כבדה שאין סיבה לטעון בכל קריאה.
-  if (!opts.dry && process.env.GOOGLE_DRIVE_REFRESH_TOKEN && Date.now() - started < budget - 20_000 && (await tryLease("pieces_tick", 1740))) {
+  if (!opts.dry && process.env.GOOGLE_DRIVE_REFRESH_TOKEN && Date.now() - started < budget - 20_000 && (await tryLease("pieces_tick", 10500))) {
     await step("pieces", async () => {
       const { DriveNotConfiguredError, runPieces } = await import("./pieces");
       try {

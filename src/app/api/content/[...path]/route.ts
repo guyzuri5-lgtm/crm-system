@@ -9,6 +9,7 @@ import { confirmAction } from "@/lib/content/actions";
 import * as Pub from "@/lib/content/publishing";
 import * as Bank from "@/lib/content/automations";
 import { normalizeRules } from "@/lib/content/pure/autoplan";
+import { markAutoplanDirty } from "@/lib/content/autoplan";
 import { normalizeRepostRules } from "@/lib/content/pure/reposts";
 import { refreshIg } from "@/lib/content/ig/refresh";
 import { readIgWithPieceNo } from "@/lib/content/pieces";
@@ -68,7 +69,8 @@ const routes: [string, string, Handler][] = [
     // revision: סרטון שנכנס מהתיקייה מעלה אותה, והגאנט הפתוח טוען את עצמו מחדש
     return json({ items, alerts: alerts || [], armedCount: armed, revision: Number(board.data?.revision) || 0,
       autoplan: { on: settings.autoSchedule, last: autoplan || null, rules: normalizeRules({ days: settings.autoplanDays, times: settings.autoplanTimes, maxPerDay: settings.autoplanMaxPerDay }) },
-      worker: w ? { lastRun: w.at, ok: w.ok, summary: w.summary, stale: Date.now() / 1000 - w.at > 180 } : { lastRun: null, stale: true } });
+      // 65 דקות: מאז 0056 העובד קם לשגרה פעם בשעה, וקודם בדקה שלפני פרסום
+      worker: w ? { lastRun: w.at, ok: w.ok, summary: w.summary, stale: Date.now() / 1000 - w.at > 3900 } : { lastRun: null, stale: true } });
   }],
   // עותק של הלוח לפני ייבוא — הגאנט קורא לזה לפני שהוא ממזג או מחליף
   ["POST", "snapshot", async () => {
@@ -223,6 +225,8 @@ async function handle(req: NextRequest, ctx: Ctx) {
     if (method !== req.method) continue;
     const p = match(pattern, path);
     if (!p) continue;
+    // כל שינוי בלוח מעיר את השיבוץ האוטומטי בתוך דקה (autoplan.ts, markAutoplanDirty)
+    if (req.method !== "GET") after(() => markAutoplanDirty().catch(() => {}));
     try {
       return await fn(req, p);
     } catch (e) {

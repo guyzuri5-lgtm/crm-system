@@ -1,7 +1,7 @@
 import "server-only";
 /* eslint-disable @typescript-eslint/no-explicit-any -- שורות content_* לא מוקלדות; הצורה מתועדת בהערות ונבדקת בזמן ריצה */
 
-import { contentDb, getMeta, getSettings, must, nowIso, setMeta } from "./db";
+import { contentDb, deleteMeta, getMeta, getSettings, must, nowIso, setMeta } from "./db";
 import { writesEnabled, zwrite, ZernioError } from "./zernio";
 import { boardWrite, bumpRevision } from "./intake";
 import { confirmAction } from "./actions";
@@ -11,8 +11,8 @@ import { addDays, DEFAULT_TIME, guardVerdict, HORIZON_DAYS, hoursUntil, localNow
 import { zonedToUtc } from "./pure/platforms";
 
 /**
- * השיבוץ האוטומטי (גיא, 14.10.2026). רץ מעובד הרקע כל 5 דקות, רק כשהמתג
- * "תזמון אוטומטי" דלוק:
+ * השיבוץ האוטומטי (גיא, 14.10.2026). רץ מעובד הרקע, רק כשהמתג "תזמון אוטומטי"
+ * דלוק: בתוך דקה מכל שינוי בלוח (markAutoplanDirty), ופעם בשעה כרשת ביטחון.
  *  1. משבץ סרטונים מהשורה "מוכנים לתזמון" לימים (הכללים ב-pure/autoplan.ts);
  *  2. מתזמן ב-Zernio כל סרטון מהתיקייה שיש לו יום — גם כזה שגיא גרר בעצמו —
  *     חוץ מפוסט שמבקש תגובות ועוד אין לו אוטומציה. אותו פוסט מסומן בכתום
@@ -28,6 +28,26 @@ import { zonedToUtc } from "./pure/platforms";
  */
 
 const RETRY_AFTER_MS = 60 * 60_000;
+
+/**
+ * "הלוח השתנה — כדאי לשבץ" (24.11.2026). מאז 0056 העובד קם לשגרה רק פעם בשעה,
+ * כדי לחסוך Active CPU ב-Vercel. כדי שסרטון חדש, גרירה או בחירת אוטומציה לא
+ * יחכו שעה: כל כתיבה דרך ה-API של הגאנט או של הקליטה מסמנת את הדגל הזה,
+ * content_worker_due() מעירה את העובד בדקה הבאה כשהוא קיים (והמתג דלוק),
+ * והעובד מוחק אותו לפני שהוא משבץ. כמה כתיבות באותה דקה = השכמה אחת.
+ */
+const DIRTY_KEY = "autoplan_dirty";
+
+export async function markAutoplanDirty() {
+  await setMeta(DIRTY_KEY, { at: Date.now() / 1000 });
+}
+
+/** true אם הלוח השתנה מאז השיבוץ האחרון. מוחק את הדגל, כך שכתיבה בזמן הריצה תסמן אותו מחדש. */
+export async function takeAutoplanDirty(): Promise<boolean> {
+  if (!(await getMeta(DIRTY_KEY))) return false;
+  await deleteMeta(DIRTY_KEY);
+  return true;
+}
 const LIVE_PUB = ["scheduled", "publishing", "published", "partial", "failed", "unknown"];
 
 export interface AutoplanReport {

@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
+import { markAutoplanDirty } from "@/lib/content/autoplan";
 import { ZernioError } from "@/lib/content/zernio";
 import { checkIntakeToken, createIntakeItem, intakeContext, intakeStatus, intakeUploaded, replaceMedia } from "@/lib/content/intake";
 import { coverUploaded, presignCover } from "@/lib/content/covers";
@@ -30,6 +31,9 @@ async function handle(req: NextRequest, ctx: Ctx) {
   if (!(await checkIntakeToken(req.headers.get("authorization")))) return json({ error: "unauthorized" }, 401);
   const path = (await ctx.params).path.join("/");
   const m = req.method;
+  // סרטון חדש, קובץ שהועלה או החלפת מדיה — השיבוץ האוטומטי רץ בתוך דקה (autoplan.ts)
+  if (m === "POST" && (path === "items" || path.startsWith("media/") || path.startsWith("items/")))
+    after(() => markAutoplanDirty().catch(() => {}));
   try {
     if (m === "GET" && path === "context") return json(await intakeContext());
     if (m === "GET" && path === "status") return json(await intakeStatus());
