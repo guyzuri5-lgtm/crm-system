@@ -94,7 +94,9 @@ async function runLocked(
     await new Promise((r) => setTimeout(r, 10_000));
     pending = (await step("rescope", () => rescope(alert, log, opts.dry))) || 0;
   }
-  // שיבוץ ותזמון אוטומטי, פעם ב-5 דקות (המנעול פג לבד אחרי 270 שניות). כבוי — לא עושה כלום.
+  // שיבוץ ותזמון אוטומטי. מ-0055 (24.11.26) pg_cron מעיר בשבילו רק ברבע השעה, ולא כל 5
+  // דקות — כל השכמה עולה Active CPU. המנעול (270 שניות) נשאר, למקרה של השכמות צפופות
+  // סביב פוסט שעולה. כבוי — לא עושה כלום.
   if (!opts.dry && Date.now() - started < budget - 25_000 && (await tryLease("autoplan_tick", 270))) {
     await step("autoplan", () => runAutoplan(alert, log, started + budget - 12_000));
   }
