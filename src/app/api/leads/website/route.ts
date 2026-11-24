@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse, after } from "next/server";
 import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -60,8 +60,6 @@ export async function POST(request: NextRequest) {
     console.error("[website-lead] WEBSITE_LEAD_SECRET לא מוגדר — כל הבקשות נדחות");
   }
   if (!secretMatches(request.headers.get("x-site-secret"))) {
-    // אבחון זמני (רק בלוג הפרטי): טביעת אצבע קצרה, לא הסוד עצמו
-    const fp = (v: string | null | undefined) => (v ? createHash("sha256").update(v.trim()).digest("hex").slice(0, 8) : "none");
     console.error(
       `[website-lead] 401 given=${fp(request.headers.get("x-site-secret"))} len=${request.headers.get("x-site-secret")?.length ?? 0} ` +
         `wp=${fp(process.env.WEBSITE_LEAD_SECRET)} cf=${fp(process.env.WEBSITE_LEAD_SECRET_CF)} cflen=${process.env.WEBSITE_LEAD_SECRET_CF?.length ?? 0}`
