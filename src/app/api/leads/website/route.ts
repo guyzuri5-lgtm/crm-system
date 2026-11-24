@@ -60,10 +60,6 @@ export async function POST(request: NextRequest) {
     console.error("[website-lead] WEBSITE_LEAD_SECRET לא מוגדר — כל הבקשות נדחות");
   }
   if (!secretMatches(request.headers.get("x-site-secret"))) {
-    console.error(
-      `[website-lead] 401 given=${fp(request.headers.get("x-site-secret"))} len=${request.headers.get("x-site-secret")?.length ?? 0} ` +
-        `wp=${fp(process.env.WEBSITE_LEAD_SECRET)} cf=${fp(process.env.WEBSITE_LEAD_SECRET_CF)} cflen=${process.env.WEBSITE_LEAD_SECRET_CF?.length ?? 0}`
-    );
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
 
